@@ -9,7 +9,7 @@ enum InputMode: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .pdf: return "PDF"
-        case .image: return "Image"
+        case .image: return "Bild"
         }
     }
 

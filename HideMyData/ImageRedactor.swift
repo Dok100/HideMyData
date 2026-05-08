@@ -31,15 +31,15 @@ final class ImageRedactor {
 
     var statusText: String {
         switch phase {
-        case .empty: return "No image"
+        case .empty: return "Kein Bild"
         case .loaded:
-            if redactionRects.isEmpty { return "Loaded" }
-            return "\(redactionRects.count) rectangle\(redactionRects.count == 1 ? "" : "s")"
-        case .detecting: return "Detecting PII…"
+            if redactionRects.isEmpty { return "Geladen" }
+            return "\(redactionRects.count) Bereich\(redactionRects.count == 1 ? "" : "e")"
+        case .detecting: return "PII wird erkannt…"
         case .redacted(_, let r):
-            return "\(r) redaction\(r == 1 ? "" : "s")"
-        case .saved(let url): return "Saved → \(url.lastPathComponent)"
-        case .failed(let m): return "Failed: \(m)"
+            return "\(r) Schwärzung\(r == 1 ? "" : "en")"
+        case .saved(let url): return "Gespeichert → \(url.lastPathComponent)"
+        case .failed(let m): return "Fehler: \(m)"
         }
     }
 
@@ -67,7 +67,7 @@ final class ImageRedactor {
     func loadImage(from url: URL) -> Bool {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
               let cg = normalizedCGImage(from: src) else {
-            phase = .failed("Could not open image \(url.lastPathComponent)")
+            phase = .failed("Bild konnte nicht geöffnet werden: \(url.lastPathComponent)")
             return false
         }
         let utiString = CGImageSourceGetType(src) as String? ?? ""
@@ -80,7 +80,7 @@ final class ImageRedactor {
     func loadImage(data: Data, originalURL: URL) -> Bool {
         guard let src = CGImageSourceCreateWithData(data as CFData, nil),
               let cg = normalizedCGImage(from: src) else {
-            phase = .failed("Could not open image \(originalURL.lastPathComponent)")
+            phase = .failed("Bild konnte nicht geöffnet werden: \(originalURL.lastPathComponent)")
             return false
         }
         let utiString = CGImageSourceGetType(src) as String? ?? ""
@@ -125,7 +125,7 @@ final class ImageRedactor {
         if writeRedacted(to: url, uti: outUTI, options: exportAccessory.options) {
             phase = .saved(url)
         } else {
-            phase = .failed("Could not write redacted image")
+            phase = .failed("Geschwärztes Bild konnte nicht gespeichert werden")
         }
     }
 
@@ -149,7 +149,7 @@ final class ImageRedactor {
         phase = .detecting
 
         guard let ocr = try? await OCREngine.recognize(cg) else {
-            phase = .failed("OCR failed")
+            phase = .failed("OCR fehlgeschlagen")
             return
         }
         if Task.isCancelled { return }
@@ -165,7 +165,7 @@ final class ImageRedactor {
         if Task.isCancelled { return }
         switch result {
         case .failure(let err):
-            phase = .failed("Inference error: \(err.localizedDescription)")
+            phase = .failed("Erkennungsfehler: \(err.localizedDescription)")
         case .success(let spans):
             for span in spans {
                 let (origStart, origEnd) = OCRNormalizer.translateRange(
@@ -290,8 +290,8 @@ final class ImageRedactor {
     }
 
     private func suggestedSaveName(uti: UTType) -> String {
-        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "image"
+        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "bild"
         let ext = uti.preferredFilenameExtension ?? "png"
-        return "\(base)-redacted.\(ext)"
+        return "\(base)-geschwaerzt.\(ext)"
     }
 }

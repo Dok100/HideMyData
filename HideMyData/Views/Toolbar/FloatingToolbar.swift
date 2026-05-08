@@ -28,23 +28,23 @@ struct FloatingToolbar: View {
             Button(action: openAction) {
                 HStack(spacing: 6) {
                     Image(systemName: openIcon)
-                    Text("Open")
+                    Text("Öffnen")
                 }
                 .padding(.horizontal, 4)
             }
             .keyboardShortcut("o", modifiers: [.command])
-            .help("Open  ⌘O")
+            .help("Öffnen  ⌘O")
 
             Button(action: saveAction) {
                 HStack(spacing: 6) {
                     Image(systemName: "square.and.arrow.down")
-                    Text("Save")
+                    Text("Speichern")
                 }
                 .padding(.horizontal, 4)
             }
             .disabled(!hasFile)
             .keyboardShortcut("s", modifiers: [.command])
-            .help("Save redacted copy  ⌘S")
+            .help("Geschwärzte Kopie speichern  ⌘S")
         }
         .buttonStyle(.glass)
     }
@@ -55,14 +55,14 @@ struct FloatingToolbar: View {
             HStack(spacing: 6) {
                 Image(systemName: "sparkles")
                     .symbolEffect(.pulse, isActive: isDetecting)
-                Text("Detect")
+                Text("Erkennen")
             }
             .padding(.horizontal, 4)
         }
         .buttonStyle(.glassProminent)
         .disabled(!detector.isReady || !canDetect)
         .keyboardShortcut("d", modifiers: [.command])
-        .help("Auto-detect PII  ⌘D")
+        .help("PII automatisch erkennen  ⌘D")
     }
 
     @ViewBuilder
@@ -79,11 +79,11 @@ struct FloatingToolbar: View {
 
     @ViewBuilder
     private var clearButton: some View {
-        Button("Clear all redactions", systemImage: "xmark.circle", action: clearAction)
+        Button("Alle Schwärzungen entfernen", systemImage: "xmark.circle", action: clearAction)
             .labelStyle(.iconOnly)
             .buttonStyle(.glass)
             .disabled(!hasRedactions || isDetecting)
-            .help("Clear all redactions")
+            .help("Alle Schwärzungen entfernen")
     }
 
     @ViewBuilder
@@ -91,7 +91,7 @@ struct FloatingToolbar: View {
         GlassSegmented(
             selection: styleBinding,
             items: RedactionStyle.allCases.map {
-                .init(value: $0, image: $0.systemImage, label: $0.displayName, help: "\($0.displayName) redaction")
+                .init(value: $0, image: $0.systemImage, label: $0.displayName, help: "\($0.displayName)-Schwärzung")
             }
         )
         .fixedSize()

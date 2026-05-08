@@ -27,11 +27,16 @@ final class ModelDownloader {
         try manifestData.write(to: manifestDest)
         let manifest = try JSONDecoder().decode(OpenMedManifest.self, from: manifestData)
 
-        var files: [String] = [manifest.config_path]
-        if let labelMap = manifest.label_map_path { files.append(labelMap) }
-        files.append(manifest.preferred_weights)
+        var files: [String] = [try validatedRelativePath(manifest.config_path)]
+        if let labelMap = manifest.label_map_path {
+            files.append(try validatedRelativePath(labelMap))
+        }
+        files.append(try validatedRelativePath(manifest.preferred_weights))
+        let tokenizerBase = try validatedRelativePath(manifest.tokenizer.path)
         for f in manifest.tokenizer.files {
-            files.append(manifest.tokenizer.path == "." ? f : "\(manifest.tokenizer.path)/\(f)")
+            let safeFile = try validatedRelativePath(f)
+            let combined = tokenizerBase == "." ? safeFile : "\(tokenizerBase)/\(safeFile)"
+            files.append(try validatedRelativePath(combined))
         }
 
         onProgress?(Int64(manifestData.count), 0)
@@ -48,7 +53,7 @@ final class ModelDownloader {
 
         for path in files {
             let url = baseURL.appendingPathComponent(path)
-            let dest = modelDir.appendingPathComponent(path)
+            let dest = try destinationURL(for: path, in: modelDir)
             try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
 
             let baseline = cumulative
@@ -80,6 +85,45 @@ final class ModelDownloader {
     private func sanitize(_ s: String) -> String {
         s.replacing("/", with: "__")
     }
+
+    private func validatedRelativePath(_ path: String) throws -> String {
+        guard !path.isEmpty else {
+            throw ModelDownloadError.invalidManifestPath(path)
+        }
+
+        let normalized = path.replacingOccurrences(of: "\\", with: "/")
+        if normalized.hasPrefix("/") {
+            throw ModelDownloadError.invalidManifestPath(path)
+        }
+
+        let components = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        var cleaned: [String] = []
+        for component in components {
+            let part = String(component)
+            if part.isEmpty || part == "." {
+                continue
+            }
+            if part == ".." {
+                throw ModelDownloadError.invalidManifestPath(path)
+            }
+            cleaned.append(part)
+        }
+
+        guard !cleaned.isEmpty else {
+            return "."
+        }
+        return cleaned.joined(separator: "/")
+    }
+
+    private func destinationURL(for relativePath: String, in modelDir: URL) throws -> URL {
+        let dest = modelDir.appendingPathComponent(relativePath)
+        let basePath = modelDir.standardizedFileURL.path
+        let destPath = dest.standardizedFileURL.path
+        guard destPath == basePath || destPath.hasPrefix(basePath + "/") else {
+            throw ModelDownloadError.invalidManifestPath(relativePath)
+        }
+        return dest
+    }
 }
 
 private struct OpenMedManifest: Decodable {
@@ -90,6 +134,17 @@ private struct OpenMedManifest: Decodable {
     struct Tokenizer: Decodable {
         let path: String
         let files: [String]
+    }
+}
+
+private enum ModelDownloadError: LocalizedError {
+    case invalidManifestPath(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidManifestPath(let path):
+            return "Das Manifest enthält einen unsicheren Pfad: \(path)"
+        }
     }
 }
 

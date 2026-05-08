@@ -28,7 +28,8 @@ final class PIIDetector {
     private var openmed: OpenMed?
 
     static let modelRepoID = "OpenMed/privacy-filter-mlx-8bit"
-    static let modelURL = URL(string: "https://huggingface.co/\(modelRepoID)")!
+    static let modelRevision = "4c9836d"
+    static let modelURL = URL(string: "https://huggingface.co/\(modelRepoID)/tree/\(modelRevision)")!
 
     private static func defaultCacheRoot() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -37,36 +38,49 @@ final class PIIDetector {
             .appendingPathComponent("ModelCache", isDirectory: true)
     }
 
+    private static func modelDirectory(in cacheRoot: URL) -> URL {
+        cacheRoot
+            .appendingPathComponent(Self.modelRepoID.replacingOccurrences(of: "/", with: "__"), isDirectory: true)
+            .appendingPathComponent(Self.modelRevision, isDirectory: true)
+    }
+
+    private static func readyMarkerURL(in cacheRoot: URL) -> URL {
+        modelDirectory(in: cacheRoot).appendingPathComponent(".openmed-artifact-ready")
+    }
+
     private var cacheRoot: URL { Self.defaultCacheRoot() }
+    private var modelDirectory: URL {
+        Self.modelDirectory(in: cacheRoot)
+    }
+    private var readyMarkerURL: URL {
+        Self.readyMarkerURL(in: cacheRoot)
+    }
 
     init() {
-        let state: OpenMedMLXModelCacheState =
-            (try? OpenMedModelStore.mlxModelCacheState(
-                repoID: Self.modelRepoID,
-                cacheDirectory: Self.defaultCacheRoot()
-            )) ?? .missing
-        self.phase = (state == .ready) ? .loadingModel : .needsDownload
+        let cacheRoot = Self.defaultCacheRoot()
+        let hasReadyMarker = FileManager.default.fileExists(atPath: Self.readyMarkerURL(in: cacheRoot).path)
+        self.phase = hasReadyMarker ? .loadingModel : .needsDownload
     }
 
     var statusText: String {
         switch phase {
-        case .needsDownload: "Model not downloaded"
+        case .needsDownload: "Modell nicht heruntergeladen"
         case .downloading(let downloaded, let total): Self.downloadStatus(downloaded: downloaded, total: total)
-        case .loadingModel: "Loading model…"
-        case .warmingUp: "Warming up…"
-        case .ready: "Ready"
-        case .running: "Running…"
-        case .failed(let message): "Failed: \(message)"
+        case .loadingModel: "Modell wird geladen…"
+        case .warmingUp: "Modell wird vorbereitet…"
+        case .ready: "Bereit"
+        case .running: "Wird ausgeführt…"
+        case .failed(let message): "Fehler: \(message)"
         }
     }
 
     private static func downloadStatus(downloaded: Int64, total: Int64) -> String {
         let downloadedStr = downloaded.formatted(.byteCount(style: .file))
-        guard total > 0 else { return "Downloading… \(downloadedStr) so far" }
+        guard total > 0 else { return "Wird heruntergeladen… bisher \(downloadedStr)" }
         let totalStr = total.formatted(.byteCount(style: .file))
         let pct = (Double(downloaded) / Double(total))
             .formatted(.percent.precision(.fractionLength(0)))
-        return "Downloading… \(downloadedStr) / \(totalStr) (\(pct))"
+        return "Wird heruntergeladen… \(downloadedStr) / \(totalStr) (\(pct))"
     }
 
     var isReady: Bool {
@@ -96,7 +110,11 @@ final class PIIDetector {
         ensureCacheDirectoryExists()
         phase = .downloading(downloaded: 0, total: 0)
 
-        let downloader = ModelDownloader(repoID: Self.modelRepoID, cacheRoot: cacheRoot)
+        let downloader = ModelDownloader(
+            repoID: Self.modelRepoID,
+            revision: Self.modelRevision,
+            cacheRoot: cacheRoot
+        )
         downloader.onProgress = { [weak self] downloaded, total in
             guard let self else { return }
             self.phase = .downloading(downloaded: downloaded, total: total)
@@ -106,25 +124,28 @@ final class PIIDetector {
             _ = try await downloader.download()
             await loadCachedModel()
         } catch {
-            phase = .failed("Download failed: \(error.localizedDescription)")
+            phase = .failed("Download fehlgeschlagen: \(error.localizedDescription)")
         }
     }
 
     private func loadCachedModel() async {
         phase = .loadingModel
         do {
-            let modelURL = try await OpenMedModelStore.downloadMLXModel(repoID: Self.modelRepoID, cacheDirectory: cacheRoot)
-            openmed = try OpenMed(backend: .mlx(modelDirectoryURL: modelURL))
+            guard FileManager.default.fileExists(atPath: readyMarkerURL.path) else {
+                phase = .needsDownload
+                return
+            }
+            openmed = try OpenMed(backend: .mlx(modelDirectoryURL: modelDirectory))
             await warmUp()
         } catch {
-            phase = .failed("Load failed: \(error.localizedDescription)")
+            phase = .failed("Laden fehlgeschlagen: \(error.localizedDescription)")
         }
     }
 
     private func warmUp() async {
         phase = .warmingUp
         let model = openmed
-        _ = await runOnBackground { try? model?.extractPII("Warm up.", confidenceThreshold: 0.5, useSmartMerging: false) }
+        _ = await runOnBackground { try? model?.extractPII("Aufwärmen.", confidenceThreshold: 0.5, useSmartMerging: false) }
         phase = .ready
     }
 
@@ -132,7 +153,7 @@ final class PIIDetector {
 
     func detect(_ text: String) async -> Result<[DetectedSpan], Error> {
         guard let model = openmed else {
-            return .failure(HMDError.message("Detector not loaded"))
+            return .failure(HMDError.message("Erkennung ist nicht geladen"))
         }
         let prevPhase = phase
         phase = .running

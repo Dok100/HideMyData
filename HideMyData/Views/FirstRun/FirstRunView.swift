@@ -12,14 +12,14 @@ struct FirstRunView: View {
             Spacer(minLength: 32)
 
             VStack(spacing: 12) {
-                Text("Model download")
+                Text("Modell-Download")
                     .font(.system(size: 32, weight: .bold))
                     .tracking(-0.6)
 
                 Text("""
-                HideMyData uses a small on‑device language model to find personal information in your documents. \
-                The model is downloaded once from Hugging Face and runs entirely on your Mac from then on — \
-                nothing is uploaded to the cloud. OCR for images uses Apple Vision, which is already on your device.
+                HideMyData nutzt ein kleines lokales Sprachmodell, um personenbezogene Informationen in deinen Dokumenten zu finden. \
+                Das Modell wird einmal von Hugging Face geladen und läuft danach vollständig auf deinem Mac — \
+                nichts wird in die Cloud hochgeladen. Für die OCR bei Bildern wird Apple Vision verwendet, das bereits auf deinem Gerät vorhanden ist.
                 """)
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)

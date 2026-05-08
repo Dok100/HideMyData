@@ -14,11 +14,11 @@ struct IntroView: View {
                 AppLogo()
 
                 VStack(spacing: 10) {
-                    Text("Welcome to HideMyData")
+                    Text("Willkommen bei HideMyData")
                         .font(.system(size: 32, weight: .bold))
                         .tracking(-0.6)
 
-                    Text("Redact sensitive information from PDFs and images,\nentirely on your Mac.")
+                    Text("Schwärze sensible Informationen aus PDFs und Bildern,\nkomplett auf deinem Mac.")
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -35,22 +35,22 @@ struct IntroView: View {
                 FeatureRow(
                     icon: "lock.shield.fill",
                     tint: .green,
-                    title: "Private by Design",
-                    subtitle: "Detection and redaction run entirely on your Mac. No accounts, no servers, no telemetry — your documents never leave the device.",
+                    title: "Datenschutz ab Werk",
+                    subtitle: "Erkennung und Schwärzung laufen vollständig auf deinem Mac. Keine Konten, keine Server, keine Telemetrie — deine Dokumente verlassen das Gerät nie.",
                     delay: 0.10
                 )
                 FeatureRow(
                     icon: "sparkles",
                     tint: .indigo,
-                    title: "Intelligent Detection",
-                    subtitle: "An on‑device language model finds names, emails, phone numbers, addresses, dates and IDs across PDFs and scanned images.",
+                    title: "Intelligente Erkennung",
+                    subtitle: "Ein lokales Sprachmodell findet Namen, E-Mails, Telefonnummern, Adressen, Daten und Kennungen in PDFs und gescannten Bildern.",
                     delay: 0.20
                 )
                 FeatureRow(
                     icon: "rectangle.dashed",
                     tint: .pink,
-                    title: "Permanent Redaction",
-                    subtitle: "Saved files have the original text removed from the page — not just covered with a black box that can be peeled off.",
+                    title: "Dauerhafte Schwärzung",
+                    subtitle: "In gespeicherten Dateien wird der Originaltext von der Seite entfernt — nicht nur mit einem schwarzen Balken überdeckt, den man wieder entfernen könnte.",
                     delay: 0.30
                 )
             }
@@ -60,7 +60,7 @@ struct IntroView: View {
             Spacer(minLength: 44)
 
             Button(action: onContinue) {
-                Text("Continue")
+                Text("Weiter")
                     .font(.system(size: 14, weight: .semibold))
                     .frame(minWidth: 220)
                     .padding(.vertical, 4)

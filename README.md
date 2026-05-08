@@ -42,6 +42,7 @@ open HideMyData.xcodeproj
 ```
 
 On first launch, you will be prompted to download the model (~1.5 GB) from Hugging Face into `~/Library/Application Support/HideMyData/ModelCache/`.
+The app pins the model to a specific Hugging Face revision instead of tracking `main`, so future upstream changes are not pulled silently.
 
 ## Tech Stack
 

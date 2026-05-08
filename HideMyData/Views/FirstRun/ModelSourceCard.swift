@@ -12,7 +12,7 @@ struct ModelSourceCard: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text("huggingface.co · ≈ 1.5 GB · cached locally")
+                Text("huggingface.co · ≈ 1,5 GB · lokal zwischengespeichert")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -26,7 +26,7 @@ struct ModelSourceCard: View {
             }
         }
         .buttonStyle(.plain)
-        .help("Open \(PIIDetector.modelURL.absoluteString) in your browser")
-        .accessibilityLabel("Model: \(PIIDetector.modelRepoID), from Hugging Face, about 1.5 gigabytes, cached locally. Opens in browser.")
+        .help("\(PIIDetector.modelURL.absoluteString) im Browser öffnen")
+        .accessibilityLabel("Modell: \(PIIDetector.modelRepoID), von Hugging Face, etwa 1,5 Gigabyte groß, lokal zwischengespeichert. Öffnet sich im Browser.")
     }
 }

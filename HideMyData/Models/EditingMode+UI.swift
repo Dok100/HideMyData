@@ -3,9 +3,9 @@ import Foundation
 extension EditingMode {
     var helpText: String {
         switch self {
-        case .view: "View — scroll the document"
-        case .add: "Add — drag to mark a region"
-        case .remove: "Remove — click a box to unmark"
+        case .view: "Ansehen — durch das Dokument scrollen"
+        case .add: "Hinzufügen — ziehen, um einen Bereich zu markieren"
+        case .remove: "Entfernen — auf ein Feld klicken, um die Markierung zu entfernen"
         }
     }
 }

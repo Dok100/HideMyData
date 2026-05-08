@@ -12,7 +12,7 @@ struct HideMyDataApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(after: .appInfo) {
-                Button("Check for Updates…") {
+                Button("Nach Updates suchen…") {
                     updater.checkForUpdates()
                 }
             }

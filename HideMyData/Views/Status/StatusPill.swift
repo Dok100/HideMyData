@@ -117,7 +117,7 @@ private extension PIIDetector {
         switch phase {
         case .ready: nil
         case .running:
-            .init(kind: .progress, text: "Detecting…")
+            .init(kind: .progress, text: "Erkennung läuft…")
         case .loadingModel, .warmingUp:
             .init(kind: .progress, text: "\(statusText)")
         case .failed(let msg):
@@ -134,13 +134,13 @@ private extension PDFRedactor {
         case .redacted(_, let rects):
             StatusPillContent(
                 kind: .success("checkmark.seal.fill"),
-                text: "^[\(rects) redaction](inflect: true)",
+                text: "\(rects) Schwärzung\(rects == 1 ? "" : "en")",
                 autoDismissAfter: .seconds(3)
             )
         case .saved(let url):
             StatusPillContent(kind: .success("tray.and.arrow.down.fill"), text: "\(url.lastPathComponent)")
         case .detecting:
-            StatusPillContent(kind: .progress, text: "Detecting…")
+            StatusPillContent(kind: .progress, text: "Erkennung läuft…")
         case .failed(let msg):
             StatusPillContent(kind: .warning("exclamationmark.triangle.fill"), text: "\(msg)")
         default: nil
@@ -155,13 +155,13 @@ private extension ImageRedactor {
         case .redacted(_, let rects):
             StatusPillContent(
                 kind: .success("checkmark.seal.fill"),
-                text: "^[\(rects) redaction](inflect: true)",
+                text: "\(rects) Schwärzung\(rects == 1 ? "" : "en")",
                 autoDismissAfter: .seconds(3)
             )
         case .saved(let url):
             StatusPillContent(kind: .success("tray.and.arrow.down.fill"), text: "\(url.lastPathComponent)")
         case .detecting:
-            StatusPillContent(kind: .progress, text: "Detecting…")
+            StatusPillContent(kind: .progress, text: "Erkennung läuft…")
         case .failed(let msg):
             StatusPillContent(kind: .warning("exclamationmark.triangle.fill"), text: "\(msg)")
         default: nil

@@ -12,7 +12,7 @@ struct HomeButton: View {
                 .glassEffect(.regular, in: .circle)
         }
         .buttonStyle(.plain)
-        .help("Back to file selection  ⌘H")
+        .help("Zur Dateiauswahl zurück  ⌘H")
         .keyboardShortcut("h", modifiers: [.command])
     }
 }

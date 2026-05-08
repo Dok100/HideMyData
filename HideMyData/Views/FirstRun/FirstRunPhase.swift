@@ -28,7 +28,7 @@ private struct DownloadCTA: View {
 
     var body: some View {
         Button(action: start) {
-            Label("Download model", systemImage: "arrow.down.circle.fill")
+            Label("Modell herunterladen", systemImage: "arrow.down.circle.fill")
                 .frame(minWidth: 220)
                 .padding(.vertical, 4)
         }
@@ -57,7 +57,7 @@ private struct DownloadProgress: View {
                 }
             } else {
                 ProgressView().controlSize(.small)
-                Text("Preparing download…")
+                Text("Download wird vorbereitet…")
                     .font(.footnote.monospaced())
                     .foregroundStyle(.secondary)
             }
@@ -85,7 +85,7 @@ private struct DownloadFailure: View {
                 .font(.callout)
                 .foregroundStyle(.red)
                 .multilineTextAlignment(.center)
-            Button("Retry", systemImage: "arrow.clockwise", action: retry)
+            Button("Erneut versuchen", systemImage: "arrow.clockwise", action: retry)
                 .buttonStyle(.glass)
                 .controlSize(.large)
         }

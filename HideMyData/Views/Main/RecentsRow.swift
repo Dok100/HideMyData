@@ -8,7 +8,7 @@ struct RecentsRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("RECENT")
+            Text("ZULETZT")
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .tracking(2.4)
                 .foregroundStyle(.tertiary)

@@ -51,7 +51,7 @@ struct EmptyState: View {
                 .foregroundStyle(.tertiary)
 
             VStack(spacing: 10) {
-                Text(isTargeted ? "Drop to open" : "Redact, locally.")
+                Text(isTargeted ? "Zum Öffnen ablegen" : "Lokal schwärzen.")
                     .font(.system(size: 38, weight: .medium, design: .rounded))
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
@@ -60,7 +60,7 @@ struct EmptyState: View {
                     Image(systemName: "arrow.down.doc")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.tertiary)
-                    Text("Drag a file here, or use the button below.")
+                    Text("Ziehe eine Datei hierher oder nutze den Button unten.")
                         .font(.system(size: 13, weight: .regular))
                         .foregroundStyle(.secondary)
                 }
@@ -73,7 +73,7 @@ struct EmptyState: View {
                     .fixedSize()
 
                 Button(action: openAction) {
-                    Label("Open", systemImage: openIcon)
+                    Label("Öffnen", systemImage: openIcon)
                         .padding(.horizontal, 6)
                 }
                 .buttonStyle(.glassProminent)

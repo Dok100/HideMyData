@@ -13,8 +13,8 @@ enum RedactionStyle: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .blackRectangle: return "Black"
-        case .blur: return "Blur"
+        case .blackRectangle: return "Schwarz"
+        case .blur: return "Unschärfe"
         }
     }
 }
@@ -28,9 +28,9 @@ enum EditingMode: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .view: return "View"
-        case .add: return "Add"
-        case .remove: return "Remove"
+        case .view: return "Ansehen"
+        case .add: return "Hinzufügen"
+        case .remove: return "Entfernen"
         }
     }
 
@@ -73,15 +73,15 @@ final class PDFRedactor {
 
     var statusText: String {
         switch phase {
-        case .empty: return "No document"
+        case .empty: return "Kein Dokument"
         case .loaded:
-            if redactionAnnotations.isEmpty { return "Loaded" }
-            return "\(redactionAnnotations.count) rectangle\(redactionAnnotations.count == 1 ? "" : "s")"
-        case .detecting: return "Detecting PII…"
+            if redactionAnnotations.isEmpty { return "Geladen" }
+            return "\(redactionAnnotations.count) Bereich\(redactionAnnotations.count == 1 ? "" : "e")"
+        case .detecting: return "PII wird erkannt…"
         case .redacted(_, let r):
-            return "\(r) redaction\(r == 1 ? "" : "s")"
-        case .saved(let url): return "Saved → \(url.lastPathComponent)"
-        case .failed(let m): return "Failed: \(m)"
+            return "\(r) Schwärzung\(r == 1 ? "" : "en")"
+        case .saved(let url): return "Gespeichert → \(url.lastPathComponent)"
+        case .failed(let m): return "Fehler: \(m)"
         }
     }
 
@@ -104,7 +104,7 @@ final class PDFRedactor {
     @discardableResult
     func loadPDF(from url: URL) -> Bool {
         guard let doc = PDFDocument(url: url) else {
-            phase = .failed("Could not open PDF at \(url.lastPathComponent)")
+            phase = .failed("PDF konnte nicht geöffnet werden: \(url.lastPathComponent)")
             return false
         }
         cancelDetection()
@@ -122,7 +122,7 @@ final class PDFRedactor {
     @discardableResult
     func loadPDF(data: Data, originalURL: URL) -> Bool {
         guard let doc = PDFDocument(data: data) else {
-            phase = .failed("Could not open PDF at \(originalURL.lastPathComponent)")
+            phase = .failed("PDF konnte nicht geöffnet werden: \(originalURL.lastPathComponent)")
             return false
         }
         cancelDetection()
@@ -147,7 +147,7 @@ final class PDFRedactor {
         if let outURL = saveSecurely(to: url, options: exportAccessory.options) {
             phase = .saved(outURL)
         } else {
-            phase = .failed("Could not write redacted PDF")
+            phase = .failed("Geschwärzte PDF konnte nicht gespeichert werden")
         }
     }
 
@@ -197,7 +197,7 @@ final class PDFRedactor {
             if Task.isCancelled { return }
             switch result {
             case .failure(let err):
-                phase = .failed("Inference error on page \(pageIndex + 1): \(err.localizedDescription)")
+                phase = .failed("Erkennungsfehler auf Seite \(pageIndex + 1): \(err.localizedDescription)")
                 return
             case .success(let spans):
                 totalSpans += spans.count
@@ -565,7 +565,7 @@ final class PDFRedactor {
     }
 
     private func suggestedSaveName() -> String {
-        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "document"
-        return "\(base)-redacted.pdf"
+        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "dokument"
+        return "\(base)-geschwaerzt.pdf"
     }
 }

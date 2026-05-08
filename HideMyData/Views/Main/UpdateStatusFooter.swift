@@ -15,12 +15,12 @@ struct UpdateStatusFooter: View {
 
             switch updater.status {
             case .unknown:
-                Button("Check for updates", action: updater.checkForUpdates)
+                Button("Nach Updates suchen", action: updater.checkForUpdates)
                     .buttonStyle(.plain)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)
             case .upToDate:
-                Text("Up to date")
+                Text("Aktuell")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.tertiary)
             case .updateAvailable(let version):
@@ -30,7 +30,7 @@ struct UpdateStatusFooter: View {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 10, weight: .semibold))
-                        Text("Update to v\(version)")
+                        Text("Auf v\(version) aktualisieren")
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(Color.accentColor)

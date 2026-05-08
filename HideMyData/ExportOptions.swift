@@ -14,13 +14,13 @@ final class ExportOptionsAccessoryView: NSStackView {
 
     init() {
         removeMetadataCheckbox = NSButton(
-            checkboxWithTitle: "Remove metadata",
+            checkboxWithTitle: "Metadaten entfernen",
             target: nil,
             action: nil
         )
         removeMetadataCheckbox.state = .on
 
-        let note = NSTextField(labelWithString: "Strips EXIF, GPS, PDF document properties, annotations, links, forms, and hidden document data where possible.")
+        let note = NSTextField(labelWithString: "Entfernt nach Möglichkeit EXIF-, GPS- und PDF-Dokumenteigenschaften sowie Anmerkungen, Links, Formulare und versteckte Dokumentdaten.")
         note.font = .preferredFont(forTextStyle: .footnote)
         note.textColor = .secondaryLabelColor
         note.maximumNumberOfLines = 2

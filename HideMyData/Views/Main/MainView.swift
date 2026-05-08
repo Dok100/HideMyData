@@ -8,6 +8,7 @@ struct MainView: View {
     @Bindable var recents: RecentsStore
     @Binding var inputMode: InputMode
     @State private var showHome: Bool = false
+    @AppStorage("HMD.recents.enabled") private var recentsEnabled: Bool = true
 
     private var activeIsEmpty: Bool {
         switch inputMode {
@@ -24,6 +25,7 @@ struct MainView: View {
                 EmptyState(
                     inputMode: $inputMode,
                     recents: recents,
+                    recentsEnabled: $recentsEnabled,
                     onOpenPDF: openPDFAndAdd,
                     onOpenImage: openImageAndAdd,
                     onDropFile: handleDrop,
@@ -70,6 +72,10 @@ struct MainView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(22)
             }
+        }
+        .onAppear { recents.setEnabled(recentsEnabled) }
+        .onChange(of: recentsEnabled) { _, enabled in
+            recents.setEnabled(enabled)
         }
     }
 

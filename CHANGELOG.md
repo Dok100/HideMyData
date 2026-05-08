@@ -1,3 +1,13 @@
+# Unreleased
+
+* Modelldownload auf eine feste Hugging-Face-Revision gepinnt, statt `main` zu folgen.
+* Validierung von Manifest-Pfaden ergänzt, um unsichere Pfad-Traversal beim Download zu verhindern.
+* Laden des Modells auf einen revisionsgebundenen lokalen Cache-Pfad umgestellt.
+* Sichtbare UI-Texte, Statusmeldungen und Exportoptionen ins Deutsche übersetzt.
+* Option ergänzt, um „Zuletzt verwendet“ und lokale Vorschaubilder für sensible Dokumente zu deaktivieren.
+* README um einen Hinweis auf das gepinnte Modellverhalten ergänzt.
+* Bestehende Installationen müssen das Modell möglicherweise einmal neu herunterladen, da der Cache jetzt revisionsgebunden ist.
+
 # 0.2.0
 
 ## HideMyData is now notarized!

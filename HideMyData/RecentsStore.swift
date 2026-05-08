@@ -22,16 +22,22 @@ struct RecentItem: Identifiable, Codable, Equatable {
 @MainActor
 final class RecentsStore {
     private(set) var items: [RecentItem] = []
+    private(set) var isEnabled: Bool
 
     static let maxItems = 8
     private static let storageKey = "HMD.recents.v1"
+    private static let enabledKey = "HMD.recents.enabled"
 
-    init() { load() }
+    init() {
+        self.isEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
+        load()
+    }
 
     // MARK: - Public API
 
     @discardableResult
     func add(url: URL, kind: RecentItem.Kind) -> Bool {
+        guard isEnabled else { return false }
         guard let bookmark = try? url.bookmarkData(options: [.withSecurityScope]) else { return false }
         let thumbName = "\(UUID().uuidString).png"
         let thumbPath = Self.thumbsDir().appendingPathComponent(thumbName)
@@ -73,6 +79,17 @@ final class RecentsStore {
         persist()
     }
 
+    func setEnabled(_ enabled: Bool) {
+        guard enabled != isEnabled else { return }
+        isEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
+        if enabled {
+            load()
+        } else {
+            clearAll()
+        }
+    }
+
     /// Resolve to (url, didStartScope, dataLoadedFromScope).
     /// Caller must call `stopAccessingSecurityScopedResource()` if `didStartScope` is true.
     func resolve(_ item: RecentItem) -> (url: URL, didStartScope: Bool)? {
@@ -88,6 +105,10 @@ final class RecentsStore {
     // MARK: - Persistence
 
     private func load() {
+        guard isEnabled else {
+            items = []
+            return
+        }
         guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
               let decoded = try? JSONDecoder().decode([RecentItem].self, from: data) else { return }
         let fm = FileManager.default
@@ -97,6 +118,14 @@ final class RecentsStore {
     private func persist() {
         guard let data = try? JSONEncoder().encode(items) else { return }
         UserDefaults.standard.set(data, forKey: Self.storageKey)
+    }
+
+    private func clearAll() {
+        for item in items {
+            deleteThumbnail(filename: item.thumbnailFilename)
+        }
+        items = []
+        UserDefaults.standard.removeObject(forKey: Self.storageKey)
     }
 
     private func resolveURL(from bookmark: Data) -> URL? {

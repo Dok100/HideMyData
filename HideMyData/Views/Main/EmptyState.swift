@@ -4,6 +4,7 @@ internal import UniformTypeIdentifiers
 struct EmptyState: View {
     @Binding var inputMode: InputMode
     @Bindable var recents: RecentsStore
+    @Binding var recentsEnabled: Bool
     let onOpenPDF: () -> Void
     let onOpenImage: () -> Void
     let onDropFile: (URL) -> Void
@@ -81,6 +82,8 @@ struct EmptyState: View {
                 .keyboardShortcut("o", modifiers: [.command])
             }
             .padding(.top, 4)
+
+            privacyToggle
         }
         .padding(.horizontal, 56)
         .padding(.vertical, 44)
@@ -115,5 +118,21 @@ struct EmptyState: View {
         case .pdf: onOpenPDF
         case .image: onOpenImage
         }
+    }
+
+    @ViewBuilder
+    private var privacyToggle: some View {
+        Toggle(isOn: $recentsEnabled) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Zuletzt verwendet speichern")
+                    .font(.system(size: 13, weight: .medium))
+                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .toggleStyle(.switch)
+        .padding(.top, 2)
+        .frame(maxWidth: 360, alignment: .leading)
     }
 }

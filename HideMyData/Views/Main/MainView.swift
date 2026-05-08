@@ -6,10 +6,12 @@ struct MainView: View {
     @Bindable var pdfRedactor: PDFRedactor
     @Bindable var imageRedactor: ImageRedactor
     @Bindable var recents: RecentsStore
+    @Bindable var customPatterns: CustomPatternStore
     @Binding var inputMode: InputMode
     @State private var showHome: Bool = false
     @AppStorage("HMD.recents.enabled") private var recentsEnabled: Bool = true
     @State private var saveWarningPresented = false
+    @State private var customPatternsPresented = false
 
     private var activeIsEmpty: Bool {
         switch inputMode {
@@ -64,7 +66,9 @@ struct MainView: View {
                     detector: detector,
                     pdfRedactor: pdfRedactor,
                     imageRedactor: imageRedactor,
+                    customPatternsCount: customPatterns.patterns.count,
                     inputMode: inputMode,
+                    onManagePatterns: { customPatternsPresented = true },
                     onSaveRequest: requestSave
                 )
                 .padding(.horizontal, 18)
@@ -98,6 +102,9 @@ struct MainView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text("Bitte bestätige oder lehne zuerst alle offenen Treffer ab, bevor du speicherst.")
+        }
+        .sheet(isPresented: $customPatternsPresented) {
+            CustomPatternsSheet(store: customPatterns)
         }
     }
 
@@ -225,6 +232,511 @@ struct MainView: View {
         case .pdf: pdfRedactor.rejectFinding(id)
         case .image: imageRedactor.rejectFinding(id)
         }
+    }
+}
+
+private struct CustomPatternsSheet: View {
+    private enum Field: Hashable {
+        case label
+        case value
+        case category
+    }
+
+    private enum ImportMode: String, CaseIterable, Identifiable {
+        case append
+        case replace
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .append: "Ergänzen"
+            case .replace: "Ersetzen"
+            }
+        }
+    }
+
+    @Environment(\.dismiss) private var dismiss
+    @Bindable var store: CustomPatternStore
+    @State private var label = ""
+    @State private var value = ""
+    @State private var category = "custom_identifier"
+    @State private var isImporting = false
+    @State private var isExporting = false
+    @State private var importExportMessage: String?
+    @State private var importMode: ImportMode = .append
+    @FocusState private var focusedField: Field?
+
+    var body: some View {
+        GeometryReader { proxy in
+            let useSplitLayout = proxy.size.width >= 980
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    headerBar
+
+                    if useSplitLayout {
+                        HStack(alignment: .top, spacing: 22) {
+                            composerColumn
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                            activeRulesColumn
+                                .frame(width: min(max(proxy.size.width * 0.34, 300), 380), alignment: .topLeading)
+                        }
+                    } else {
+                        composerColumn
+                        activeRulesColumn
+                    }
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 26)
+        }
+        .frame(minWidth: 720, idealWidth: 940, maxWidth: 1280, minHeight: 640, idealHeight: 760, maxHeight: 1100, alignment: .topLeading)
+        .background(AmbientBackdrop())
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false,
+            onCompletion: handleImport
+        )
+        .fileExporter(
+            isPresented: $isExporting,
+            document: CustomPatternsTransferDocument(patterns: store.exportPatterns()),
+            contentType: .json,
+            defaultFilename: "HideMyData-Regeln",
+            onCompletion: handleExport
+        )
+    }
+
+    private var headerBar: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Eigene Erkennungsregeln")
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                Text("Pflege eigene Trefferlisten, importiere Regeldateien und prüfe vor dem Speichern die erzeugten Bausteine.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 16)
+
+            Menu {
+                Button("Regeln importieren") {
+                    isImporting = true
+                }
+                Button("Regeln exportieren") {
+                    isExporting = true
+                }
+            } label: {
+                Label("Regel-Datei", systemImage: "arrow.up.arrow.down.circle")
+            }
+            .menuStyle(.button)
+            .controlSize(.large)
+
+            Button("Fertig") { dismiss() }
+                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+        }
+        .padding(.horizontal, 4)
+    }
+
+    private var composerColumn: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            sectionCard(title: "Neue Regel", subtitle: "Gib Namen, IDs oder ganze Adressblöcke ein. Mehrzeilige Blöcke werden automatisch in robuste Teilregeln zerlegt.") {
+                VStack(alignment: .leading, spacing: 18) {
+                    fieldGroup(title: "Import beim Laden", footnote: "Steuert, ob importierte Regeln zum Bestand hinzugefügt oder komplett ersetzt werden.") {
+                        Picker("Importmodus", selection: $importMode) {
+                            ForEach(ImportMode.allCases) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+
+                    fieldGroup(title: "Bezeichnung") {
+                        TextField("z. B. Firmenname oder Lieferadresse", text: $label)
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(.black.opacity(0.82))
+                            .overlay(fieldBorder(isFocused: focusedField == .label, cornerRadius: 14))
+                            .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                            .focused($focusedField, equals: .label)
+                    }
+
+                    fieldGroup(title: "Adressblock oder Wert", trailingText: "Mehrzeilig empfohlen", footnote: "Ideal für Name, Straße, PLZ/Ort oder komplette Lieferadresse.") {
+                        ZStack(alignment: .topLeading) {
+                            addressEditorBackground
+
+                            TextEditor(text: $value)
+                                .font(.system(size: 15))
+                                .scrollContentBackground(.hidden)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 18)
+                                .padding(.bottom, 16)
+                                .frame(minHeight: 150)
+                                .background(Color.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                .foregroundStyle(.black.opacity(0.84))
+                                .focused($focusedField, equals: .value)
+                                .overlay(fieldBorder(isFocused: focusedField == .value, cornerRadius: 20))
+                                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+
+                            if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Beispiel")
+                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(.tertiary)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(.white.opacity(0.7), in: Capsule())
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        previewInputLine("Max Mustermann")
+                                        previewInputLine("Friedensstr. 25")
+                                        previewInputLine("74229 Oedheim")
+                                        previewInputLine("Deutschland")
+                                    }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.top, 16)
+                                .allowsHitTesting(false)
+                            }
+                        }
+
+                        HStack(spacing: 8) {
+                            addressHintChip("Eine Zeile pro Baustein")
+                            addressHintChip("z. B. Name, Straße, PLZ/Ort")
+                        }
+                    }
+
+                    fieldGroup(title: "Kategorie", footnote: "Wird für die spätere Einordnung der Treffer verwendet.") {
+                        TextField("z. B. customer_id", text: $category)
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(.black.opacity(0.82))
+                            .overlay(fieldBorder(isFocused: focusedField == .category, cornerRadius: 14))
+                            .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                            .focused($focusedField, equals: .category)
+                    }
+                }
+            }
+
+            sectionCard(title: "Vorschau vor dem Speichern", subtitle: previewPatterns.isEmpty ? "Füge oben eine Regel oder einen Adressblock ein. Hier siehst du vor dem Speichern, welche Einträge neu erzeugt werden." : "Diese Regeln werden neu angelegt:") {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 10) {
+                        if previewPatterns.isEmpty {
+                            HStack(spacing: 12) {
+                                Image(systemName: "text.badge.plus")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Text("Noch keine Vorschau verfügbar")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                        } else {
+                            ForEach(previewPatterns) { pattern in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(previewBadgeText(for: pattern))
+                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                        .foregroundStyle(previewBadgeColor(for: pattern))
+                                        .padding(.horizontal, 9)
+                                        .padding(.vertical, 5)
+                                        .background(previewBadgeColor(for: pattern).opacity(0.12), in: Capsule())
+
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(pattern.label)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                        Text(pattern.value)
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                    }
+
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(12)
+                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                        }
+                    }
+                }
+                .frame(minHeight: 140, maxHeight: 240)
+            }
+
+            HStack(spacing: 12) {
+                Button("Regel hinzufügen", action: addPattern)
+                    .controlSize(.large)
+                    .buttonStyle(.glassProminent)
+                    .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                if let importExportMessage {
+                    Text(importExportMessage)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var activeRulesColumn: some View {
+        sectionCard(title: "Aktive Regeln", subtitle: "\(store.patterns.count) gespeicherte Regeln") {
+            HStack(spacing: 10) {
+                Button("Bestand modernisieren", action: migratePatterns)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+                Button("Duplikate entfernen", action: deduplicatePatterns)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+            }
+
+            if store.patterns.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Noch keine eigenen Regeln angelegt.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text("Importiere eine Regeldatei oder lege links deine erste Regel an.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 4)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 10) {
+                        ForEach(store.patterns) { pattern in
+                            HStack(alignment: .top, spacing: 10) {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(pattern.label)
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text(pattern.value)
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                    Text(pattern.category)
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                Spacer(minLength: 0)
+                                Button("Löschen") {
+                                    store.remove(id: pattern.id)
+                                }
+                                .buttonStyle(.glass)
+                                .controlSize(.small)
+                            }
+                            .padding(12)
+                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                    }
+                }
+                .frame(minHeight: 220)
+            }
+        }
+    }
+
+    private func addPattern() {
+        store.add(label: label, value: value, category: category)
+        label = ""
+        value = ""
+        if category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            category = "custom_identifier"
+        }
+    }
+
+    private var previewPatterns: [CustomPattern] {
+        store.previewPatterns(label: label, value: value, category: category)
+    }
+
+    private func sectionCard<Content: View>(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.system(size: 17, weight: .semibold))
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            content()
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.white.opacity(0.16))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(.white.opacity(0.28), lineWidth: 1)
+                )
+        )
+    }
+
+    private func fieldGroup<Content: View>(
+        title: String,
+        trailingText: String? = nil,
+        footnote: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if let trailingText {
+                    Text(trailingText)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            if let footnote {
+                Text(footnote)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            content()
+        }
+    }
+
+    private func previewInputLine(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(.black.opacity(0.28))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 2)
+    }
+
+    private func previewBadgeText(for pattern: CustomPattern) -> String {
+        if pattern.label.contains("Teil") {
+            return "Teil"
+        }
+        if pattern.label.contains("Block") {
+            return "Block"
+        }
+        return "Original"
+    }
+
+    private func previewBadgeColor(for pattern: CustomPattern) -> Color {
+        if pattern.label.contains("Teil") {
+            return .teal
+        }
+        if pattern.label.contains("Block") {
+            return .indigo
+        }
+        return .blue
+    }
+
+    private func handleImport(_ result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            guard let url = urls.first else { return }
+
+            let didStartAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if didStartAccessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            let data = try Data(contentsOf: url)
+            let importedPatterns = try JSONDecoder().decode([CustomPattern].self, from: data)
+            let importedCount = store.importPatterns(importedPatterns, replaceExisting: importMode == .replace)
+            importExportMessage = importedCount > 0
+                ? importMode == .replace
+                    ? "\(importedCount) Regeln übernommen und Bestand ersetzt."
+                    : "\(importedCount) Regeln importiert."
+                : importMode == .replace
+                    ? "Keine gültigen Regeln zum Ersetzen gefunden."
+                    : "Keine neuen Regeln importiert."
+        } catch {
+            importExportMessage = "Import fehlgeschlagen."
+        }
+    }
+
+    private func handleExport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success:
+            importExportMessage = "Regeln exportiert."
+        case .failure:
+            importExportMessage = "Export abgebrochen oder fehlgeschlagen."
+        }
+    }
+
+    private func deduplicatePatterns() {
+        let removedCount = store.deduplicatePatterns()
+        importExportMessage = removedCount > 0
+            ? "\(removedCount) Duplikate entfernt."
+            : "Keine Duplikate gefunden."
+    }
+
+    private func migratePatterns() {
+        let addedCount = store.migrateLegacyPatterns()
+        importExportMessage = addedCount > 0
+            ? "Bestand modernisiert. \(addedCount) zusätzliche Regelbausteine ergänzt."
+            : "Bestand geprüft und modernisiert."
+    }
+
+    private func fieldBorder(isFocused: Bool, cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius)
+            .stroke(isFocused ? .blue.opacity(0.45) : .white.opacity(0.5), lineWidth: isFocused ? 2 : 1)
+    }
+
+    private var addressEditorBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(
+                LinearGradient(
+                    colors: [
+                        .white.opacity(0.96),
+                        .white.opacity(0.9)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(.white.opacity(0.7), lineWidth: 1)
+            )
+    }
+
+    private func addressHintChip(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.white.opacity(0.42), in: Capsule())
+    }
+}
+
+private struct CustomPatternsTransferDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    var patterns: [CustomPattern]
+
+    init(patterns: [CustomPattern]) {
+        self.patterns = patterns
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        patterns = try JSONDecoder().decode([CustomPattern].self, from: data)
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        let data = try JSONEncoder().encode(patterns)
+        return .init(regularFileWithContents: data)
     }
 }
 

@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var pdfRedactor = PDFRedactor()
     @State private var imageRedactor = ImageRedactor()
     @State private var recents = RecentsStore()
+    @State private var customPatterns = CustomPatternStore()
     @State private var inputMode: InputMode = .pdf
 
     @AppStorage("hasSeenIntro") private var hasSeenIntro: Bool = false
@@ -23,6 +24,7 @@ struct ContentView: View {
                         pdfRedactor: pdfRedactor,
                         imageRedactor: imageRedactor,
                         recents: recents,
+                        customPatterns: customPatterns,
                         inputMode: $inputMode
                     )
                 }

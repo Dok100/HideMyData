@@ -4,7 +4,9 @@ struct FloatingToolbar: View {
     let detector: PIIDetector
     @Bindable var pdfRedactor: PDFRedactor
     @Bindable var imageRedactor: ImageRedactor
+    let customPatternsCount: Int
     let inputMode: InputMode
+    let onManagePatterns: () -> Void
     let onSaveRequest: () -> Void
 
     var body: some View {
@@ -12,6 +14,7 @@ struct FloatingToolbar: View {
             HStack(spacing: 10) {
                 fileGroup
                 detectButton
+                patternsButton
                 Spacer(minLength: 10)
                 modeSegmented
                 clearButton
@@ -64,6 +67,23 @@ struct FloatingToolbar: View {
         .disabled(!detector.isReady || !canDetect)
         .keyboardShortcut("d", modifiers: [.command])
         .help("PII automatisch erkennen  ⌘D")
+    }
+
+    @ViewBuilder
+    private var patternsButton: some View {
+        Button(action: onManagePatterns) {
+            HStack(spacing: 6) {
+                Image(systemName: "text.badge.plus")
+                if customPatternsCount > 0 {
+                    Text("Regeln (\(customPatternsCount))")
+                } else {
+                    Text("Regeln")
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .buttonStyle(.glass)
+        .help("Eigene Erkennungsregeln verwalten")
     }
 
     @ViewBuilder

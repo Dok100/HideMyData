@@ -49,6 +49,18 @@
       "regex": "\\b\\d{2}-\\d{3}\\b"
     },
     {
+      "id": "german_postal_city",
+      "description": "German postal code with city name, also across line breaks",
+      "category": "private_address",
+      "regex": "(?i)\\b\\d{5}\\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[\\s\\-][A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+)*\\b"
+    },
+    {
+      "id": "date_eu_dotted",
+      "description": "European-style date such as 01.10.1938, tolerant to OCR punctuation and spacing",
+      "category": "private_date",
+      "regex": "[\"'`´’‚]?(?:0?[1-9]|[12]\\d|3[01])\\s*[\\.,/]\\s*(?:0?[1-9]|1[0-2])\\s*[\\.,/]\\s*(?:18|19|20)?\\d{2}\\b"
+    },
+    {
       "id": "polish_nrb",
       "description": "Polish bank account (NRB, 26 digits, optionally grouped 2-4-4-4-4-4-4 with spaces or dashes)",
       "category": "account_number",

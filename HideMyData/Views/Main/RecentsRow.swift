@@ -8,11 +8,24 @@ struct RecentsRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("ZULETZT")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .tracking(2.4)
-                .foregroundStyle(.tertiary)
-                .padding(.leading, 4)
+            HStack(alignment: .center, spacing: 10) {
+                Text("ZULETZT")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(2.4)
+                    .foregroundStyle(.tertiary)
+
+                Spacer(minLength: 0)
+
+                Button("Alles löschen") {
+                    withAnimation(.smooth(duration: 0.22)) {
+                        store.clearStoredItems()
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 4)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 16) {

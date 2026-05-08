@@ -46,6 +46,17 @@ enum EditingMode: String, CaseIterable, Identifiable {
 @Observable
 @MainActor
 final class PDFRedactor {
+    struct FocusTarget: Equatable {
+        let pageIndex: Int
+        let rect: CGRect
+    }
+
+    private struct RedactionEntry {
+        let page: PDFPage
+        let annotation: PDFAnnotation
+        let findingID: UUID?
+    }
+
     enum Phase: Equatable {
         case empty
         case loaded
@@ -62,8 +73,12 @@ final class PDFRedactor {
     var redactionStyle: RedactionStyle = .blackRectangle {
         didSet { if oldValue != redactionStyle { restyleAllAnnotations() } }
     }
+    var reviewFindings: [ReviewFinding] = []
+    var focusedFindingID: UUID?
+    var focusTarget: FocusTarget?
+    var focusRequestID = UUID()
 
-    private var redactionAnnotations: [(page: PDFPage, annotation: PDFAnnotation)] = []
+    private var redactionAnnotations: [RedactionEntry] = []
     private let blurCache: NSCache<PDFPage, CGImage> = {
         let cache = NSCache<PDFPage, CGImage>()
         cache.countLimit = 8
@@ -88,6 +103,9 @@ final class PDFRedactor {
     var hasRedactions: Bool { !redactionAnnotations.isEmpty }
     var canDetect: Bool { document != nil && phase != .detecting }
     var redactionCount: Int { redactionAnnotations.count }
+    var hasReviewFindings: Bool { !reviewFindings.isEmpty }
+    var pendingReviewCount: Int { reviewFindings.filter { $0.status == .pending }.count }
+    var hasPendingReview: Bool { pendingReviewCount > 0 }
 
     // MARK: - Open / Save
 
@@ -110,6 +128,7 @@ final class PDFRedactor {
         cancelDetection()
         clearRedactions(silently: true)
         blurCache.removeAllObjects()
+        clearReviewState()
         self.document = doc
         self.sourceURL = url
         self.phase = .loaded
@@ -128,6 +147,7 @@ final class PDFRedactor {
         cancelDetection()
         clearRedactions(silently: true)
         blurCache.removeAllObjects()
+        clearReviewState()
         self.document = doc
         self.sourceURL = originalURL
         self.phase = .loaded
@@ -168,6 +188,7 @@ final class PDFRedactor {
     private func runDetection(using detector: PIIDetector) async {
         guard let doc = document else { return }
         clearRedactions(silently: true)
+        clearReviewState()
         phase = .detecting
 
         var totalSpans = 0
@@ -208,28 +229,52 @@ final class PDFRedactor {
                     )
                     let translated = DetectedSpan(
                         category: span.category, text: span.text,
-                        start: s, end: e, confidence: span.confidence
+                        start: s, end: e, confidence: span.confidence,
+                        source: span.source
                     )
                     let rects = boundingRects(for: translated, source: source, on: page)
                     if rects.isEmpty {
                         unmapped.append(translated)
                     } else {
+                        let finding = ReviewFinding(
+                            category: translated.category,
+                            snippet: translated.text,
+                            source: translated.source,
+                            confidence: translated.confidence,
+                            pageIndex: pageIndex
+                        )
+                        reviewFindings.append(finding)
                         for rect in rects {
-                            addRedaction(rect: rect, on: page, source: .auto)
+                            addRedaction(rect: rect, on: page, source: .auto, findingID: finding.id)
                             totalRects += 1
                         }
                     }
                 }
                 if !unmapped.isEmpty, case .nativeText = source {
                     let recovered = await rectsViaOCRFallback(for: unmapped, on: page)
-                    for (rect, _) in recovered {
-                        addRedaction(rect: rect, on: page, source: .auto)
-                        totalRects += 1
+                    let grouped = Dictionary(grouping: recovered, by: \.1.id)
+                    for span in unmapped {
+                        guard let matches = grouped[span.id], !matches.isEmpty else { continue }
+                        let finding = ReviewFinding(
+                            category: span.category,
+                            snippet: span.text,
+                            source: span.source,
+                            confidence: span.confidence,
+                            pageIndex: pageIndex
+                        )
+                        reviewFindings.append(finding)
+                        for (rect, _) in matches {
+                            addRedaction(rect: rect, on: page, source: .auto, findingID: finding.id)
+                            totalRects += 1
+                        }
                     }
                 }
             }
         }
 
+        if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
+            selectFinding(firstPending.id)
+        }
         phase = .redacted(spanCount: totalSpans, rectCount: totalRects)
     }
 
@@ -278,7 +323,12 @@ final class PDFRedactor {
     enum RedactionSource { case auto, manual }
 
     @discardableResult
-    func addRedaction(rect: CGRect, on page: PDFPage, source: RedactionSource = .manual) -> PDFAnnotation {
+    func addRedaction(
+        rect: CGRect,
+        on page: PDFPage,
+        source: RedactionSource = .manual,
+        findingID: UUID? = nil
+    ) -> PDFAnnotation {
         let padded = rect.insetBy(dx: -1, dy: -1)
         let ann: PDFAnnotation
         switch redactionStyle {
@@ -294,7 +344,7 @@ final class PDFRedactor {
             ann = blurAnn
         }
         page.addAnnotation(ann)
-        redactionAnnotations.append((page, ann))
+        redactionAnnotations.append(RedactionEntry(page: page, annotation: ann, findingID: findingID))
 
         let count = redactionAnnotations.count
         switch phase {
@@ -310,7 +360,11 @@ final class PDFRedactor {
 
     func removeRedaction(_ ann: PDFAnnotation, on page: PDFPage) {
         page.removeAnnotation(ann)
+        let removed = redactionAnnotations.first { $0.annotation === ann }
         redactionAnnotations.removeAll { $0.annotation === ann }
+        if let findingID = removed?.findingID {
+            syncFindingStateAfterRedactionRemoval(findingID: findingID)
+        }
         if redactionAnnotations.isEmpty, document != nil {
             phase = .loaded
         } else if case .redacted = phase {
@@ -322,14 +376,51 @@ final class PDFRedactor {
         redactionAnnotations.contains { $0.annotation === ann }
     }
 
+    func acceptFinding(_ id: UUID) {
+        updateFinding(id) { $0.status = .accepted }
+        selectFinding(id)
+    }
+
+    func acceptAllFindings() {
+        let pendingIDs = reviewFindings
+            .filter { $0.status == .pending }
+            .map(\.id)
+        for id in pendingIDs {
+            acceptFinding(id)
+        }
+    }
+
+    func rejectFinding(_ id: UUID) {
+        removeRedactions(for: id)
+        updateFinding(id) { $0.status = .rejected }
+        if focusedFindingID == id {
+            focusedFindingID = nil
+            focusTarget = nil
+        }
+        if redactionAnnotations.isEmpty, document != nil {
+            phase = .loaded
+        } else if case .redacted = phase {
+            phase = .redacted(spanCount: 0, rectCount: redactionAnnotations.count)
+        }
+    }
+
+    func selectFinding(_ id: UUID) {
+        focusedFindingID = id
+        focusTarget = nil
+        guard let target = firstFocusTarget(for: id) else { return }
+        focusTarget = target
+        focusRequestID = UUID()
+    }
+
     func clearRedactions() {
         cancelDetection()
         clearRedactions(silently: false)
+        clearReviewState()
     }
 
     private func clearRedactions(silently: Bool) {
-        for (page, ann) in redactionAnnotations {
-            page.removeAnnotation(ann)
+        for entry in redactionAnnotations {
+            entry.page.removeAnnotation(entry.annotation)
         }
         redactionAnnotations.removeAll()
         if !silently, document != nil { phase = .loaded }
@@ -339,12 +430,49 @@ final class PDFRedactor {
         let priorPhase = phase
         let snapshot = redactionAnnotations
         redactionAnnotations.removeAll()
-        for (page, ann) in snapshot {
-            let bounds = ann.bounds.insetBy(dx: 1, dy: 1)
-            page.removeAnnotation(ann)
-            addRedaction(rect: bounds, on: page, source: .auto)
+        for entry in snapshot {
+            let bounds = entry.annotation.bounds.insetBy(dx: 1, dy: 1)
+            entry.page.removeAnnotation(entry.annotation)
+            addRedaction(rect: bounds, on: entry.page, source: .auto, findingID: entry.findingID)
         }
         phase = priorPhase
+    }
+
+    private func clearReviewState() {
+        reviewFindings.removeAll()
+        focusedFindingID = nil
+        focusTarget = nil
+    }
+
+    private func removeRedactions(for findingID: UUID) {
+        let matching = redactionAnnotations.filter { $0.findingID == findingID }
+        for entry in matching {
+            entry.page.removeAnnotation(entry.annotation)
+        }
+        redactionAnnotations.removeAll { $0.findingID == findingID }
+    }
+
+    private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {
+        guard !redactionAnnotations.contains(where: { $0.findingID == findingID }) else { return }
+        updateFinding(findingID) {
+            if $0.status == .pending {
+                $0.status = .rejected
+            }
+        }
+    }
+
+    private func updateFinding(_ id: UUID, mutate: (inout ReviewFinding) -> Void) {
+        guard let index = reviewFindings.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&reviewFindings[index])
+    }
+
+    private func firstFocusTarget(for findingID: UUID) -> FocusTarget? {
+        guard let doc = document,
+              let entry = redactionAnnotations.first(where: { $0.findingID == findingID })
+        else { return nil }
+        let pageIndex = doc.index(for: entry.page)
+        guard pageIndex >= 0 else { return nil }
+        return FocusTarget(pageIndex: pageIndex, rect: entry.annotation.bounds)
     }
 
     // MARK: - Bounding rects via character offsets (with text-search fallback)

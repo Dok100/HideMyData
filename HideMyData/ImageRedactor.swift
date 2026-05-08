@@ -9,6 +9,11 @@ internal import UniformTypeIdentifiers
 @Observable
 @MainActor
 final class ImageRedactor {
+    private struct RedactionEntry {
+        let rect: CGRect
+        let findingID: UUID?
+    }
+
     enum Phase: Equatable {
         case empty
         case loaded
@@ -22,12 +27,14 @@ final class ImageRedactor {
     var image: CGImage?
     var sourceURL: URL?
     var sourceUTI: UTType?
-    var redactionRects: [CGRect] = []  // image-pixel coords, origin top-left
     var redactionStyle: RedactionStyle = .blackRectangle
     var editingMode: EditingMode = .view
+    var reviewFindings: [ReviewFinding] = []
+    var focusedFindingID: UUID?
 
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
+    private var redactionEntries: [RedactionEntry] = []
 
     var statusText: String {
         switch phase {
@@ -45,10 +52,17 @@ final class ImageRedactor {
 
     var hasRedactions: Bool { !redactionRects.isEmpty }
     var canDetect: Bool { image != nil && phase != .detecting }
+    var hasReviewFindings: Bool { !reviewFindings.isEmpty }
+    var pendingReviewCount: Int { reviewFindings.filter { $0.status == .pending }.count }
+    var hasPendingReview: Bool { pendingReviewCount > 0 }
 
     var pixelSize: CGSize {
         guard let image else { return .zero }
         return CGSize(width: image.width, height: image.height)
+    }
+
+    var redactionRects: [CGRect] {
+        redactionEntries.map(\.rect)
     }
 
     // MARK: - Open / Save
@@ -107,7 +121,8 @@ final class ImageRedactor {
         self.sourceURL = sourceURL
         self.sourceUTI = uti
         self.sourceImageProperties = properties
-        self.redactionRects = []
+        self.redactionEntries = []
+        clearReviewState()
         self.phase = .loaded
     }
 
@@ -145,7 +160,8 @@ final class ImageRedactor {
 
     private func runDetection(using detector: PIIDetector) async {
         guard let cg = image else { return }
-        redactionRects.removeAll()
+        redactionEntries.removeAll()
+        clearReviewState()
         phase = .detecting
 
         guard let ocr = try? await OCREngine.recognize(cg) else {
@@ -172,9 +188,20 @@ final class ImageRedactor {
                     start: span.start, end: span.end, map: offsetMap, originalCount: originalCount
                 )
                 let normRects = ocr.normalizedBoxes(start: origStart, end: origEnd)
+                guard !normRects.isEmpty else { continue }
+                let finding = ReviewFinding(
+                    category: span.category,
+                    snippet: span.text,
+                    source: span.source,
+                    confidence: span.confidence
+                )
+                reviewFindings.append(finding)
                 for norm in normRects {
-                    redactionRects.append(pixelRect(fromNormalized: norm))
+                    addRedaction(rect: pixelRect(fromNormalized: norm), findingID: finding.id)
                 }
+            }
+            if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
+                selectFinding(firstPending.id)
             }
             phase = .redacted(spanCount: spans.count, rectCount: redactionRects.count)
         }
@@ -182,12 +209,13 @@ final class ImageRedactor {
 
     func clearRedactions() {
         cancelDetection()
-        redactionRects.removeAll()
+        redactionEntries.removeAll()
+        clearReviewState()
         if image != nil { phase = .loaded }
     }
 
-    func addRedaction(rect: CGRect) {
-        redactionRects.append(rect)
+    func addRedaction(rect: CGRect, findingID: UUID? = nil) {
+        redactionEntries.append(RedactionEntry(rect: rect, findingID: findingID))
         switch phase {
         case .loaded, .redacted:
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
@@ -197,13 +225,45 @@ final class ImageRedactor {
     }
 
     func removeRedaction(at index: Int) {
-        guard redactionRects.indices.contains(index) else { return }
-        redactionRects.remove(at: index)
+        guard redactionEntries.indices.contains(index) else { return }
+        let removed = redactionEntries.remove(at: index)
+        if let findingID = removed.findingID {
+            syncFindingStateAfterRedactionRemoval(findingID: findingID)
+        }
         if redactionRects.isEmpty, image != nil {
             phase = .loaded
         } else if case .redacted = phase {
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
         }
+    }
+
+    func acceptFinding(_ id: UUID) {
+        updateFinding(id) { $0.status = .accepted }
+        focusedFindingID = id
+    }
+
+    func acceptAllFindings() {
+        let pendingIDs = reviewFindings
+            .filter { $0.status == .pending }
+            .map(\.id)
+        for id in pendingIDs {
+            acceptFinding(id)
+        }
+    }
+
+    func rejectFinding(_ id: UUID) {
+        redactionEntries.removeAll { $0.findingID == id }
+        updateFinding(id) { $0.status = .rejected }
+        if focusedFindingID == id { focusedFindingID = nil }
+        if redactionRects.isEmpty, image != nil {
+            phase = .loaded
+        } else if case .redacted = phase {
+            phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
+        }
+    }
+
+    func selectFinding(_ id: UUID) {
+        focusedFindingID = id
     }
 
     // MARK: - Helpers
@@ -293,5 +353,30 @@ final class ImageRedactor {
         let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "bild"
         let ext = uti.preferredFilenameExtension ?? "png"
         return "\(base)-geschwaerzt.\(ext)"
+    }
+
+    func findingRects(for findingID: UUID) -> [CGRect] {
+        redactionEntries
+            .filter { $0.findingID == findingID }
+            .map(\.rect)
+    }
+
+    private func clearReviewState() {
+        reviewFindings.removeAll()
+        focusedFindingID = nil
+    }
+
+    private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {
+        guard !redactionEntries.contains(where: { $0.findingID == findingID }) else { return }
+        updateFinding(findingID) {
+            if $0.status == .pending {
+                $0.status = .rejected
+            }
+        }
+    }
+
+    private func updateFinding(_ id: UUID, mutate: (inout ReviewFinding) -> Void) {
+        guard let index = reviewFindings.firstIndex(where: { $0.id == id }) else { return }
+        mutate(&reviewFindings[index])
     }
 }

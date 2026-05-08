@@ -52,7 +52,8 @@ nonisolated enum PatternMatcher {
                     text: matched,
                     start: charStart,
                     end: charEnd,
-                    confidence: 0.99
+                    confidence: 0.99,
+                    source: .pattern
                 ))
             }
         }

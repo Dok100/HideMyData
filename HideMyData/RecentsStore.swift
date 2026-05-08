@@ -79,6 +79,10 @@ final class RecentsStore {
         persist()
     }
 
+    func clearStoredItems() {
+        clearAll()
+    }
+
     func setEnabled(_ enabled: Bool) {
         guard enabled != isEnabled else { return }
         isEnabled = enabled

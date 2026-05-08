@@ -23,6 +23,7 @@ struct ImageDocumentSurface: View {
                         .frame(width: displaySize.width, height: displaySize.height)
 
                     redactionsLayer(image: image, scale: scale, displaySize: displaySize)
+                    focusOverlay(scale: scale)
 
                     if redactor.editingMode == .add, let s = dragStart, let c = dragCurrent {
                         DragPreview(start: s, end: c)
@@ -112,6 +113,19 @@ struct ImageDocumentSurface: View {
         }
     }
 
+    @ViewBuilder
+    private func focusOverlay(scale: CGFloat) -> some View {
+        if let focused = redactor.focusedFindingID {
+            ForEach(Array(redactor.findingRects(for: focused).enumerated()), id: \.offset) { _, rect in
+                let scaled = scaledRect(rect, scale: scale)
+                Rectangle()
+                    .strokeBorder(Color.yellow, lineWidth: 2)
+                    .frame(width: scaled.width, height: scaled.height)
+                    .offset(x: scaled.minX, y: scaled.minY)
+            }
+        }
+    }
+
     private func scaledRect(_ rect: CGRect, scale: CGFloat) -> CGRect {
         CGRect(
             x: rect.minX * scale,
@@ -129,6 +143,7 @@ struct ImageDocumentSurface: View {
             height: abs(end.y - start.y)
         )
     }
+
 }
 
 private struct DragPreview: View {

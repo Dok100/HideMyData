@@ -5,6 +5,7 @@ struct FloatingToolbar: View {
     @Bindable var pdfRedactor: PDFRedactor
     @Bindable var imageRedactor: ImageRedactor
     let inputMode: InputMode
+    let onSaveRequest: () -> Void
 
     var body: some View {
         GlassEffectContainer(spacing: 10) {
@@ -44,7 +45,7 @@ struct FloatingToolbar: View {
             }
             .disabled(!hasFile)
             .keyboardShortcut("s", modifiers: [.command])
-            .help("Geschwärzte Kopie speichern  ⌘S")
+            .help(saveHelpText)
         }
         .buttonStyle(.glass)
     }
@@ -143,10 +144,7 @@ struct FloatingToolbar: View {
     }
 
     private var saveAction: () -> Void {
-        switch inputMode {
-        case .pdf: pdfRedactor.save
-        case .image: imageRedactor.save
-        }
+        onSaveRequest
     }
 
     private var clearAction: () -> Void {
@@ -174,6 +172,20 @@ struct FloatingToolbar: View {
         switch inputMode {
         case .pdf: $pdfRedactor.editingMode
         case .image: $imageRedactor.editingMode
+        }
+    }
+
+    private var saveHelpText: String {
+        if hasPendingReview {
+            return "Vor dem Speichern alle Treffer prüfen"
+        }
+        return "Geschwärzte Kopie speichern  ⌘S"
+    }
+
+    private var hasPendingReview: Bool {
+        switch inputMode {
+        case .pdf: pdfRedactor.hasPendingReview
+        case .image: imageRedactor.hasPendingReview
         }
     }
 }

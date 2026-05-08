@@ -1,6 +1,60 @@
 import Foundation
 @preconcurrency import OpenMedKit
 
+enum DetectionSource: String, Codable, Sendable {
+    case model
+    case pattern
+
+    var label: String {
+        switch self {
+        case .model: "Modell"
+        case .pattern: "Regex"
+        }
+    }
+}
+
+enum ReviewStatus: String, Codable, Sendable {
+    case pending
+    case accepted
+    case rejected
+
+    var label: String {
+        switch self {
+        case .pending: "Offen"
+        case .accepted: "Bestätigt"
+        case .rejected: "Abgelehnt"
+        }
+    }
+}
+
+struct ReviewFinding: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let category: String
+    let snippet: String
+    let source: DetectionSource
+    let confidence: Float
+    let pageIndex: Int?
+    var status: ReviewStatus
+
+    init(
+        id: UUID = UUID(),
+        category: String,
+        snippet: String,
+        source: DetectionSource,
+        confidence: Float,
+        pageIndex: Int? = nil,
+        status: ReviewStatus = .pending
+    ) {
+        self.id = id
+        self.category = category
+        self.snippet = snippet
+        self.source = source
+        self.confidence = confidence
+        self.pageIndex = pageIndex
+        self.status = status
+    }
+}
+
 struct DetectedSpan: Identifiable, Equatable {
     let id = UUID()
     let category: String
@@ -8,6 +62,7 @@ struct DetectedSpan: Identifiable, Equatable {
     let start: Int
     let end: Int
     let confidence: Float
+    let source: DetectionSource
 }
 
 @Observable
@@ -163,7 +218,14 @@ final class PIIDetector {
             do {
                 let entities = try model.extractPII(text, confidenceThreshold: 0.4, useSmartMerging: false)
                 let modelSpans = entities.map {
-                    DetectedSpan(category: $0.label, text: $0.text, start: $0.start, end: $0.end, confidence: $0.confidence)
+                    DetectedSpan(
+                        category: $0.label,
+                        text: $0.text,
+                        start: $0.start,
+                        end: $0.end,
+                        confidence: $0.confidence,
+                        source: .model
+                    )
                 }
                 let patternSpans = PatternMatcher.detect(text)
                 return .success(modelSpans + patternSpans)

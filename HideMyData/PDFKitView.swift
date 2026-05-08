@@ -28,6 +28,7 @@ struct PDFKitView: NSViewRepresentable {
         if nsView.redactor !== redactor {
             nsView.redactor = redactor
         }
+        nsView.focusIfNeeded(requestID: redactor.focusRequestID, target: redactor.focusTarget)
     }
 }
 
@@ -46,6 +47,7 @@ final class InteractivePDFView: PDFView {
     private var dragPage: PDFPage?
     private var previewAnnotation: PDFAnnotation?
     private var cursorTrackingArea: NSTrackingArea?
+    private var lastFocusRequestID: UUID?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -195,5 +197,12 @@ final class InteractivePDFView: PDFView {
     private func makeRect(_ a: NSPoint, _ b: NSPoint) -> CGRect {
         CGRect(x: min(a.x, b.x), y: min(a.y, b.y),
                width: abs(b.x - a.x), height: abs(b.y - a.y))
+    }
+
+    func focusIfNeeded(requestID: UUID, target: PDFRedactor.FocusTarget?) {
+        guard lastFocusRequestID != requestID else { return }
+        lastFocusRequestID = requestID
+        guard let target, let page = document?.page(at: target.pageIndex) else { return }
+        go(to: target.rect, on: page)
     }
 }

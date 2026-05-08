@@ -7,6 +7,14 @@
 * Option ergänzt, um „Zuletzt verwendet“ und lokale Vorschaubilder für sensible Dokumente zu deaktivieren.
 * README um einen Hinweis auf das gepinnte Modellverhalten ergänzt.
 * Bestehende Installationen müssen das Modell möglicherweise einmal neu herunterladen, da der Cache jetzt revisionsgebunden ist.
+* Eigene Erkennungsregeln um komfortable Verwaltung, Import und Export per JSON erweitert.
+* Import-Verhalten für Regeln um die Modi `Ergänzen` und `Ersetzen` ergänzt.
+* Funktionen zum Modernisieren bestehender Regeln und zum Entfernen von Duplikaten hinzugefügt.
+* Regelverwaltung optisch überarbeitet und stärker an den macOS-/Apple-Stil angepasst.
+* Layout der Regelverwaltung für vergrößerte Fenster verbessert.
+* Unterstützung für mehrzeilige Adressblöcke und robustere Zerlegung in Teil- und Blockregeln ergänzt.
+* Erkennung für deutsche `PLZ + Ort`-Kombinationen verbessert, auch bei Zeilenumbrüchen.
+* Datumserkennung für OCR-Fälle robuster gemacht, z. B. bei `01.10.1938` mit zusätzlichen Zeichen oder abweichender Zeichenerkennung.
 
 # 0.2.0
 

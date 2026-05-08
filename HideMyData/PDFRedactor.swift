@@ -77,6 +77,7 @@ final class PDFRedactor {
     var focusedFindingID: UUID?
     var focusTarget: FocusTarget?
     var focusRequestID = UUID()
+    var debugEntries: [DetectionDebugEntry] = []
 
     private var redactionAnnotations: [RedactionEntry] = []
     private let blurCache: NSCache<PDFPage, CGImage> = {
@@ -221,6 +222,15 @@ final class PDFRedactor {
                 phase = .failed("Erkennungsfehler auf Seite \(pageIndex + 1): \(err.localizedDescription)")
                 return
             case .success(let spans):
+                debugEntries.append(
+                    DetectionDebugEntry(
+                        title: "Seite \(pageIndex + 1)",
+                        textSourceLabel: source.debugLabel,
+                        rawText: source.text,
+                        normalizedText: modelInput,
+                        findings: spans
+                    )
+                )
                 totalSpans += spans.count
                 var unmapped: [DetectedSpan] = []
                 for span in spans {
@@ -286,6 +296,13 @@ final class PDFRedactor {
             switch self {
             case .nativeText(let s): return s
             case .ocr(let p): return p.combinedText
+            }
+        }
+
+        var debugLabel: String {
+            switch self {
+            case .nativeText: return "PDF-Text"
+            case .ocr: return "Apple Vision OCR"
             }
         }
     }
@@ -442,6 +459,7 @@ final class PDFRedactor {
         reviewFindings.removeAll()
         focusedFindingID = nil
         focusTarget = nil
+        debugEntries.removeAll()
     }
 
     private func removeRedactions(for findingID: UUID) {

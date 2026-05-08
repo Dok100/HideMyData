@@ -31,6 +31,7 @@ final class ImageRedactor {
     var editingMode: EditingMode = .view
     var reviewFindings: [ReviewFinding] = []
     var focusedFindingID: UUID?
+    var debugEntries: [DetectionDebugEntry] = []
 
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
@@ -183,6 +184,15 @@ final class ImageRedactor {
         case .failure(let err):
             phase = .failed("Erkennungsfehler: \(err.localizedDescription)")
         case .success(let spans):
+            debugEntries = [
+                DetectionDebugEntry(
+                    title: "Bilddiagnose",
+                    textSourceLabel: "Apple Vision OCR",
+                    rawText: ocr.combinedText,
+                    normalizedText: modelInput,
+                    findings: spans
+                )
+            ]
             for span in spans {
                 let (origStart, origEnd) = OCRNormalizer.translateRange(
                     start: span.start, end: span.end, map: offsetMap, originalCount: originalCount
@@ -364,6 +374,7 @@ final class ImageRedactor {
     private func clearReviewState() {
         reviewFindings.removeAll()
         focusedFindingID = nil
+        debugEntries.removeAll()
     }
 
     private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {

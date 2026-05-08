@@ -55,7 +55,7 @@ struct ReviewFinding: Identifiable, Equatable, Sendable {
     }
 }
 
-struct DetectedSpan: Identifiable, Equatable {
+struct DetectedSpan: Identifiable, Equatable, Sendable {
     let id = UUID()
     let category: String
     let text: String
@@ -63,6 +63,15 @@ struct DetectedSpan: Identifiable, Equatable {
     let end: Int
     let confidence: Float
     let source: DetectionSource
+}
+
+struct DetectionDebugEntry: Identifiable, Equatable, Sendable {
+    let id = UUID()
+    let title: String
+    let textSourceLabel: String
+    let rawText: String
+    let normalizedText: String
+    let findings: [DetectedSpan]
 }
 
 @Observable

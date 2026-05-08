@@ -7,6 +7,7 @@ struct FloatingToolbar: View {
     let customPatternsCount: Int
     let inputMode: InputMode
     let onManagePatterns: () -> Void
+    let onShowDiagnostics: () -> Void
     let onSaveRequest: () -> Void
 
     var body: some View {
@@ -15,6 +16,7 @@ struct FloatingToolbar: View {
                 fileGroup
                 detectButton
                 patternsButton
+                diagnosticsButton
                 Spacer(minLength: 10)
                 modeSegmented
                 clearButton
@@ -84,6 +86,20 @@ struct FloatingToolbar: View {
         }
         .buttonStyle(.glass)
         .help("Eigene Erkennungsregeln verwalten")
+    }
+
+    @ViewBuilder
+    private var diagnosticsButton: some View {
+        Button(action: onShowDiagnostics) {
+            HStack(spacing: 6) {
+                Image(systemName: "ladybug")
+                Text("Diagnose")
+            }
+            .padding(.horizontal, 4)
+        }
+        .buttonStyle(.glass)
+        .disabled(!hasDiagnostics)
+        .help("OCR- und Trefferdiagnose anzeigen")
     }
 
     @ViewBuilder
@@ -206,6 +222,13 @@ struct FloatingToolbar: View {
         switch inputMode {
         case .pdf: pdfRedactor.hasPendingReview
         case .image: imageRedactor.hasPendingReview
+        }
+    }
+
+    private var hasDiagnostics: Bool {
+        switch inputMode {
+        case .pdf: !pdfRedactor.debugEntries.isEmpty
+        case .image: !imageRedactor.debugEntries.isEmpty
         }
     }
 }

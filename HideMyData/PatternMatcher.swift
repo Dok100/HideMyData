@@ -176,16 +176,24 @@ final class CustomPatternStore {
     }
 
     private func deduplicated(_ patterns: [CustomPattern]) -> [CustomPattern] {
-        var seenKeys: Set<String> = []
-        var deduplicatedPatterns: [CustomPattern] = []
+        var bestBySemanticKey: [String: CustomPattern] = [:]
+        var order: [String] = []
 
         for pattern in patterns {
-            let key = patternKey(pattern)
-            guard seenKeys.insert(key).inserted else { continue }
-            deduplicatedPatterns.append(pattern)
+            let semanticKey = semanticPatternKey(pattern)
+
+            if let existing = bestBySemanticKey[semanticKey] {
+                if preferredPattern(pattern, over: existing) {
+                    bestBySemanticKey[semanticKey] = pattern
+                }
+                continue
+            }
+
+            bestBySemanticKey[semanticKey] = pattern
+            order.append(semanticKey)
         }
 
-        return deduplicatedPatterns
+        return order.compactMap { bestBySemanticKey[$0] }
     }
 
     private func normalize(_ pattern: CustomPattern) -> CustomPattern? {
@@ -250,6 +258,33 @@ final class CustomPatternStore {
         ].joined(separator: "::")
     }
 
+    private func semanticPatternKey(_ pattern: CustomPattern) -> String {
+        let normalizedValue = pattern.value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let normalizedCategory = pattern.category
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "\(normalizedCategory)::\(normalizedValue)"
+    }
+
+    private func preferredPattern(_ lhs: CustomPattern, over rhs: CustomPattern) -> Bool {
+        let lhsGenerated = isGeneratedPatternLabel(lhs.label)
+        let rhsGenerated = isGeneratedPatternLabel(rhs.label)
+
+        if lhsGenerated != rhsGenerated {
+            return rhsGenerated
+        }
+
+        let lhsIsOriginal = !lhs.label.contains(" – ")
+        let rhsIsOriginal = !rhs.label.contains(" – ")
+        if lhsIsOriginal != rhsIsOriginal {
+            return lhsIsOriginal
+        }
+
+        return lhs.label.count < rhs.label.count
+    }
+
     nonisolated private static func storageURL() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return support
@@ -300,9 +335,14 @@ nonisolated enum PatternMatcher {
     }
 
     private static func loadCustomPatterns() -> [Pattern] {
-        CustomPatternStore.loadPersistedPatterns().compactMap { spec in
+        var seenKeys: Set<String> = []
+        return CustomPatternStore.loadPersistedPatterns().compactMap { spec in
             let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
+
+            let key = dedupeKey(value: trimmed, category: spec.category)
+            guard seenKeys.insert(key).inserted else { return nil }
+
             return Pattern(id: spec.id.uuidString, category: spec.category, source: .literal(trimmed))
         }
     }
@@ -467,5 +507,13 @@ nonisolated enum PatternMatcher {
         let normalized = normalizeLiteralSearchString(text).text
         let compact = normalized.filter { $0.isLetter || $0.isNumber }
         return (compact, [])
+    }
+
+    private static func dedupeKey(value: String, category: String) -> String {
+        let normalizedValue = compactLiteralSearchString(value).text
+        let normalizedCategory = category
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return "\(normalizedCategory)::\(normalizedValue)"
     }
 }

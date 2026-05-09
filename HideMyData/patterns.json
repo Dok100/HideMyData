@@ -50,9 +50,9 @@
     },
     {
       "id": "german_postal_city",
-      "description": "German postal code with city name, also across line breaks",
+      "description": "German postal code with a single city token, tolerating one line break between zip and city and filtering obvious document terms",
       "category": "private_address",
-      "regex": "(?i)\\b\\d{5}\\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[\\s\\-][A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+)*\\b"
+      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+\\b"
     },
     {
       "id": "date_eu_dotted",

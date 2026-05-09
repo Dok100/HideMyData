@@ -4,11 +4,13 @@ import Foundation
 enum DetectionSource: String, Codable, Sendable {
     case model
     case pattern
+    case mixed
 
     var label: String {
         switch self {
         case .model: "Modell"
         case .pattern: "Regex"
+        case .mixed: "Modell + Regex"
         }
     }
 }
@@ -237,7 +239,7 @@ final class PIIDetector {
                     )
                 }
                 let patternSpans = PatternMatcher.detect(text)
-                return .success(modelSpans + patternSpans)
+                return .success(Self.postProcessSpans(modelSpans + patternSpans))
             } catch {
                 return .failure(error)
             }
@@ -248,6 +250,147 @@ final class PIIDetector {
 
     private func runOnBackground<T: Sendable>(_ work: @Sendable @escaping () -> T) async -> T {
         await Task.detached(priority: .userInitiated) { work() }.value
+    }
+
+    nonisolated private static func postProcessSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        let deduplicated = deduplicateExactSpans(spans)
+        let merged = mergeEquivalentSpans(deduplicated)
+        return suppressContainedCustomIdentifierSpans(merged)
+    }
+
+    nonisolated private static func deduplicateExactSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        var bestByKey: [String: DetectedSpan] = [:]
+        var order: [String] = []
+
+        for span in spans {
+            let key = exactSpanKey(span)
+            if let existing = bestByKey[key] {
+                if span.confidence > existing.confidence {
+                    bestByKey[key] = span
+                }
+            } else {
+                bestByKey[key] = span
+                order.append(key)
+            }
+        }
+
+        return order.compactMap { bestByKey[$0] }
+    }
+
+    nonisolated private static func suppressContainedCustomIdentifierSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        spans.filter { candidate in
+            guard candidate.category == "custom_identifier" else {
+                return true
+            }
+
+            let candidateLength = candidate.end - candidate.start
+            return !spans.contains { other in
+                guard other.id != candidate.id,
+                      other.end > other.start
+                else { return false }
+
+                let otherLength = other.end - other.start
+                guard otherLength > candidateLength else { return false }
+
+                if other.start <= candidate.start && other.end >= candidate.end {
+                    return true
+                }
+
+                let overlapStart = max(candidate.start, other.start)
+                let overlapEnd = min(candidate.end, other.end)
+                guard overlapEnd > overlapStart else { return false }
+
+                let overlapLength = overlapEnd - overlapStart
+                let overlapRatio = Double(overlapLength) / Double(candidateLength)
+                guard overlapRatio >= 0.75 else { return false }
+
+                if other.category != "custom_identifier" {
+                    return true
+                }
+
+                return normalizedComparableText(other.text).contains(normalizedComparableText(candidate.text))
+            }
+        }
+    }
+
+    nonisolated private static func mergeEquivalentSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        var groups: [String: [DetectedSpan]] = [:]
+        var order: [String] = []
+
+        for span in spans {
+            let key = equivalentSpanKey(span)
+            if groups[key] == nil {
+                groups[key] = []
+                order.append(key)
+            }
+            groups[key, default: []].append(span)
+        }
+
+        return order.compactMap { key in
+            guard let group = groups[key], let primary = preferredSpan(in: group) else { return nil }
+            let mergedSource = mergedSource(for: group)
+            let mergedConfidence = group.map(\.confidence).max() ?? primary.confidence
+            return DetectedSpan(
+                category: primary.category,
+                text: primary.text,
+                start: primary.start,
+                end: primary.end,
+                confidence: mergedConfidence,
+                source: mergedSource
+            )
+        }
+    }
+
+    nonisolated private static func preferredSpan(in group: [DetectedSpan]) -> DetectedSpan? {
+        group.max { lhs, rhs in
+            spanRank(lhs) < spanRank(rhs)
+        }
+    }
+
+    nonisolated private static func spanRank(_ span: DetectedSpan) -> Int {
+        var rank = 0
+        if span.category != "custom_identifier" { rank += 100 }
+        switch span.source {
+        case .model: rank += 30
+        case .mixed: rank += 20
+        case .pattern: rank += 10
+        }
+        rank += Int(span.confidence * 10)
+        return rank
+    }
+
+    nonisolated private static func mergedSource(for group: [DetectedSpan]) -> DetectionSource {
+        let sources = Set(group.map(\.source))
+        if sources.count > 1 || sources.contains(.mixed) {
+            return .mixed
+        }
+        return group.first?.source ?? .pattern
+    }
+
+    nonisolated private static func exactSpanKey(_ span: DetectedSpan) -> String {
+        let textKey = span.text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return [
+            span.category,
+            span.source.rawValue,
+            "\(span.start)",
+            "\(span.end)",
+            textKey
+        ].joined(separator: "::")
+    }
+
+    nonisolated private static func equivalentSpanKey(_ span: DetectedSpan) -> String {
+        let textKey = span.text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        return [
+            "\(span.start)",
+            "\(span.end)",
+            textKey
+        ].joined(separator: "::")
+    }
+
+    nonisolated private static func normalizedComparableText(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .filter { $0.isLetter || $0.isNumber }
     }
 
     private func ensureCacheDirectoryExists() {

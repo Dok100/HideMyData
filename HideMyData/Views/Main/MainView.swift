@@ -457,6 +457,7 @@ private struct DiagnosticsSheet: View {
         switch source {
         case .model: return .blue
         case .pattern: return .mint
+        case .mixed: return .orange
         }
     }
 
@@ -1143,6 +1144,7 @@ private struct ReviewFindingRow: View {
         switch finding.source {
         case .model: .blue
         case .pattern: .mint
+        case .mixed: .orange
         }
     }
 

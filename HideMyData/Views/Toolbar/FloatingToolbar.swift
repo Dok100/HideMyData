@@ -8,6 +8,7 @@ struct FloatingToolbar: View {
     let inputMode: InputMode
     let onManagePatterns: () -> Void
     let onShowDiagnostics: () -> Void
+    let onAnonymizeClipboard: () -> Void
     let onSaveRequest: () -> Void
 
     var body: some View {
@@ -15,6 +16,7 @@ struct FloatingToolbar: View {
             HStack(spacing: 10) {
                 fileGroup
                 detectButton
+                anonymizeClipboardButton
                 patternsButton
                 diagnosticsButton
                 Spacer(minLength: 10)
@@ -86,6 +88,20 @@ struct FloatingToolbar: View {
         }
         .buttonStyle(.glass)
         .help("Eigene Erkennungsregeln verwalten")
+    }
+
+    @ViewBuilder
+    private var anonymizeClipboardButton: some View {
+        Button(action: onAnonymizeClipboard) {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.on.clipboard")
+                Text("Zwischenablage anonymisieren")
+            }
+            .padding(.horizontal, 4)
+        }
+        .buttonStyle(.glass)
+        .disabled(!detector.isReady || isDetecting)
+        .help("Kopierten Text lokal anonymisieren und wieder in die Zwischenablage legen")
     }
 
     @ViewBuilder

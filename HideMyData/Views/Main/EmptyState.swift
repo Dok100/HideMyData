@@ -5,6 +5,7 @@ struct EmptyState: View {
     @Binding var inputMode: InputMode
     @Bindable var recents: RecentsStore
     @Binding var recentsEnabled: Bool
+    let onOpenClipboardAnonymizer: () -> Void
     let onOpenPDF: () -> Void
     let onOpenImage: () -> Void
     let onDropFile: (URL) -> Void
@@ -80,8 +81,18 @@ struct EmptyState: View {
                 .buttonStyle(.glassProminent)
                 .controlSize(.large)
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button(action: onOpenClipboardAnonymizer) {
+                    Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
+                        .padding(.horizontal, 6)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .keyboardShortcut("a", modifiers: [.command, .shift])
             }
             .padding(.top, 4)
+
+            clipboardAnonymizerHint
 
             privacyToggle
         }
@@ -134,5 +145,19 @@ struct EmptyState: View {
         .toggleStyle(.switch)
         .padding(.top, 2)
         .frame(maxWidth: 360, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var clipboardAnonymizerHint: some View {
+        VStack(spacing: 8) {
+            Text("Zwischenablage anonymisieren")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Kopiere einen Text, öffne die Vorschau mit `cmd` + `shift` + `A` und füge danach die anonymisierte Version in deine KI ein.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 360)
+        }
+        .padding(.top, 4)
     }
 }

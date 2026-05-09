@@ -76,6 +76,12 @@ struct DetectionDebugEntry: Identifiable, Equatable, Sendable {
     let findings: [DetectedSpan]
 }
 
+struct TextAnonymizationResult: Sendable {
+    let anonymizedText: String
+    let replacementCount: Int
+    let placeholders: [String: String]
+}
+
 @Observable
 @MainActor
 final class PIIDetector {
@@ -246,6 +252,15 @@ final class PIIDetector {
         }
     }
 
+    func anonymizeText(_ text: String) async -> Result<TextAnonymizationResult, Error> {
+        switch await detect(text) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let spans):
+            return .success(Self.placeholderize(text: text, spans: spans))
+        }
+    }
+
     // MARK: - Helpers
 
     private func runOnBackground<T: Sendable>(_ work: @Sendable @escaping () -> T) async -> T {
@@ -391,6 +406,96 @@ final class PIIDetector {
         text
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .filter { $0.isLetter || $0.isNumber }
+    }
+
+    nonisolated private static func placeholderize(text: String, spans: [DetectedSpan]) -> TextAnonymizationResult {
+        let selectedSpans = selectNonOverlappingSpans(spans)
+
+        var assignedPlaceholders: [String: String] = [:]
+        var placeholderByKey: [String: String] = [:]
+        var placeholderCounters: [String: Int] = [:]
+        var anonymizedText = text
+
+        for span in selectedSpans.sorted(by: { lhs, rhs in
+            if lhs.start == rhs.start { return lhs.end > rhs.end }
+            return lhs.start > rhs.start
+        }) {
+            guard span.start >= 0, span.end <= anonymizedText.count, span.end > span.start else { continue }
+
+            let categoryBase = placeholderBase(for: span.category)
+            let mappingKey = placeholderMappingKey(for: span)
+            let placeholder: String
+
+            if let existing = placeholderByKey[mappingKey] {
+                placeholder = existing
+            } else {
+                let nextIndex = (placeholderCounters[categoryBase] ?? 0) + 1
+                placeholderCounters[categoryBase] = nextIndex
+                placeholder = "[\(categoryBase)_\(nextIndex)]"
+                placeholderByKey[mappingKey] = placeholder
+                assignedPlaceholders[placeholder] = span.text
+            }
+
+            let startIndex = anonymizedText.index(anonymizedText.startIndex, offsetBy: span.start)
+            let endIndex = anonymizedText.index(anonymizedText.startIndex, offsetBy: span.end)
+            anonymizedText.replaceSubrange(startIndex..<endIndex, with: placeholder)
+        }
+
+        return TextAnonymizationResult(
+            anonymizedText: anonymizedText,
+            replacementCount: selectedSpans.count,
+            placeholders: assignedPlaceholders
+        )
+    }
+
+    nonisolated private static func selectNonOverlappingSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        let sorted = spans.sorted { lhs, rhs in
+            if lhs.start != rhs.start { return lhs.start < rhs.start }
+            let lhsLength = lhs.end - lhs.start
+            let rhsLength = rhs.end - rhs.start
+            if lhsLength != rhsLength { return lhsLength > rhsLength }
+            return lhs.confidence > rhs.confidence
+        }
+
+        var accepted: [DetectedSpan] = []
+        for candidate in sorted {
+            guard candidate.end > candidate.start else { continue }
+            let overlaps = accepted.contains { existing in
+                max(candidate.start, existing.start) < min(candidate.end, existing.end)
+            }
+            if !overlaps {
+                accepted.append(candidate)
+            }
+        }
+        return accepted
+    }
+
+    nonisolated private static func placeholderBase(for category: String) -> String {
+        switch category {
+        case "private_person": return "NAME"
+        case "private_address": return "ADRESSE"
+        case "private_date": return "DATUM"
+        case "private_email": return "EMAIL"
+        case "private_phone": return "TELEFON"
+        case "account_number": return "NUMMER"
+        case "secret": return "GEHEIM"
+        case "custom_identifier": return "PLATZHALTER"
+        default:
+            let compact = category
+                .uppercased()
+                .folding(options: [.diacriticInsensitive], locale: .current)
+                .replacingOccurrences(of: "PRIVATE_", with: "")
+                .replacingOccurrences(of: "[^A-Z0-9]+", with: "_", options: .regularExpression)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+            return compact.isEmpty ? "PII" : compact
+        }
+    }
+
+    nonisolated private static func placeholderMappingKey(for span: DetectedSpan) -> String {
+        let normalizedText = span.text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(placeholderBase(for: span.category))::\(normalizedText)"
     }
 
     private func ensureCacheDirectoryExists() {

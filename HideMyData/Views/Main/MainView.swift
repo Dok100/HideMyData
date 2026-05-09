@@ -14,6 +14,7 @@ struct MainView: View {
     @State private var saveWarningPresented = false
     @State private var customPatternsPresented = false
     @State private var diagnosticsPresented = false
+    @State private var clipboardAnonymizerPresented = false
 
     private var activeIsEmpty: Bool {
         switch inputMode {
@@ -31,6 +32,7 @@ struct MainView: View {
                     inputMode: $inputMode,
                     recents: recents,
                     recentsEnabled: $recentsEnabled,
+                    onOpenClipboardAnonymizer: { clipboardAnonymizerPresented = true },
                     onOpenPDF: openPDFAndAdd,
                     onOpenImage: openImageAndAdd,
                     onDropFile: handleDrop,
@@ -72,6 +74,7 @@ struct MainView: View {
                     inputMode: inputMode,
                     onManagePatterns: { customPatternsPresented = true },
                     onShowDiagnostics: { diagnosticsPresented = true },
+                    onAnonymizeClipboard: { clipboardAnonymizerPresented = true },
                     onSaveRequest: requestSave
                 )
                 .padding(.horizontal, 18)
@@ -101,6 +104,9 @@ struct MainView: View {
         .onChange(of: recentsEnabled) { _, enabled in
             recents.setEnabled(enabled)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showClipboardAnonymizer)) { _ in
+            clipboardAnonymizerPresented = true
+        }
         .alert("Prüfung erforderlich", isPresented: $saveWarningPresented) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -111,6 +117,9 @@ struct MainView: View {
         }
         .sheet(isPresented: $diagnosticsPresented) {
             DiagnosticsSheet(entries: currentDebugEntries)
+        }
+        .sheet(isPresented: $clipboardAnonymizerPresented) {
+            ClipboardAnonymizerSheet(detector: detector)
         }
     }
 
@@ -481,6 +490,169 @@ private struct DiagnosticsSheet: View {
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(payload, forType: .string)
+    }
+}
+
+private struct ClipboardAnonymizerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let detector: PIIDetector
+
+    @State private var originalText = ""
+    @State private var anonymizedText = ""
+    @State private var placeholders: [(placeholder: String, original: String)] = []
+    @State private var replacementCount = 0
+    @State private var isProcessing = false
+    @State private var statusMessage = "Kopiere einen Text in die Zwischenablage und prüfe hier die anonymisierte Vorschau."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Zwischenablage anonymisieren")
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    Text("Vorher-/Nachher-Vorschau für kopierten Text. Die Anonymisierung läuft lokal auf deinem Mac.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 16)
+                Button("Fertig") { dismiss() }
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
+            }
+
+            HStack(spacing: 12) {
+                Button("Aus Zwischenablage laden") {
+                    Task { await refreshFromClipboard() }
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+
+                Button("Anonymisierte Version kopieren") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(anonymizedText, forType: .string)
+                    statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(anonymizedText.isEmpty)
+
+                Spacer(minLength: 0)
+
+                if isProcessing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            Text(statusMessage)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: 20) {
+                comparisonCard(title: "Original") {
+                    ScrollView {
+                        Text(originalText.isEmpty ? "Noch kein Text geladen." : originalText)
+                            .font(.system(size: 12.5, design: .monospaced))
+                            .foregroundStyle(originalText.isEmpty ? .secondary : .primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+
+                comparisonCard(title: "Anonymisiert") {
+                    ScrollView {
+                        Text(anonymizedText.isEmpty ? "Noch keine anonymisierte Vorschau vorhanden." : anonymizedText)
+                            .font(.system(size: 12.5, design: .monospaced))
+                            .foregroundStyle(anonymizedText.isEmpty ? .secondary : .primary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+
+            comparisonCard(title: "Platzhalter") {
+                if placeholders.isEmpty {
+                    Text("Noch keine Ersetzungen vorhanden.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(placeholders, id: \.placeholder) { entry in
+                                HStack(alignment: .top, spacing: 12) {
+                                    Text(entry.placeholder)
+                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 5)
+                                        .background(.blue.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(.blue)
+                                    Text(entry.original)
+                                        .font(.system(size: 12))
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .padding(10)
+                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 200)
+                }
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 960, idealWidth: 1120, minHeight: 700, idealHeight: 780)
+        .background(AmbientBackdrop())
+        .task {
+            await refreshFromClipboard()
+        }
+    }
+
+    private func comparisonCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
+        .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func refreshFromClipboard() async {
+        guard let clipboardText = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !clipboardText.isEmpty
+        else {
+            originalText = ""
+            anonymizedText = ""
+            placeholders = []
+            replacementCount = 0
+            statusMessage = "Bitte kopiere zuerst einen Text in die Zwischenablage."
+            return
+        }
+
+        originalText = clipboardText
+        isProcessing = true
+        defer { isProcessing = false }
+
+        switch await detector.anonymizeText(clipboardText) {
+        case .failure(let error):
+            anonymizedText = ""
+            placeholders = []
+            replacementCount = 0
+            statusMessage = "Anonymisierung fehlgeschlagen: \(error.localizedDescription)"
+        case .success(let result):
+            anonymizedText = result.anonymizedText
+            placeholders = result.placeholders
+                .sorted { $0.key < $1.key }
+                .map { ($0.key, $0.value) }
+            replacementCount = result.replacementCount
+            statusMessage = result.placeholders.isEmpty
+                ? "Es wurden keine ersetzbaren Inhalte gefunden."
+                : "Ersetzungen: \(result.replacementCount), Platzhalter: \(result.placeholders.count)."
+        }
     }
 }
 

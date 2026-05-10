@@ -14,11 +14,11 @@ struct IntroView: View {
                 AppLogo()
 
                 VStack(spacing: 10) {
-                    Text("Willkommen bei HideMyData")
+                    Text("Willkommen bei Inkognito")
                         .font(.system(size: 32, weight: .bold))
                         .tracking(-0.6)
 
-                    Text("Schwärze sensible Informationen aus PDFs und Bildern,\nkomplett auf deinem Mac.")
+                    Text("Anonymisieren. Direkt auf deinem Mac.\nVertrauliches bleibt vertraulich.")
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -91,7 +91,7 @@ private struct AppLogo: View {
             .frame(width: size, height: size)
             .clipShape(.rect(cornerRadius: size * 0.22))
             .shadow(color: .black.opacity(0.25), radius: 18, y: 8)
-            .accessibilityLabel("HideMyData")
+            .accessibilityLabel("Inkognito")
     }
 }
 

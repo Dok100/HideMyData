@@ -352,7 +352,8 @@ final class PIIDetector {
     var lastClipboardSession: ClipboardAnonymizationSession?
 
     private var openmed: OpenMed?
-    private static let lastClipboardSessionKey = "HMD.lastClipboardSession"
+    private static let lastClipboardSessionKey = "Inkognito.lastClipboardSession"
+    private static let legacyLastClipboardSessionKey = "HMD.lastClipboardSession"
 
     static let modelRepoID = "OpenMed/privacy-filter-mlx-8bit"
     static let modelRevision = "4c9836d"
@@ -360,9 +361,23 @@ final class PIIDetector {
 
     private static func defaultCacheRoot() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        migrateLegacyCacheIfNeeded(base: support)
         return support
-            .appendingPathComponent("HideMyData", isDirectory: true)
+            .appendingPathComponent("Inkognito", isDirectory: true)
             .appendingPathComponent("ModelCache", isDirectory: true)
+    }
+
+    private static func migrateLegacyCacheIfNeeded(base: URL) {
+        let fm = FileManager.default
+        let legacyDir = base.appendingPathComponent("HideMyData/ModelCache", isDirectory: true)
+        let newParent = base.appendingPathComponent("Inkognito", isDirectory: true)
+        let newDir = newParent.appendingPathComponent("ModelCache", isDirectory: true)
+
+        guard fm.fileExists(atPath: legacyDir.path),
+              !fm.fileExists(atPath: newDir.path) else { return }
+
+        try? fm.createDirectory(at: newParent, withIntermediateDirectories: true)
+        try? fm.moveItem(at: legacyDir, to: newDir)
     }
 
     private static func modelDirectory(in cacheRoot: URL) -> URL {
@@ -870,14 +885,22 @@ final class PIIDetector {
 
     private static func persistClipboardSession(_ session: ClipboardAnonymizationSession) {
         guard let data = try? JSONEncoder().encode(session) else { return }
-        UserDefaults.standard.set(data, forKey: lastClipboardSessionKey)
+        let defaults = UserDefaults.standard
+        defaults.set(data, forKey: lastClipboardSessionKey)
+        defaults.removeObject(forKey: legacyLastClipboardSessionKey)
     }
 
     private static func loadPersistedClipboardSession() -> ClipboardAnonymizationSession? {
-        guard let data = UserDefaults.standard.data(forKey: lastClipboardSessionKey),
+        let defaults = UserDefaults.standard
+        guard let data =
+                defaults.data(forKey: lastClipboardSessionKey) ??
+                defaults.data(forKey: legacyLastClipboardSessionKey),
               let session = try? JSONDecoder().decode(ClipboardAnonymizationSession.self, from: data)
         else {
             return nil
+        }
+        if defaults.data(forKey: lastClipboardSessionKey) == nil {
+            persistClipboardSession(session)
         }
         return session
     }

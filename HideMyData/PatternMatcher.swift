@@ -287,9 +287,24 @@ final class CustomPatternStore {
 
     nonisolated private static func storageURL() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        migrateLegacyStorageIfNeeded(base: support)
         return support
-            .appendingPathComponent("HideMyData", isDirectory: true)
+            .appendingPathComponent("Inkognito", isDirectory: true)
             .appendingPathComponent("custom-patterns.json")
+    }
+
+    nonisolated private static func migrateLegacyStorageIfNeeded(base: URL) {
+        let fm = FileManager.default
+        let legacyDir = base.appendingPathComponent("HideMyData", isDirectory: true)
+        let newDir = base.appendingPathComponent("Inkognito", isDirectory: true)
+        let legacyFile = legacyDir.appendingPathComponent("custom-patterns.json")
+        let newFile = newDir.appendingPathComponent("custom-patterns.json")
+
+        guard fm.fileExists(atPath: legacyFile.path),
+              !fm.fileExists(atPath: newFile.path) else { return }
+
+        try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
+        try? fm.copyItem(at: legacyFile, to: newFile)
     }
 }
 

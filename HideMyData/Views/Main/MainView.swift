@@ -3,6 +3,9 @@ import AppKit
 internal import UniformTypeIdentifiers
 
 struct MainView: View {
+    private static let recentsEnabledKey = "Inkognito.recents.enabled"
+    private static let legacyRecentsEnabledKey = "HMD.recents.enabled"
+
     let detector: PIIDetector
     @Bindable var pdfRedactor: PDFRedactor
     @Bindable var imageRedactor: ImageRedactor
@@ -10,7 +13,7 @@ struct MainView: View {
     @Bindable var customPatterns: CustomPatternStore
     @Binding var inputMode: InputMode
     @State private var showHome: Bool = false
-    @AppStorage("HMD.recents.enabled") private var recentsEnabled: Bool = true
+    @AppStorage(Self.recentsEnabledKey) private var recentsEnabled: Bool = true
     @State private var saveWarningPresented = false
     @State private var customPatternsPresented = false
     @State private var diagnosticsPresented = false
@@ -104,7 +107,10 @@ struct MainView: View {
             .padding(.top, shouldShowEmpty ? 22 : 82)
             .allowsHitTesting(false)
         }
-        .onAppear { recents.setEnabled(recentsEnabled) }
+        .onAppear {
+            migrateLegacyRecentsPreferenceIfNeeded()
+            recents.setEnabled(recentsEnabled)
+        }
         .onChange(of: recentsEnabled) { _, enabled in
             recents.setEnabled(enabled)
         }
@@ -125,6 +131,14 @@ struct MainView: View {
         .sheet(isPresented: $clipboardAnonymizerPresented) {
             ClipboardAnonymizerSheet(detector: detector)
         }
+    }
+
+    private func migrateLegacyRecentsPreferenceIfNeeded() {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: Self.recentsEnabledKey) == nil,
+              let legacy = defaults.object(forKey: Self.legacyRecentsEnabledKey) as? Bool else { return }
+        recentsEnabled = legacy
+        defaults.removeObject(forKey: Self.legacyRecentsEnabledKey)
     }
 
     @ViewBuilder
@@ -926,7 +940,7 @@ private struct CustomPatternsSheet: View {
             isPresented: $isExporting,
             document: CustomPatternsTransferDocument(patterns: store.exportPatterns()),
             contentType: .json,
-            defaultFilename: "HideMyData-Regeln",
+            defaultFilename: "Inkognito-Regeln",
             onCompletion: handleExport
         )
     }

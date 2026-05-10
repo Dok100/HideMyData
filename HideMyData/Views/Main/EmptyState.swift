@@ -30,6 +30,11 @@ struct EmptyState: View {
                 Spacer().frame(height: 18)
             }
 
+            privacyToggle
+                .padding(.horizontal, 36)
+                .padding(.bottom, 10)
+                .frame(maxWidth: .infinity, alignment: .center)
+
             UpdateStatusFooter()
                 .padding(.bottom, 14)
         }
@@ -47,58 +52,36 @@ struct EmptyState: View {
     @ViewBuilder
     private var dropZone: some View {
         VStack(spacing: 28) {
-            Text("HIDE MY DATA")
+            Text("INKOGNITO")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .tracking(3.2)
                 .foregroundStyle(.tertiary)
 
-            VStack(spacing: 10) {
-                Text(isTargeted ? "Zum Öffnen ablegen" : "Lokal schwärzen.")
+            VStack(spacing: 12) {
+                Text(isTargeted ? "Zum Öffnen ablegen" : "Anonymisieren. Direkt auf deinem Mac.")
                     .font(.system(size: 38, weight: .medium, design: .rounded))
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
 
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.down.doc")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.tertiary)
-                    Text("Ziehe eine Datei hierher oder nutze den Button unten.")
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundStyle(.secondary)
-                }
-                .opacity(isTargeted ? 0 : 1)
+                Text("Vertrauliches bleibt vertraulich. Ziehe ein PDF oder Bild hierher – sensible Daten werden automatisch erkannt und vor dem Export dauerhaft geschwärzt.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .frame(maxWidth: 460)
+                    .opacity(isTargeted ? 0 : 1)
             }
             .multilineTextAlignment(.center)
 
-            HStack(spacing: 14) {
-                InputTabSegmented(inputMode: $inputMode)
-                    .fixedSize()
-
-                Button(action: openAction) {
-                    Label("Öffnen", systemImage: openIcon)
-                        .padding(.horizontal, 6)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .keyboardShortcut("o", modifiers: [.command])
-
-                Button(action: onOpenClipboardAnonymizer) {
-                    Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
-                        .padding(.horizontal, 6)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-                .keyboardShortcut("a", modifiers: [.command, .shift])
+            HStack(alignment: .top, spacing: 16) {
+                documentActionCard
+                clipboardActionCard
             }
-            .padding(.top, 4)
-
-            clipboardAnonymizerHint
-
-            privacyToggle
+            .padding(.top, 2)
         }
-        .padding(.horizontal, 56)
-        .padding(.vertical, 44)
-        .frame(maxWidth: 560)
+        .padding(.horizontal, 34)
+        .padding(.vertical, 36)
+        .frame(maxWidth: 760)
         .background(
             Color(nsColor: .controlBackgroundColor).opacity(0.90),
             in: RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -118,10 +101,112 @@ struct EmptyState: View {
         .animation(.smooth(duration: 0.22), value: isTargeted)
     }
 
+    private var documentActionCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.text.viewfinder")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                Text("Dokument schwärzen")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+
+            Text("Öffne ein PDF oder Bild und prüfe gefundene Stellen vor dem finalen Schwärzen.")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Format wählen")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.tertiary)
+
+                InputTabSegmented(inputMode: $inputMode)
+                    .fixedSize()
+
+                Text(modeSelectionHint)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(Color.accentColor.opacity(0.9))
+                    .contentTransition(.opacity)
+            }
+
+            Button(action: openAction) {
+                Label(openButtonTitle, systemImage: openIcon)
+                    .padding(.horizontal, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut("o", modifiers: [.command])
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.06), lineWidth: 0.8)
+        )
+    }
+
+    private var clipboardActionCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.green)
+                Text("Zwischenablage schützen")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+
+            Text("Einfacher Schutz sensibler Inhalte vor dem Einfügen per Copy & Paste in KI-Chatbots, E-Mails oder Dokumente.")
+                .font(.system(size: 12.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Schnellzugriff")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                Text("`cmd` + `shift` + `A` öffnet direkt die Vorher-/Nachher-Vorschau für kopierten Text.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: onOpenClipboardAnonymizer) {
+                Label("Zwischenablage anonymisieren", systemImage: "arrow.left.arrow.right.square")
+                    .padding(.horizontal, 6)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .keyboardShortcut("a", modifiers: [.command, .shift])
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color.white.opacity(0.74), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.06), lineWidth: 0.8)
+        )
+    }
+
     private var openIcon: String {
         switch inputMode {
         case .pdf: "doc.badge.plus"
         case .image: "photo.badge.plus"
+        }
+    }
+
+    private var openButtonTitle: String {
+        switch inputMode {
+        case .pdf: "PDF öffnen"
+        case .image: "Bild öffnen"
+        }
+    }
+
+    private var modeSelectionHint: String {
+        switch inputMode {
+        case .pdf: "Aktuell ausgewählt: PDF-Dokument"
+        case .image: "Aktuell ausgewählt: Bilddatei"
         }
     }
 
@@ -135,30 +220,29 @@ struct EmptyState: View {
     @ViewBuilder
     private var privacyToggle: some View {
         Toggle(isOn: $recentsEnabled) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Zuletzt verwendet speichern")
+            HStack(alignment: .center, spacing: 10) {
+                Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 13, weight: .medium))
-                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac.")
-                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Zuletzt verwendet speichern")
+                        .font(.system(size: 12.5, weight: .medium))
+                    Text("Dateiverweise und Vorschaubilder lokal auf diesem Mac behalten.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .toggleStyle(.switch)
-        .padding(.top, 2)
-        .frame(maxWidth: 360, alignment: .leading)
+        .frame(maxWidth: 420, alignment: .center)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color.white.opacity(0.55), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.black.opacity(0.05), lineWidth: 0.8)
+        )
     }
 
-    @ViewBuilder
-    private var clipboardAnonymizerHint: some View {
-        VStack(spacing: 8) {
-            Text("Zwischenablage anonymisieren")
-                .font(.system(size: 13, weight: .semibold))
-            Text("Kopiere einen Text, öffne die Vorschau mit `cmd` + `shift` + `A` und füge danach die anonymisierte Version in deine KI ein.")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
-        }
-        .padding(.top, 4)
-    }
 }

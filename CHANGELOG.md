@@ -25,7 +25,7 @@
 
 # 0.2.0
 
-## HideMyData is now notarized!
+## Inkognito is now notarized!
 
 * Integrate Sparkle for automatic updates. 
 * `Check for Updates…` menu item in the app menu.

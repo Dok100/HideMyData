@@ -25,11 +25,16 @@ final class RecentsStore {
     private(set) var isEnabled: Bool
 
     static let maxItems = 8
-    private static let storageKey = "HMD.recents.v1"
-    private static let enabledKey = "HMD.recents.enabled"
+    private static let storageKey = "Inkognito.recents.v1"
+    private static let legacyStorageKey = "HMD.recents.v1"
+    private static let enabledKey = "Inkognito.recents.enabled"
+    private static let legacyEnabledKey = "HMD.recents.enabled"
 
     init() {
-        self.isEnabled = UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true
+        self.isEnabled =
+            (UserDefaults.standard.object(forKey: Self.enabledKey) as? Bool) ??
+            (UserDefaults.standard.object(forKey: Self.legacyEnabledKey) as? Bool) ??
+            true
         load()
     }
 
@@ -87,6 +92,7 @@ final class RecentsStore {
         guard enabled != isEnabled else { return }
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
+        UserDefaults.standard.removeObject(forKey: Self.legacyEnabledKey)
         if enabled {
             load()
         } else {
@@ -113,15 +119,21 @@ final class RecentsStore {
             items = []
             return
         }
-        guard let data = UserDefaults.standard.data(forKey: Self.storageKey),
+        let defaults = UserDefaults.standard
+        guard let data =
+                defaults.data(forKey: Self.storageKey) ??
+                defaults.data(forKey: Self.legacyStorageKey),
               let decoded = try? JSONDecoder().decode([RecentItem].self, from: data) else { return }
         let fm = FileManager.default
         items = decoded.filter { fm.fileExists(atPath: thumbnailURL(for: $0).path) }
+        persist()
     }
 
     private func persist() {
         guard let data = try? JSONEncoder().encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: Self.storageKey)
+        let defaults = UserDefaults.standard
+        defaults.set(data, forKey: Self.storageKey)
+        defaults.removeObject(forKey: Self.legacyStorageKey)
     }
 
     private func clearAll() {
@@ -129,7 +141,9 @@ final class RecentsStore {
             deleteThumbnail(filename: item.thumbnailFilename)
         }
         items = []
-        UserDefaults.standard.removeObject(forKey: Self.storageKey)
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: Self.storageKey)
+        defaults.removeObject(forKey: Self.legacyStorageKey)
     }
 
     private func resolveURL(from bookmark: Data) -> URL? {
@@ -145,9 +159,23 @@ final class RecentsStore {
 
     private static func thumbsDir() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = support.appendingPathComponent("HideMyData/RecentsThumbs", isDirectory: true)
+        migrateLegacyThumbsIfNeeded(base: support)
+        let dir = support.appendingPathComponent("Inkognito/RecentsThumbs", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
+    }
+
+    private static func migrateLegacyThumbsIfNeeded(base: URL) {
+        let fm = FileManager.default
+        let legacyDir = base.appendingPathComponent("HideMyData/RecentsThumbs", isDirectory: true)
+        let newParent = base.appendingPathComponent("Inkognito", isDirectory: true)
+        let newDir = newParent.appendingPathComponent("RecentsThumbs", isDirectory: true)
+
+        guard fm.fileExists(atPath: legacyDir.path),
+              !fm.fileExists(atPath: newDir.path) else { return }
+
+        try? fm.createDirectory(at: newParent, withIntermediateDirectories: true)
+        try? fm.moveItem(at: legacyDir, to: newDir)
     }
 
     private func deleteThumbnail(filename: String) {

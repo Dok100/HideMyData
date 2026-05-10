@@ -1,10 +1,10 @@
 <div align="center">
 
-<img width="180" height="180" alt="HideMyData" src="HideMyData/Assets.xcassets/AppLogo.imageset/logo.png" />
+<img width="180" height="180" alt="Inkognito" src="HideMyData/Assets.xcassets/AppLogo.imageset/logo.png" />
 
-### Local, AI-powered PII redaction for macOS
+### Inkognito — Anonymisieren. Direkt auf deinem Mac.
 
-Built with [OpenMed](https://github.com/maziyarpanahi/openmed), [MLX-Swift](https://github.com/ml-explore/mlx-swift), and Apple Vision
+Lokale KI-gestützte Schwärzung sensibler Inhalte für macOS. Gebaut mit [OpenMed](https://github.com/maziyarpanahi/openmed), [MLX-Swift](https://github.com/ml-explore/mlx-swift) und Apple Vision.
 
 ![Swift](https://img.shields.io/badge/Swift-FA7343?style=for-the-badge&logo=swift&logoColor=white)
 ![Xcode](https://img.shields.io/badge/Xcode-007ACC?style=for-the-badge&logo=Xcode&logoColor=white)
@@ -20,7 +20,7 @@ https://github.com/user-attachments/assets/353899ca-3810-4fbc-9cbf-45bdf50ec30d
 
 ## Features
 
-- **Fully local** — model runs on-device, nothing ever leaves your machine
+- **Direkt auf deinem Mac** — Modell, Erkennung und Verarbeitung laufen lokal auf dem Gerät
 - **PDF and image input** — both formats share the same detection and redaction pipeline
 - **OCR** — Apple Vision handles scanned PDFs, images, and rescues PDFs whose embedded fonts hide text from selection
 - **AI detection** — OpenAI `privacy-filter` (MLX 8-bit) catches names, emails, phones, addresses, dates, IDs in context
@@ -28,30 +28,38 @@ https://github.com/user-attachments/assets/353899ca-3810-4fbc-9cbf-45bdf50ec30d
 - **Two redaction styles** — solid black or frosted glass blur
 - **Review before final redaction** — automatic hits are marked first and only become final redactions after confirmation
 - **Manual editing** — add or remove redaction rectangles by hand before saving
-- **Clipboard anonymization** — copy text, anonymize it locally, and paste the sanitized version into your AI tool
-- **Placeholder restoration** — paste the AI response back and restore the original values locally
+- **Clipboard-Anonymisierung** — kopierten Text lokal anonymisieren und sicher in KI-Tools, E-Mails oder Dokumente einfügen
+- **Platzhalter-Rückführung** — KI-Antwort zurückholen und Originalwerte lokal wieder einsetzen
 - **Permanent on save** — pages are rasterized and rebuilt - the original text and glyphs are gone, not just hidden
+- **Safer PDF sharing** — for confidential exports, use `Black`. The final exported PDF bakes redactions into the saved page instead of leaving removable overlay bars on top
 
 ## Clipboard Workflow
 
-Use the built-in clipboard workflow when you want to improve a text with an AI assistant without sending raw personal data:
+Nutze den integrierten Zwischenablage-Workflow, wenn du Texte mit einer KI verbessern willst, ohne Rohdaten weiterzugeben:
 
-1. Copy a text into the clipboard
-2. Open the anonymization preview via the app or the global shortcut
-3. Review the anonymized version and copy it into ChatGPT, Claude, Gemini, or another tool
-4. Copy the AI response back into HideMyData
-5. Restore the original values locally from the generated placeholders
+1. Text in die Zwischenablage kopieren
+2. Vorschau über die App oder den globalen Shortcut öffnen
+3. Anonymisierte Version prüfen und in ChatGPT, Claude, Gemini oder ein anderes Tool einfügen
+4. KI-Antwort zurück in Inkognito holen
+5. Originalwerte lokal aus den Platzhaltern wiederherstellen
 
-The placeholder mapping stays on your Mac. No original values are uploaded by HideMyData.
+Die Platzhalter-Zuordnung bleibt auf deinem Mac. Inkognito lädt keine Originalwerte hoch.
 
 ## Review Flow
 
-For PDFs and images, HideMyData now uses a two-step review flow:
+Für PDFs und Bilder nutzt Inkognito einen zweistufigen Prüf-Workflow:
 
-- automatic detections are shown as colored marks first
-- confirmed detections become final black or blurred redactions
-- rejected detections are removed again
-- manual `Add` / `Remove` editing stays available at all times
+- automatische Treffer werden zunächst nur farbig markiert
+- bestätigte Treffer werden erst danach final geschwärzt oder unscharf exportiert
+- abgelehnte Treffer verschwinden wieder
+- manuelles `Hinzufügen` / `Entfernen` bleibt jederzeit verfügbar
+
+## Security Notes
+
+- Der stärkste Exportmodus für vertrauliche PDFs ist **`Schwarz`**.
+- In diesem Modus wird die finale PDF aus gerenderten Seiten neu aufgebaut, statt nur mit entfernbaren Balken überdeckt zu werden.
+- **`Unschärfe`** ist visuell nützlich, aber schwächer als eine vollständige schwarze Schwärzung.
+- Gib keine Datei aus dem Zwischenzustand weiter. Nur der finale Export enthält die eingebrannten Schwärzungen.
 
 ## Requirements
 
@@ -65,14 +73,14 @@ open HideMyData.xcodeproj
 # build & run via Xcode (⌘R)
 ```
 
-On first launch, you will be prompted to download the model (~1.5 GB) from Hugging Face into `~/Library/Application Support/HideMyData/ModelCache/`.
-The app pins the model to a specific Hugging Face revision instead of tracking `main`, so future upstream changes are not pulled silently.
+Beim ersten Start lädt Inkognito das Modell (~1.5 GB) von Hugging Face nach `~/Library/Application Support/Inkognito/ModelCache/`.
+Die App pinnt das Modell auf eine feste Hugging-Face-Revision statt `main` zu verfolgen, damit spätere Upstream-Änderungen nicht unbemerkt übernommen werden.
 
 ## Current Notes
 
-- The app is currently in an actively refined UX/workflow phase.
-- Some OCR-heavy edge cases around addresses, account data, and classification still need another stabilization pass.
-- The current review and clipboard workflows are functional, but detection quality is still being tuned further.
+- Die App befindet sich aktuell in einer aktiven UX-/Workflow-Feinabstimmung.
+- Einige OCR-lastige Randfälle bei Adressen, Kontodaten und Klassifikation brauchen noch einen weiteren Stabilisierungsschritt.
+- Review- und Clipboard-Workflow funktionieren bereits, die Erkennungsqualität wird aber noch weiter nachgeschärft.
 
 ## Tech Stack
 

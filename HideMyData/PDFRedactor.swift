@@ -80,6 +80,7 @@ final class PDFRedactor {
     var debugEntries: [DetectionDebugEntry] = []
 
     private var redactionAnnotations: [RedactionEntry] = []
+    private var previewAnnotations: [RedactionEntry] = []
     private let blurCache: NSCache<PDFPage, CGImage> = {
         let cache = NSCache<PDFPage, CGImage>()
         cache.countLimit = 8
@@ -91,11 +92,14 @@ final class PDFRedactor {
         switch phase {
         case .empty: return "Kein Dokument"
         case .loaded:
-            if redactionAnnotations.isEmpty { return "Geladen" }
-            return "\(redactionAnnotations.count) Bereich\(redactionAnnotations.count == 1 ? "" : "e")"
+            if redactionAnnotations.isEmpty && previewAnnotations.isEmpty { return "Geladen" }
+            if !previewAnnotations.isEmpty {
+                return "\(previewAnnotations.count) Markierung\(previewAnnotations.count == 1 ? "" : "en")"
+            }
+            return "\(redactionAnnotations.count) Schwärzung\(redactionAnnotations.count == 1 ? "" : "en")"
         case .detecting: return "PII wird erkannt…"
         case .redacted(_, let r):
-            return "\(r) Schwärzung\(r == 1 ? "" : "en")"
+            return "\(r) Bereich\(r == 1 ? "" : "e") vorbereitet"
         case .saved(let url): return "Gespeichert → \(url.lastPathComponent)"
         case .failed(let m): return "Fehler: \(m)"
         }
@@ -127,7 +131,7 @@ final class PDFRedactor {
             return false
         }
         cancelDetection()
-        clearRedactions(silently: true)
+        clearAllVisuals(silently: true)
         blurCache.removeAllObjects()
         clearReviewState()
         self.document = doc
@@ -146,7 +150,7 @@ final class PDFRedactor {
             return false
         }
         cancelDetection()
-        clearRedactions(silently: true)
+        clearAllVisuals(silently: true)
         blurCache.removeAllObjects()
         clearReviewState()
         self.document = doc
@@ -188,12 +192,13 @@ final class PDFRedactor {
 
     private func runDetection(using detector: PIIDetector) async {
         guard let doc = document else { return }
-        clearRedactions(silently: true)
+        clearAllVisuals(silently: true)
         clearReviewState()
         phase = .detecting
 
         var totalSpans = 0
         var totalRects = 0
+        var reviewCandidates: [ReviewFindingCandidate] = []
 
         for pageIndex in 0..<doc.pageCount {
             if Task.isCancelled { return }
@@ -246,18 +251,17 @@ final class PDFRedactor {
                     if rects.isEmpty {
                         unmapped.append(translated)
                     } else {
-                        let finding = ReviewFinding(
-                            category: translated.category,
-                            snippet: translated.text,
-                            source: translated.source,
-                            confidence: translated.confidence,
-                            pageIndex: pageIndex
+                        reviewCandidates.append(
+                            ReviewFindingCandidate(
+                                category: translated.category,
+                                snippet: translated.text,
+                                source: translated.source,
+                                confidence: translated.confidence,
+                                pageIndex: pageIndex,
+                                rects: rects
+                            )
                         )
-                        reviewFindings.append(finding)
-                        for rect in rects {
-                            addRedaction(rect: rect, on: page, source: .auto, findingID: finding.id)
-                            totalRects += 1
-                        }
+                        totalRects += rects.count
                     }
                 }
                 if !unmapped.isEmpty, case .nativeText = source {
@@ -265,20 +269,32 @@ final class PDFRedactor {
                     let grouped = Dictionary(grouping: recovered, by: \.1.id)
                     for span in unmapped {
                         guard let matches = grouped[span.id], !matches.isEmpty else { continue }
-                        let finding = ReviewFinding(
-                            category: span.category,
-                            snippet: span.text,
-                            source: span.source,
-                            confidence: span.confidence,
-                            pageIndex: pageIndex
+                        reviewCandidates.append(
+                            ReviewFindingCandidate(
+                                category: span.category,
+                                snippet: span.text,
+                                source: span.source,
+                                confidence: span.confidence,
+                                pageIndex: pageIndex,
+                                rects: matches.map(\.0)
+                            )
                         )
-                        reviewFindings.append(finding)
-                        for (rect, _) in matches {
-                            addRedaction(rect: rect, on: page, source: .auto, findingID: finding.id)
-                            totalRects += 1
-                        }
+                        totalRects += matches.count
                     }
                 }
+            }
+        }
+
+        totalRects = 0
+        let reviewProjections = ReviewFindingCompactor.compact(reviewCandidates)
+        for projection in reviewProjections {
+            reviewFindings.append(projection.finding)
+            guard let pageIndex = projection.finding.pageIndex,
+                  let page = doc.page(at: pageIndex)
+            else { continue }
+            for rect in projection.rects {
+                addPreview(rect: rect, on: page, findingID: projection.finding.id)
+                totalRects += 1
             }
         }
 
@@ -375,6 +391,19 @@ final class PDFRedactor {
         return ann
     }
 
+    @discardableResult
+    private func addPreview(rect: CGRect, on page: PDFPage, findingID: UUID) -> PDFAnnotation {
+        let padded = rect.insetBy(dx: -1, dy: -1)
+        let annotation = PreviewRedactionAnnotation(bounds: padded, forType: .square, withProperties: nil)
+        annotation.border = nil
+        if let finding = reviewFindings.first(where: { $0.id == findingID }) {
+            annotation.tintColor = previewColor(for: finding.category)
+        }
+        page.addAnnotation(annotation)
+        previewAnnotations.append(RedactionEntry(page: page, annotation: annotation, findingID: findingID))
+        return annotation
+    }
+
     func removeRedaction(_ ann: PDFAnnotation, on page: PDFPage) {
         page.removeAnnotation(ann)
         let removed = redactionAnnotations.first { $0.annotation === ann }
@@ -394,6 +423,7 @@ final class PDFRedactor {
     }
 
     func acceptFinding(_ id: UUID) {
+        promotePreviewToRedaction(for: id)
         updateFinding(id) { $0.status = .accepted }
         selectFinding(id)
     }
@@ -408,7 +438,7 @@ final class PDFRedactor {
     }
 
     func rejectFinding(_ id: UUID) {
-        removeRedactions(for: id)
+        removePreviews(for: id)
         updateFinding(id) { $0.status = .rejected }
         if focusedFindingID == id {
             focusedFindingID = nil
@@ -431,15 +461,19 @@ final class PDFRedactor {
 
     func clearRedactions() {
         cancelDetection()
-        clearRedactions(silently: false)
+        clearAllVisuals(silently: false)
         clearReviewState()
     }
 
-    private func clearRedactions(silently: Bool) {
+    private func clearAllVisuals(silently: Bool) {
         for entry in redactionAnnotations {
             entry.page.removeAnnotation(entry.annotation)
         }
+        for entry in previewAnnotations {
+            entry.page.removeAnnotation(entry.annotation)
+        }
         redactionAnnotations.removeAll()
+        previewAnnotations.removeAll()
         if !silently, document != nil { phase = .loaded }
     }
 
@@ -470,6 +504,26 @@ final class PDFRedactor {
         redactionAnnotations.removeAll { $0.findingID == findingID }
     }
 
+    private func removePreviews(for findingID: UUID) {
+        let matching = previewAnnotations.filter { $0.findingID == findingID }
+        for entry in matching {
+            entry.page.removeAnnotation(entry.annotation)
+        }
+        previewAnnotations.removeAll { $0.findingID == findingID }
+    }
+
+    private func promotePreviewToRedaction(for findingID: UUID) {
+        let matches = previewAnnotations.filter { $0.findingID == findingID }
+        guard !matches.isEmpty else { return }
+        previewAnnotations.removeAll { $0.findingID == findingID }
+        for entry in matches {
+            let page = entry.page
+            let rect = entry.annotation.bounds.insetBy(dx: 1, dy: 1)
+            page.removeAnnotation(entry.annotation)
+            addRedaction(rect: rect, on: page, source: .auto, findingID: findingID)
+        }
+    }
+
     private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {
         guard !redactionAnnotations.contains(where: { $0.findingID == findingID }) else { return }
         updateFinding(findingID) {
@@ -486,11 +540,30 @@ final class PDFRedactor {
 
     private func firstFocusTarget(for findingID: UUID) -> FocusTarget? {
         guard let doc = document,
-              let entry = redactionAnnotations.first(where: { $0.findingID == findingID })
+              let entry = (previewAnnotations + redactionAnnotations).first(where: { $0.findingID == findingID })
         else { return nil }
         let pageIndex = doc.index(for: entry.page)
         guard pageIndex >= 0 else { return nil }
         return FocusTarget(pageIndex: pageIndex, rect: entry.annotation.bounds)
+    }
+
+    private func previewColor(for category: String) -> NSColor {
+        switch category.lowercased() {
+        case "private_email", "kontakt":
+            return .systemGreen
+        case "private_address", "adressblock", "adresse":
+            return .systemRed
+        case "account_number":
+            return NSColor.systemYellow.blended(withFraction: 0.28, of: .systemOrange) ?? .systemYellow
+        case "private_phone":
+            return .systemTeal
+        case "private_person":
+            return .systemBlue
+        case "private_date":
+            return .systemPurple
+        default:
+            return .systemOrange
+        }
     }
 
     // MARK: - Bounding rects via character offsets (with text-search fallback)

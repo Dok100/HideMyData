@@ -12,49 +12,46 @@ struct FloatingToolbar: View {
     let onSaveRequest: () -> Void
 
     var body: some View {
-        GlassEffectContainer(spacing: 10) {
-            HStack(spacing: 10) {
-                fileGroup
-                detectButton
-                anonymizeClipboardButton
-                patternsButton
-                diagnosticsButton
-                Spacer(minLength: 10)
-                modeSegmented
-                clearButton
-                styleSegmented
-            }
+        HStack(spacing: 12) {
+            primaryActions
+            Divider()
+                .frame(height: 26)
+            contextControls
+            Divider()
+                .frame(height: 26)
+            utilityMenu
         }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
         .controlSize(.large)
     }
 
     // MARK: - Buttons
 
     @ViewBuilder
-    private var fileGroup: some View {
-        HStack(spacing: 4) {
-            Button(action: openAction) {
-                HStack(spacing: 6) {
-                    Image(systemName: openIcon)
-                    Text("Öffnen")
-                }
-                .padding(.horizontal, 4)
-            }
-            .keyboardShortcut("o", modifiers: [.command])
-            .help("Öffnen  ⌘O")
-
-            Button(action: saveAction) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.down")
-                    Text("Speichern")
-                }
-                .padding(.horizontal, 4)
-            }
-            .disabled(!hasFile)
-            .keyboardShortcut("s", modifiers: [.command])
-            .help(saveHelpText)
+    private var primaryActions: some View {
+        HStack(spacing: 8) {
+            openButton
+            detectButton
+            saveButton
         }
-        .buttonStyle(.glass)
+    }
+
+    @ViewBuilder
+    private var openButton: some View {
+        Button(action: openAction) {
+            Label("Öffnen", systemImage: openIcon)
+                .padding(.horizontal, 4)
+        }
+        .buttonStyle(.bordered)
+        .keyboardShortcut("o", modifiers: [.command])
+        .help("Öffnen  ⌘O")
     }
 
     @ViewBuilder
@@ -67,55 +64,69 @@ struct FloatingToolbar: View {
             }
             .padding(.horizontal, 4)
         }
-        .buttonStyle(.glassProminent)
+        .buttonStyle(.borderedProminent)
         .disabled(!detector.isReady || !canDetect)
         .keyboardShortcut("d", modifiers: [.command])
         .help("PII automatisch erkennen  ⌘D")
     }
 
     @ViewBuilder
-    private var patternsButton: some View {
-        Button(action: onManagePatterns) {
-            HStack(spacing: 6) {
-                Image(systemName: "text.badge.plus")
-                if customPatternsCount > 0 {
-                    Text("Regeln (\(customPatternsCount))")
-                } else {
-                    Text("Regeln")
-                }
-            }
-            .padding(.horizontal, 4)
+    private var saveButton: some View {
+        Button(action: saveAction) {
+            Label("Speichern", systemImage: "square.and.arrow.down")
+                .padding(.horizontal, 4)
         }
-        .buttonStyle(.glass)
-        .help("Eigene Erkennungsregeln verwalten")
+        .buttonStyle(.bordered)
+        .disabled(!hasFile)
+        .keyboardShortcut("s", modifiers: [.command])
+        .help(saveHelpText)
     }
 
     @ViewBuilder
-    private var anonymizeClipboardButton: some View {
-        Button(action: onAnonymizeClipboard) {
-            HStack(spacing: 6) {
-                Image(systemName: "doc.on.clipboard")
-                Text("Zwischenablage anonymisieren")
-            }
-            .padding(.horizontal, 4)
+    private var contextControls: some View {
+        HStack(spacing: 8) {
+            modeSegmented
+            styleSegmented
+            clearButton
         }
-        .buttonStyle(.glass)
+    }
+
+    @ViewBuilder
+    private var utilityMenu: some View {
+        Menu {
+            Button(action: onManagePatterns) {
+                Label(customPatternsCount > 0 ? "Regeln verwalten (\(customPatternsCount))" : "Regeln verwalten",
+                      systemImage: "text.badge.plus")
+            }
+
+            Button(action: onAnonymizeClipboard) {
+                Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
+            }
+            .disabled(!detector.isReady || isDetecting)
+
+            Button(action: onShowDiagnostics) {
+                Label("Diagnose öffnen", systemImage: "ladybug")
+            }
+            .disabled(!hasDiagnostics)
+        } label: {
+            Label("Werkzeuge", systemImage: "ellipsis.circle")
+                .padding(.horizontal, 4)
+        }
+        .menuStyle(.button)
+        .controlSize(.regular)
+        .help("Sekundäre Werkzeuge und Hilfsfunktionen")
+    }
+
+    @ViewBuilder
+    private var styleSegmented: some View {
+        GlassSegmented(
+            selection: styleBinding,
+            items: RedactionStyle.allCases.map {
+                .init(value: $0, image: $0.systemImage, label: $0.displayName, help: "\($0.displayName)-Schwärzung")
+            }
+        )
+        .fixedSize()
         .disabled(!detector.isReady || isDetecting)
-        .help("Kopierten Text lokal anonymisieren und wieder in die Zwischenablage legen")
-    }
-
-    @ViewBuilder
-    private var diagnosticsButton: some View {
-        Button(action: onShowDiagnostics) {
-            HStack(spacing: 6) {
-                Image(systemName: "ladybug")
-                Text("Diagnose")
-            }
-            .padding(.horizontal, 4)
-        }
-        .buttonStyle(.glass)
-        .disabled(!hasDiagnostics)
-        .help("OCR- und Trefferdiagnose anzeigen")
     }
 
     @ViewBuilder
@@ -132,23 +143,11 @@ struct FloatingToolbar: View {
 
     @ViewBuilder
     private var clearButton: some View {
-        Button("Alle Schwärzungen entfernen", systemImage: "xmark.circle", action: clearAction)
+        Button("Schwärzungen entfernen", systemImage: "xmark.circle", action: clearAction)
             .labelStyle(.iconOnly)
-            .buttonStyle(.glass)
+            .buttonStyle(.bordered)
             .disabled(!hasRedactions || isDetecting)
             .help("Alle Schwärzungen entfernen")
-    }
-
-    @ViewBuilder
-    private var styleSegmented: some View {
-        GlassSegmented(
-            selection: styleBinding,
-            items: RedactionStyle.allCases.map {
-                .init(value: $0, image: $0.systemImage, label: $0.displayName, help: "\($0.displayName)-Schwärzung")
-            }
-        )
-        .fixedSize()
-        .disabled(!detector.isReady || isDetecting)
     }
 
     // MARK: - Mode-aware dispatch

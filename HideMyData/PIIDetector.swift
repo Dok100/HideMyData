@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 @preconcurrency import OpenMedKit
 
 enum DetectionSource: String, Codable, Sendable {
@@ -57,6 +58,243 @@ struct ReviewFinding: Identifiable, Equatable, Sendable {
     }
 }
 
+struct ReviewFindingCandidate {
+    let category: String
+    let snippet: String
+    let source: DetectionSource
+    let confidence: Float
+    let pageIndex: Int?
+    let rects: [CGRect]
+}
+
+struct ReviewFindingProjection {
+    let finding: ReviewFinding
+    let rects: [CGRect]
+}
+
+enum ReviewFindingCompactor {
+    private enum Family: String {
+        case addressBlock
+        case contact
+        case standalone
+    }
+
+    private struct Cluster {
+        var candidates: [ReviewFindingCandidate]
+        let family: Family
+        let pageIndex: Int?
+
+        var unionRect: CGRect {
+            candidates
+                .flatMap(\.rects)
+                .reduce(.null) { partial, rect in
+                    partial.isNull ? rect : partial.union(rect)
+                }
+        }
+    }
+
+    static func compact(_ candidates: [ReviewFindingCandidate]) -> [ReviewFindingProjection] {
+        let filtered = suppressRedundantCandidates(candidates)
+        let clustered = cluster(filtered)
+        return clustered.map(makeProjection)
+    }
+
+    private static func suppressRedundantCandidates(_ candidates: [ReviewFindingCandidate]) -> [ReviewFindingCandidate] {
+        candidates.filter { candidate in
+            let normalizedCandidate = normalized(candidate.snippet)
+            guard !normalizedCandidate.isEmpty else { return false }
+
+            return !candidates.contains { other in
+                guard !areSameCandidate(candidate, other),
+                      candidate.pageIndex == other.pageIndex
+                else { return false }
+
+                let normalizedOther = normalized(other.snippet)
+                guard !normalizedOther.isEmpty,
+                      normalizedOther.count > normalizedCandidate.count,
+                      normalizedOther.contains(normalizedCandidate)
+                else { return false }
+
+                if family(for: candidate.category) == .standalone,
+                   family(for: other.category) == .standalone,
+                   candidate.category != other.category {
+                    return false
+                }
+
+                return rectGroupsOverlap(candidate.rects, other.rects)
+            }
+        }
+    }
+
+    private static func cluster(_ candidates: [ReviewFindingCandidate]) -> [Cluster] {
+        var clusters: [Cluster] = []
+
+        for candidate in candidates {
+            let candidateFamily = family(for: candidate.category)
+            if let index = clusters.firstIndex(where: { shouldGroup(candidate, with: $0, family: candidateFamily) }) {
+                clusters[index].candidates.append(candidate)
+            } else {
+                clusters.append(
+                    Cluster(
+                        candidates: [candidate],
+                        family: candidateFamily,
+                        pageIndex: candidate.pageIndex
+                    )
+                )
+            }
+        }
+
+        return clusters
+    }
+
+    private static func shouldGroup(_ candidate: ReviewFindingCandidate, with cluster: Cluster, family: Family) -> Bool {
+        guard cluster.pageIndex == candidate.pageIndex,
+              cluster.family == family,
+              family != .standalone
+        else {
+            return false
+        }
+
+        if family == .contact {
+            return true
+        }
+
+        let candidateBounds = union(of: candidate.rects)
+        guard !candidateBounds.isNull else { return false }
+
+        let expanded = cluster.unionRect.insetBy(dx: -18, dy: -26)
+        if expanded.intersects(candidateBounds) {
+            return true
+        }
+
+        let verticalGap = gapBetween(cluster.unionRect.minY...cluster.unionRect.maxY, candidateBounds.minY...candidateBounds.maxY)
+        let horizontalGap = gapBetween(cluster.unionRect.minX...cluster.unionRect.maxX, candidateBounds.minX...candidateBounds.maxX)
+        return verticalGap <= 20 && horizontalGap <= 80
+    }
+
+    private static func makeProjection(from cluster: Cluster) -> ReviewFindingProjection {
+        let sortedCandidates = cluster.candidates.sorted { lhs, rhs in
+            if lhs.confidence == rhs.confidence {
+                return lhs.snippet.count > rhs.snippet.count
+            }
+            return lhs.confidence > rhs.confidence
+        }
+
+        let source = mergedSource(sortedCandidates.map(\.source))
+        let confidence = sortedCandidates.map(\.confidence).max() ?? 0
+        let pageIndex = cluster.pageIndex
+        let category = summarizedCategory(for: cluster)
+        let snippet = summarizedSnippet(for: cluster)
+        let finding = ReviewFinding(
+            category: category,
+            snippet: snippet,
+            source: source,
+            confidence: confidence,
+            pageIndex: pageIndex
+        )
+
+        return ReviewFindingProjection(
+            finding: finding,
+            rects: cluster.candidates.flatMap(\.rects)
+        )
+    }
+
+    private static func summarizedCategory(for cluster: Cluster) -> String {
+        switch cluster.family {
+        case .addressBlock:
+            let categories = Set(cluster.candidates.map(\.category))
+            if categories.contains("private_person") && categories.contains("private_address") {
+                return "Adressblock"
+            }
+            return "Adresse"
+        case .contact:
+            let categories = Set(cluster.candidates.map(\.category))
+            if categories.count > 1 {
+                return "Kontakt"
+            }
+            return cluster.candidates.first?.category ?? "Kontakt"
+        case .standalone:
+            return cluster.candidates.first?.category ?? "Treffer"
+        }
+    }
+
+    private static func summarizedSnippet(for cluster: Cluster) -> String {
+        var snippets: [String] = []
+        var seen = Set<String>()
+
+        for candidate in cluster.candidates {
+            let cleaned = candidate.snippet
+                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { continue }
+            let key = normalized(cleaned)
+            guard seen.insert(key).inserted else { continue }
+            snippets.append(cleaned)
+        }
+
+        switch cluster.family {
+        case .addressBlock:
+            return snippets.prefix(4).joined(separator: "\n")
+        case .contact:
+            return snippets.prefix(4).joined(separator: "\n")
+        case .standalone:
+            return snippets.first ?? ""
+        }
+    }
+
+    private static func family(for category: String) -> Family {
+        switch category {
+        case "private_person", "private_address", "custom_identifier":
+            return .addressBlock
+        case "private_phone", "private_email":
+            return .contact
+        default:
+            return .standalone
+        }
+    }
+
+    private static func mergedSource(_ sources: [DetectionSource]) -> DetectionSource {
+        let unique = Set(sources)
+        if unique.count > 1 || unique.contains(.mixed) {
+            return .mixed
+        }
+        return sources.first ?? .pattern
+    }
+
+    private static func union(of rects: [CGRect]) -> CGRect {
+        rects.reduce(.null) { partial, rect in
+            partial.isNull ? rect : partial.union(rect)
+        }
+    }
+
+    private static func rectGroupsOverlap(_ lhs: [CGRect], _ rhs: [CGRect]) -> Bool {
+        let lhsUnion = union(of: lhs)
+        let rhsUnion = union(of: rhs)
+        guard !lhsUnion.isNull, !rhsUnion.isNull else { return false }
+        return lhsUnion.insetBy(dx: -10, dy: -10).intersects(rhsUnion)
+    }
+
+    private static func gapBetween(_ lhs: ClosedRange<CGFloat>, _ rhs: ClosedRange<CGFloat>) -> CGFloat {
+        if lhs.overlaps(rhs) { return 0 }
+        if lhs.upperBound < rhs.lowerBound { return rhs.lowerBound - lhs.upperBound }
+        return lhs.lowerBound - rhs.upperBound
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .replacingOccurrences(of: "[^a-z0-9]+", with: "", options: .regularExpression)
+    }
+
+    private static func areSameCandidate(_ lhs: ReviewFindingCandidate, _ rhs: ReviewFindingCandidate) -> Bool {
+        lhs.category == rhs.category &&
+        lhs.snippet == rhs.snippet &&
+        lhs.pageIndex == rhs.pageIndex &&
+        lhs.source == rhs.source &&
+        lhs.rects == rhs.rects
+    }
+}
+
 struct DetectedSpan: Identifiable, Equatable, Sendable {
     let id = UUID()
     let category: String
@@ -82,6 +320,21 @@ struct TextAnonymizationResult: Sendable {
     let placeholders: [String: String]
 }
 
+struct ClipboardAnonymizationSession: Codable, Sendable {
+    let originalText: String
+    let anonymizedText: String
+    let replacementCount: Int
+    let placeholders: [String: String]
+    let createdAt: Date
+}
+
+struct TextRestorationResult: Sendable {
+    let restoredText: String
+    let replacementCount: Int
+    let unresolvedPlaceholders: [String]
+    let suspiciousTokens: [String]
+}
+
 @Observable
 @MainActor
 final class PIIDetector {
@@ -96,8 +349,10 @@ final class PIIDetector {
     }
 
     var phase: Phase
+    var lastClipboardSession: ClipboardAnonymizationSession?
 
     private var openmed: OpenMed?
+    private static let lastClipboardSessionKey = "HMD.lastClipboardSession"
 
     static let modelRepoID = "OpenMed/privacy-filter-mlx-8bit"
     static let modelRevision = "4c9836d"
@@ -132,6 +387,7 @@ final class PIIDetector {
         let cacheRoot = Self.defaultCacheRoot()
         let hasReadyMarker = FileManager.default.fileExists(atPath: Self.readyMarkerURL(in: cacheRoot).path)
         self.phase = hasReadyMarker ? .loadingModel : .needsDownload
+        self.lastClipboardSession = Self.loadPersistedClipboardSession()
     }
 
     var statusText: String {
@@ -259,6 +515,29 @@ final class PIIDetector {
         case .success(let spans):
             return .success(Self.placeholderize(text: text, spans: spans))
         }
+    }
+
+    func anonymizeClipboardText(_ text: String) async -> Result<ClipboardAnonymizationSession, Error> {
+        switch await anonymizeText(text) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let result):
+            let session = ClipboardAnonymizationSession(
+                originalText: text,
+                anonymizedText: result.anonymizedText,
+                replacementCount: result.replacementCount,
+                placeholders: result.placeholders,
+                createdAt: Date()
+            )
+            lastClipboardSession = session
+            Self.persistClipboardSession(session)
+            return .success(session)
+        }
+    }
+
+    func restoreText(_ text: String) -> TextRestorationResult? {
+        guard let session = lastClipboardSession else { return nil }
+        return Self.restorePlaceholders(in: text, placeholders: session.placeholders)
     }
 
     // MARK: - Helpers
@@ -498,8 +777,109 @@ final class PIIDetector {
         return "\(placeholderBase(for: span.category))::\(normalizedText)"
     }
 
+    nonisolated private static func restorePlaceholders(in text: String, placeholders: [String: String]) -> TextRestorationResult {
+        guard !placeholders.isEmpty else {
+            return TextRestorationResult(restoredText: text, replacementCount: 0, unresolvedPlaceholders: [], suspiciousTokens: [])
+        }
+
+        var restoredText = text
+        var replacementCount = 0
+
+        let orderedPlaceholders = placeholders.keys.sorted { lhs, rhs in
+            if lhs.count == rhs.count { return lhs < rhs }
+            return lhs.count > rhs.count
+        }
+
+        for placeholder in orderedPlaceholders {
+            guard let originalValue = placeholders[placeholder] else { continue }
+            let pattern = placeholderRegexPattern(for: placeholder)
+
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(restoredText.startIndex..<restoredText.endIndex, in: restoredText)
+            let matches = regex.matches(in: restoredText, range: range)
+            guard !matches.isEmpty else { continue }
+
+            replacementCount += matches.count
+            restoredText = regex.stringByReplacingMatches(in: restoredText, range: range, withTemplate: originalValue)
+        }
+
+        let unresolved = orderedPlaceholders.filter { placeholder in
+            let pattern = placeholderRegexPattern(for: placeholder)
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+            let range = NSRange(restoredText.startIndex..<restoredText.endIndex, in: restoredText)
+            return regex.firstMatch(in: restoredText, range: range) != nil
+        }
+
+        let suspiciousTokens = detectSuspiciousPlaceholderTokens(in: restoredText, expectedPlaceholders: orderedPlaceholders)
+
+        return TextRestorationResult(
+            restoredText: restoredText,
+            replacementCount: replacementCount,
+            unresolvedPlaceholders: unresolved,
+            suspiciousTokens: suspiciousTokens
+        )
+    }
+
+    nonisolated private static func placeholderRegexPattern(for placeholder: String) -> String {
+        let rawKey = placeholder.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        let pieces = rawKey.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: true)
+        guard pieces.count == 2 else {
+            let escaped = NSRegularExpression.escapedPattern(for: rawKey)
+            return "(?i)\\[?\\s*\(escaped)\\s*\\]?"
+        }
+
+        let category = NSRegularExpression.escapedPattern(for: String(pieces[0]))
+        let index = NSRegularExpression.escapedPattern(for: String(pieces[1]))
+        return "(?i)\\[?\\s*\(category)\\s*[-_ ]\\s*\(index)\\s*\\]?"
+    }
+
+    nonisolated private static func canonicalPlaceholderToken(_ token: String) -> String {
+        token
+            .uppercased()
+            .replacingOccurrences(of: "[\\[\\]\\s-]+", with: "_", options: .regularExpression)
+            .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
+    nonisolated private static func detectSuspiciousPlaceholderTokens(in text: String, expectedPlaceholders: [String]) -> [String] {
+        let expectedCanonical = Set(expectedPlaceholders.map {
+            canonicalPlaceholderToken($0.trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
+        })
+
+        let pattern = "(?i)\\[?\\s*[A-ZÄÖÜa-zäöü]+\\s*[-_ ]\\s*\\d+\\s*\\]?"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+
+        var suspicious: [String] = []
+        var seen = Set<String>()
+
+        for match in regex.matches(in: text, range: range) {
+            guard let tokenRange = Range(match.range, in: text) else { continue }
+            let token = String(text[tokenRange])
+            let canonical = canonicalPlaceholderToken(token)
+            guard expectedCanonical.contains(canonical), seen.insert(token).inserted else { continue }
+            suspicious.append(token)
+        }
+
+        return suspicious.sorted()
+    }
+
     private func ensureCacheDirectoryExists() {
         try? FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+    }
+
+    private static func persistClipboardSession(_ session: ClipboardAnonymizationSession) {
+        guard let data = try? JSONEncoder().encode(session) else { return }
+        UserDefaults.standard.set(data, forKey: lastClipboardSessionKey)
+    }
+
+    private static func loadPersistedClipboardSession() -> ClipboardAnonymizationSession? {
+        guard let data = UserDefaults.standard.data(forKey: lastClipboardSessionKey),
+              let session = try? JSONDecoder().decode(ClipboardAnonymizationSession.self, from: data)
+        else {
+            return nil
+        }
+        return session
     }
 }
 

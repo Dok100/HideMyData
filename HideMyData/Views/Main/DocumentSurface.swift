@@ -10,11 +10,16 @@ struct DocumentSurface: View {
                 editingMode: redactor.editingMode,
                 redactor: redactor
             )
-            .clipShape(.rect(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.10), radius: 22, y: 6)
-            .padding(.horizontal, 18)
-            .padding(.top, 84)
-            .padding(.bottom, 18)
+            .clipShape(.rect(cornerRadius: 18))
+            .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(.white.opacity(0.38), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
         }
     }
 }

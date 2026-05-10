@@ -78,7 +78,7 @@ struct EmptyState: View {
                     Label("Öffnen", systemImage: openIcon)
                         .padding(.horizontal, 6)
                 }
-                .buttonStyle(.glassProminent)
+                .buttonStyle(.borderedProminent)
                 .controlSize(.large)
                 .keyboardShortcut("o", modifiers: [.command])
 
@@ -86,7 +86,7 @@ struct EmptyState: View {
                     Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
                         .padding(.horizontal, 6)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.bordered)
                 .controlSize(.large)
                 .keyboardShortcut("a", modifiers: [.command, .shift])
             }
@@ -99,20 +99,21 @@ struct EmptyState: View {
         .padding(.horizontal, 56)
         .padding(.vertical, 44)
         .frame(maxWidth: 560)
-        .glassEffect(
-            .regular.tint(isTargeted ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.06)),
-            in: .rect(cornerRadius: 28)
+        .background(
+            Color(nsColor: .controlBackgroundColor).opacity(0.90),
+            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .strokeBorder(
-                    isTargeted ? AnyShapeStyle(Color.accentColor.opacity(0.85)) : AnyShapeStyle(.white.opacity(0.18)),
+                    isTargeted ? AnyShapeStyle(Color.accentColor.opacity(0.70)) : AnyShapeStyle(Color.black.opacity(0.08)),
                     style: StrokeStyle(
                         lineWidth: isTargeted ? 1.6 : 1,
-                        dash: isTargeted ? [] : [6, 5]
+                        dash: isTargeted ? [] : []
                     )
                 )
         )
+        .shadow(color: .black.opacity(0.06), radius: 16, y: 6)
         .scaleEffect(isTargeted ? 1.015 : 1.0)
         .animation(.smooth(duration: 0.22), value: isTargeted)
     }

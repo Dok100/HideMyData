@@ -22,6 +22,7 @@ struct ImageDocumentSurface: View {
                         .interpolation(.high)
                         .frame(width: displaySize.width, height: displaySize.height)
 
+                    previewLayer(scale: scale)
                     redactionsLayer(image: image, scale: scale, displaySize: displaySize)
                     focusOverlay(scale: scale)
 
@@ -73,12 +74,33 @@ struct ImageDocumentSurface: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipShape(.rect(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.10), radius: 22, y: 6)
+                .clipShape(.rect(cornerRadius: 18))
+                .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(.white.opacity(0.38), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 84)
-            .padding(.bottom, 18)
+            .padding(.horizontal, 24)
+            .padding(.top, 20)
+            .padding(.bottom, 24)
+        }
+    }
+
+    @ViewBuilder
+    private func previewLayer(scale: CGFloat) -> some View {
+        ForEach(Array(redactor.previewRectEntries.enumerated()), id: \.offset) { _, entry in
+            let scaled = scaledRect(entry.rect, scale: scale)
+            let accent = Color(nsColor: redactor.findingColor(for: entry.findingID))
+            ZStack {
+                Rectangle()
+                    .fill(accent.opacity(0.18))
+                Rectangle()
+                    .strokeBorder(accent.opacity(0.88), lineWidth: 2)
+            }
+            .frame(width: scaled.width, height: scaled.height)
+            .offset(x: scaled.minX, y: scaled.minY)
         }
     }
 
@@ -119,7 +141,7 @@ struct ImageDocumentSurface: View {
             ForEach(Array(redactor.findingRects(for: focused).enumerated()), id: \.offset) { _, rect in
                 let scaled = scaledRect(rect, scale: scale)
                 Rectangle()
-                    .strokeBorder(Color.yellow, lineWidth: 2)
+                    .strokeBorder(Color(nsColor: redactor.findingColor(for: focused)).opacity(0.95), lineWidth: 2.4)
                     .frame(width: scaled.width, height: scaled.height)
                     .offset(x: scaled.minX, y: scaled.minY)
             }

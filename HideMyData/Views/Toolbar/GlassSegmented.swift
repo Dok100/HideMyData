@@ -25,7 +25,11 @@ struct GlassSegmented<T: Hashable>: View {
             }
         }
         .padding(3)
-        .glassEffect(.regular, in: .capsule)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+        )
     }
 
     private func select(_ value: T) {
@@ -49,12 +53,16 @@ private struct Segment<T: Hashable>: View {
                 .padding(.horizontal, 9)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity)
-                .foregroundStyle(isSelected ? Color.white : Color.secondary)
+                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
                 .background {
                     if isSelected {
                         Capsule()
-                            .fill(Color.accentColor)
-                            .shadow(color: Color.accentColor.opacity(0.35), radius: 6, y: 1)
+                            .fill(Color.white.opacity(0.94))
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.05), radius: 6, y: 1)
                             .matchedGeometryEffect(id: "selection", in: namespace)
                     }
                 }

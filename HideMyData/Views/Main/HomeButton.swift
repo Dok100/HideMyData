@@ -5,14 +5,18 @@ struct HomeButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "house.fill")
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.primary)
-                .frame(width: 50, height: 50)
-                .glassEffect(.regular, in: .circle)
+            Label("Übersicht", systemImage: "chevron.left")
+                .font(.system(size: 13, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.regularMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(.white.opacity(0.18), lineWidth: 0.5)
+                )
         }
         .buttonStyle(.plain)
-        .help("Zur Dateiauswahl zurück  ⌘H")
+        .help("Zur Übersicht zurück  ⌘H")
         .keyboardShortcut("h", modifiers: [.command])
     }
 }

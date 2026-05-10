@@ -36,16 +36,18 @@ final class ImageRedactor {
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
     private var redactionEntries: [RedactionEntry] = []
+    private var previewEntries: [RedactionEntry] = []
 
     var statusText: String {
         switch phase {
         case .empty: return "Kein Bild"
         case .loaded:
-            if redactionRects.isEmpty { return "Geladen" }
-            return "\(redactionRects.count) Bereich\(redactionRects.count == 1 ? "" : "e")"
+            if redactionRects.isEmpty && previewRects.isEmpty { return "Geladen" }
+            if !previewRects.isEmpty { return "\(previewRects.count) Markierung\(previewRects.count == 1 ? "" : "en")" }
+            return "\(redactionRects.count) Schwärzung\(redactionRects.count == 1 ? "" : "en")"
         case .detecting: return "PII wird erkannt…"
         case .redacted(_, let r):
-            return "\(r) Schwärzung\(r == 1 ? "" : "en")"
+            return "\(r) Bereich\(r == 1 ? "" : "e") vorbereitet"
         case .saved(let url): return "Gespeichert → \(url.lastPathComponent)"
         case .failed(let m): return "Fehler: \(m)"
         }
@@ -64,6 +66,14 @@ final class ImageRedactor {
 
     var redactionRects: [CGRect] {
         redactionEntries.map(\.rect)
+    }
+
+    var previewRects: [CGRect] {
+        previewEntries.map(\.rect)
+    }
+
+    var previewRectEntries: [(rect: CGRect, findingID: UUID?)] {
+        previewEntries.map { ($0.rect, $0.findingID) }
     }
 
     // MARK: - Open / Save
@@ -123,6 +133,7 @@ final class ImageRedactor {
         self.sourceUTI = uti
         self.sourceImageProperties = properties
         self.redactionEntries = []
+        self.previewEntries = []
         clearReviewState()
         self.phase = .loaded
     }
@@ -162,6 +173,7 @@ final class ImageRedactor {
     private func runDetection(using detector: PIIDetector) async {
         guard let cg = image else { return }
         redactionEntries.removeAll()
+        previewEntries.removeAll()
         clearReviewState()
         phase = .detecting
 
@@ -193,33 +205,42 @@ final class ImageRedactor {
                     findings: spans
                 )
             ]
+            var reviewCandidates: [ReviewFindingCandidate] = []
             for span in spans {
                 let (origStart, origEnd) = OCRNormalizer.translateRange(
                     start: span.start, end: span.end, map: offsetMap, originalCount: originalCount
                 )
                 let normRects = ocr.normalizedBoxes(start: origStart, end: origEnd)
                 guard !normRects.isEmpty else { continue }
-                let finding = ReviewFinding(
-                    category: span.category,
-                    snippet: span.text,
-                    source: span.source,
-                    confidence: span.confidence
+                reviewCandidates.append(
+                    ReviewFindingCandidate(
+                        category: span.category,
+                        snippet: span.text,
+                        source: span.source,
+                        confidence: span.confidence,
+                        pageIndex: nil,
+                        rects: normRects.map { pixelRect(fromNormalized: $0) }
+                    )
                 )
-                reviewFindings.append(finding)
-                for norm in normRects {
-                    addRedaction(rect: pixelRect(fromNormalized: norm), findingID: finding.id)
+            }
+            let reviewProjections = ReviewFindingCompactor.compact(reviewCandidates)
+            for projection in reviewProjections {
+                reviewFindings.append(projection.finding)
+                for rect in projection.rects {
+                    addPreview(rect: rect, findingID: projection.finding.id)
                 }
             }
             if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
                 selectFinding(firstPending.id)
             }
-            phase = .redacted(spanCount: spans.count, rectCount: redactionRects.count)
+            phase = .redacted(spanCount: spans.count, rectCount: previewRects.count)
         }
     }
 
     func clearRedactions() {
         cancelDetection()
         redactionEntries.removeAll()
+        previewEntries.removeAll()
         clearReviewState()
         if image != nil { phase = .loaded }
     }
@@ -231,6 +252,13 @@ final class ImageRedactor {
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
         default:
             break
+        }
+    }
+
+    private func addPreview(rect: CGRect, findingID: UUID) {
+        previewEntries.append(RedactionEntry(rect: rect, findingID: findingID))
+        if case .loaded = phase {
+            phase = .redacted(spanCount: 0, rectCount: previewRects.count)
         }
     }
 
@@ -248,6 +276,7 @@ final class ImageRedactor {
     }
 
     func acceptFinding(_ id: UUID) {
+        promotePreviewToRedaction(for: id)
         updateFinding(id) { $0.status = .accepted }
         focusedFindingID = id
     }
@@ -262,13 +291,13 @@ final class ImageRedactor {
     }
 
     func rejectFinding(_ id: UUID) {
-        redactionEntries.removeAll { $0.findingID == id }
+        previewEntries.removeAll { $0.findingID == id }
         updateFinding(id) { $0.status = .rejected }
         if focusedFindingID == id { focusedFindingID = nil }
-        if redactionRects.isEmpty, image != nil {
+        if redactionRects.isEmpty && previewRects.isEmpty, image != nil {
             phase = .loaded
         } else if case .redacted = phase {
-            phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
+            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
         }
     }
 
@@ -366,15 +395,49 @@ final class ImageRedactor {
     }
 
     func findingRects(for findingID: UUID) -> [CGRect] {
-        redactionEntries
+        (previewEntries + redactionEntries)
             .filter { $0.findingID == findingID }
             .map(\.rect)
+    }
+
+    func findingColor(for findingID: UUID?) -> NSColor {
+        guard let findingID,
+              let finding = reviewFindings.first(where: { $0.id == findingID })
+        else {
+            return .systemOrange
+        }
+
+        switch finding.category.lowercased() {
+        case "private_email", "kontakt":
+            return .systemGreen
+        case "private_address", "adressblock", "adresse":
+            return .systemRed
+        case "account_number":
+            return NSColor.systemYellow.blended(withFraction: 0.28, of: .systemOrange) ?? .systemYellow
+        case "private_phone":
+            return .systemTeal
+        case "private_person":
+            return .systemBlue
+        case "private_date":
+            return .systemPurple
+        default:
+            return .systemOrange
+        }
     }
 
     private func clearReviewState() {
         reviewFindings.removeAll()
         focusedFindingID = nil
         debugEntries.removeAll()
+    }
+
+    private func promotePreviewToRedaction(for findingID: UUID) {
+        let matches = previewEntries.filter { $0.findingID == findingID }
+        guard !matches.isEmpty else { return }
+        previewEntries.removeAll { $0.findingID == findingID }
+        for entry in matches {
+            addRedaction(rect: entry.rect, findingID: findingID)
+        }
     }
 
     private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {

@@ -15,6 +15,13 @@
 * Unterstützung für mehrzeilige Adressblöcke und robustere Zerlegung in Teil- und Blockregeln ergänzt.
 * Erkennung für deutsche `PLZ + Ort`-Kombinationen verbessert, auch bei Zeilenumbrüchen.
 * Datumserkennung für OCR-Fälle robuster gemacht, z. B. bei `01.10.1938` mit zusätzlichen Zeichen oder abweichender Zeichenerkennung.
+* Globalen Zwischenablage-Workflow ergänzt: kopierten Text lokal anonymisieren, Vorschau prüfen und direkt in die KI übernehmen.
+* Rückführung für KI-Antworten ergänzt: Platzhalter können wieder mit Originalwerten ersetzt werden.
+* Platzhalter-Erkennung bei der Rückführung robuster gemacht, auch bei leicht veränderten Tokens wie `NAME 1` oder `[name-1]`.
+* Review-Inspector überarbeitet: Treffer werden verdichtet, ruhiger dargestellt und stärker als Prüf-Workflow aufbereitet.
+* Automatisch erkannte Treffer werden vor der Bestätigung zunächst nur markiert und erst danach final geschwärzt oder unscharf exportiert.
+* Hauptarbeitsfläche und Toolbar visuell beruhigt und stärker an eine sachliche macOS-Utility-App angenähert.
+* Bekannter Punkt: Die Erkennungsqualität einzelner OCR-/Adress-/Kontofälle wird im nächsten Schritt gezielt nachstabilisiert.
 
 # 0.2.0
 

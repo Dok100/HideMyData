@@ -39,47 +39,57 @@ struct MainView: View {
                     onOpenRecent: openRecent
                 )
             } else {
-                Color.black.opacity(0.28)
+                workspaceBackdrop
                     .ignoresSafeArea()
 
-                HStack(spacing: 0) {
-                    Group {
-                        switch inputMode {
-                        case .pdf:
-                            DocumentSurface(redactor: pdfRedactor)
-                        case .image:
-                            ImageDocumentSurface(redactor: imageRedactor)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                VStack(spacing: 0) {
+                    HStack(alignment: .center, spacing: 14) {
+                        HomeButton { showHome = true }
 
-                    if showsReviewSidebar {
+                        Spacer(minLength: 0)
+
+                        FloatingToolbar(
+                            detector: detector,
+                            pdfRedactor: pdfRedactor,
+                            imageRedactor: imageRedactor,
+                            customPatternsCount: customPatterns.patterns.count,
+                            inputMode: inputMode,
+                            onManagePatterns: { customPatternsPresented = true },
+                            onShowDiagnostics: { diagnosticsPresented = true },
+                            onAnonymizeClipboard: { clipboardAnonymizerPresented = true },
+                            onSaveRequest: requestSave
+                        )
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 18)
+                    .padding(.bottom, 12)
+
+                    HStack(spacing: 0) {
+                        Group {
+                            switch inputMode {
+                            case .pdf:
+                                DocumentSurface(redactor: pdfRedactor)
+                            case .image:
+                                ImageDocumentSurface(redactor: imageRedactor)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                         ReviewSidebar(
                             findings: currentReviewFindings,
                             pendingCount: currentPendingReviewCount,
+                            acceptedCount: currentAcceptedReviewCount,
+                            rejectedCount: currentRejectedReviewCount,
                             onAcceptAll: acceptAllFindings,
                             onSelect: selectFinding,
                             onAccept: acceptFinding,
                             onReject: rejectFinding
                         )
-                        .padding(EdgeInsets(top: 84, leading: 0, bottom: 18, trailing: 18))
+                        .padding(.trailing, 24)
+                        .padding(.top, 20)
+                        .padding(.bottom, 24)
                     }
                 }
-
-                FloatingToolbar(
-                    detector: detector,
-                    pdfRedactor: pdfRedactor,
-                    imageRedactor: imageRedactor,
-                    customPatternsCount: customPatterns.patterns.count,
-                    inputMode: inputMode,
-                    onManagePatterns: { customPatternsPresented = true },
-                    onShowDiagnostics: { diagnosticsPresented = true },
-                    onAnonymizeClipboard: { clipboardAnonymizerPresented = true },
-                    onSaveRequest: requestSave
-                )
-                .padding(.horizontal, 18)
-                .padding(.vertical, 14)
-                .frame(maxWidth: .infinity)
             }
 
             StatusPill(
@@ -90,15 +100,9 @@ struct MainView: View {
                 showingDocument: !shouldShowEmpty
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-            .padding(.horizontal, 22)
-            .padding(.top, shouldShowEmpty ? 22 : 78)
+            .padding(.horizontal, 28)
+            .padding(.top, shouldShowEmpty ? 22 : 82)
             .allowsHitTesting(false)
-
-            if !shouldShowEmpty {
-                HomeButton { showHome = true }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                    .padding(22)
-            }
         }
         .onAppear { recents.setEnabled(recentsEnabled) }
         .onChange(of: recentsEnabled) { _, enabled in
@@ -120,6 +124,22 @@ struct MainView: View {
         }
         .sheet(isPresented: $clipboardAnonymizerPresented) {
             ClipboardAnonymizerSheet(detector: detector)
+        }
+    }
+
+    @ViewBuilder
+    private var workspaceBackdrop: some View {
+        ZStack {
+            Color(nsColor: .windowBackgroundColor)
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.10),
+                    Color.black.opacity(0.015),
+                    Color.accentColor.opacity(0.025)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
     }
 
@@ -182,13 +202,6 @@ struct MainView: View {
         }
     }
 
-    private var showsReviewSidebar: Bool {
-        switch inputMode {
-        case .pdf: pdfRedactor.hasReviewFindings
-        case .image: imageRedactor.hasReviewFindings
-        }
-    }
-
     private var currentReviewFindings: [ReviewFinding] {
         switch inputMode {
         case .pdf: pdfRedactor.reviewFindings
@@ -201,6 +214,14 @@ struct MainView: View {
         case .pdf: pdfRedactor.pendingReviewCount
         case .image: imageRedactor.pendingReviewCount
         }
+    }
+
+    private var currentAcceptedReviewCount: Int {
+        currentReviewFindings.filter { $0.status == .accepted }.count
+    }
+
+    private var currentRejectedReviewCount: Int {
+        currentReviewFindings.filter { $0.status == .rejected }.count
     }
 
     private var hasPendingReview: Bool {
@@ -501,114 +522,233 @@ private struct ClipboardAnonymizerSheet: View {
     @State private var anonymizedText = ""
     @State private var placeholders: [(placeholder: String, original: String)] = []
     @State private var replacementCount = 0
+    @State private var aiResponseText = ""
+    @State private var restoredText = ""
+    @State private var restoreCount = 0
+    @State private var unresolvedPlaceholders: [String] = []
+    @State private var suspiciousPlaceholderTokens: [String] = []
     @State private var isProcessing = false
     @State private var statusMessage = "Kopiere einen Text in die Zwischenablage und prüfe hier die anonymisierte Vorschau."
+    @State private var restoreStatusMessage = "Füge danach die KI-Antwort ein oder lade sie aus der Zwischenablage, um die Platzhalter wieder zurückzuführen."
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Zwischenablage anonymisieren")
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                    Text("Vorher-/Nachher-Vorschau für kopierten Text. Die Anonymisierung läuft lokal auf deinem Mac.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Zwischenablage anonymisieren")
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        Text("Vorher-/Nachher-Vorschau für kopierten Text. Die Anonymisierung läuft lokal auf deinem Mac.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 16)
+                    Button("Fertig") { dismiss() }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
                 }
-                Spacer(minLength: 16)
-                Button("Fertig") { dismiss() }
+
+                HStack(spacing: 12) {
+                    Button("Aus Zwischenablage laden") {
+                        Task { await refreshFromClipboard() }
+                    }
+                    .buttonStyle(.glass)
+                    .controlSize(.large)
+
+                    Button("Anonymisierte Version kopieren") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(anonymizedText, forType: .string)
+                        statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
+                    }
                     .buttonStyle(.glassProminent)
                     .controlSize(.large)
-            }
+                    .disabled(anonymizedText.isEmpty)
 
-            HStack(spacing: 12) {
-                Button("Aus Zwischenablage laden") {
-                    Task { await refreshFromClipboard() }
-                }
-                .buttonStyle(.glass)
-                .controlSize(.large)
+                    Spacer(minLength: 0)
 
-                Button("Anonymisierte Version kopieren") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(anonymizedText, forType: .string)
-                    statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
-                }
-                .buttonStyle(.glassProminent)
-                .controlSize(.large)
-                .disabled(anonymizedText.isEmpty)
-
-                Spacer(minLength: 0)
-
-                if isProcessing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-
-            Text(statusMessage)
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-
-            HStack(alignment: .top, spacing: 20) {
-                comparisonCard(title: "Original") {
-                    ScrollView {
-                        Text(originalText.isEmpty ? "Noch kein Text geladen." : originalText)
-                            .font(.system(size: 12.5, design: .monospaced))
-                            .foregroundStyle(originalText.isEmpty ? .secondary : .primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                    if isProcessing {
+                        ProgressView()
+                            .controlSize(.small)
                     }
                 }
 
-                comparisonCard(title: "Anonymisiert") {
-                    ScrollView {
-                        Text(anonymizedText.isEmpty ? "Noch keine anonymisierte Vorschau vorhanden." : anonymizedText)
-                            .font(.system(size: 12.5, design: .monospaced))
-                            .foregroundStyle(anonymizedText.isEmpty ? .secondary : .primary)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                Text(statusMessage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+
+                HStack(alignment: .top, spacing: 20) {
+                    comparisonCard(title: "Original", minHeight: 360) {
+                        ScrollView {
+                            Text(originalText.isEmpty ? "Noch kein Text geladen." : originalText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(originalText.isEmpty ? .secondary : .primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+
+                    comparisonCard(title: "Anonymisiert", minHeight: 360) {
+                        ScrollView {
+                            Text(anonymizedText.isEmpty ? "Noch keine anonymisierte Vorschau vorhanden." : anonymizedText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(anonymizedText.isEmpty ? .secondary : .primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
-            }
 
-            comparisonCard(title: "Platzhalter") {
-                if placeholders.isEmpty {
-                    Text("Noch keine Ersetzungen vorhanden.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                } else {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 10) {
-                            ForEach(placeholders, id: \.placeholder) { entry in
-                                HStack(alignment: .top, spacing: 12) {
-                                    Text(entry.placeholder)
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 5)
-                                        .background(.blue.opacity(0.12), in: Capsule())
-                                        .foregroundStyle(.blue)
-                                    Text(entry.original)
-                                        .font(.system(size: 12))
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                comparisonCard(title: "Platzhalter", minHeight: 220) {
+                    if placeholders.isEmpty {
+                        Text("Noch keine Ersetzungen vorhanden.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 10) {
+                                ForEach(placeholders, id: \.placeholder) { entry in
+                                    HStack(alignment: .top, spacing: 12) {
+                                        Text(entry.placeholder)
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 5)
+                                            .background(.blue.opacity(0.12), in: Capsule())
+                                            .foregroundStyle(.blue)
+                                        Text(entry.original)
+                                            .font(.system(size: 12))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .padding(10)
+                                    .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                                 }
-                                .padding(10)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                             }
                         }
                     }
-                    .frame(maxHeight: 200)
+                }
+
+                Divider()
+                    .padding(.vertical, 2)
+
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Antwort zurückführen")
+                                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                            Text("Nutze die zuletzt erzeugten Platzhalter, um den von der KI überarbeiteten Text wieder zu personalisieren.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 12)
+                        if let session = detector.lastClipboardSession {
+                            Text("Mapping von \(session.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(.orange.opacity(0.12), in: Capsule())
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Button("Antwort aus Zwischenablage laden") {
+                            loadResponseFromClipboard()
+                        }
+                        .buttonStyle(.glass)
+                        .controlSize(.large)
+
+                        Button("Zurückgeführten Text kopieren") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(restoredText, forType: .string)
+                            restoreStatusMessage = "Die personalisierte Antwort liegt jetzt in der Zwischenablage."
+                        }
+                        .buttonStyle(.glassProminent)
+                        .controlSize(.large)
+                        .disabled(restoredText.isEmpty)
+                    }
+
+                    Text(restoreStatusMessage)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+
+                    HStack(alignment: .top, spacing: 20) {
+                        comparisonCard(title: "KI-Antwort mit Platzhaltern", minHeight: 320) {
+                            TextEditor(text: $aiResponseText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .scrollContentBackground(.hidden)
+                                .padding(8)
+                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .onChange(of: aiResponseText) { _, newValue in
+                                    restorePreview(from: newValue)
+                                }
+                        }
+
+                        comparisonCard(title: "Zurückgeführt", minHeight: 320) {
+                            ScrollView {
+                                Text(restoredText.isEmpty ? "Noch keine zurückgeführte Vorschau vorhanden." : restoredText)
+                                    .font(.system(size: 12.5, design: .monospaced))
+                                    .foregroundStyle(restoredText.isEmpty ? .secondary : .primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                    }
+
+                    comparisonCard(title: "Rückführungsstatus", minHeight: 120) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(detector.lastClipboardSession == nil
+                                 ? "Noch kein Mapping vorhanden. Starte oben zuerst eine Anonymisierung."
+                                 : "Ersetzte Platzhalter: \(restoreCount)")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+
+                            if !unresolvedPlaceholders.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Noch unverändert im Antworttext:")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    ForEach(unresolvedPlaceholders, id: \.self) { placeholder in
+                                        Text(placeholder)
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 5)
+                                            .background(.orange.opacity(0.12), in: Capsule())
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
+                            }
+
+                            if !suspiciousPlaceholderTokens.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Verdächtige Platzhalter-Varianten erkannt:")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("Diese Tokens sehen nach veränderten Platzhaltern aus und sollten geprüft werden.")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                    ForEach(suspiciousPlaceholderTokens, id: \.self) { token in
+                                        Text(token)
+                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 5)
+                                            .background(.red.opacity(0.12), in: Capsule())
+                                            .foregroundStyle(.red)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
         .padding(24)
-        .frame(minWidth: 960, idealWidth: 1120, minHeight: 700, idealHeight: 780)
+        .frame(minWidth: 960, idealWidth: 1120, minHeight: 860, idealHeight: 940)
         .background(AmbientBackdrop())
         .task {
+            hydrateFromLastSession()
             await refreshFromClipboard()
         }
     }
 
-    private func comparisonCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func comparisonCard<Content: View>(title: String, minHeight: CGFloat = 280, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
@@ -616,7 +756,7 @@ private struct ClipboardAnonymizerSheet: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .padding(16)
-        .frame(maxWidth: .infinity, minHeight: 280, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
         .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
@@ -637,22 +777,84 @@ private struct ClipboardAnonymizerSheet: View {
         isProcessing = true
         defer { isProcessing = false }
 
-        switch await detector.anonymizeText(clipboardText) {
+        switch await detector.anonymizeClipboardText(clipboardText) {
         case .failure(let error):
             anonymizedText = ""
             placeholders = []
             replacementCount = 0
             statusMessage = "Anonymisierung fehlgeschlagen: \(error.localizedDescription)"
         case .success(let result):
-            anonymizedText = result.anonymizedText
-            placeholders = result.placeholders
-                .sorted { $0.key < $1.key }
-                .map { ($0.key, $0.value) }
-            replacementCount = result.replacementCount
+            hydrate(from: result)
             statusMessage = result.placeholders.isEmpty
                 ? "Es wurden keine ersetzbaren Inhalte gefunden."
                 : "Ersetzungen: \(result.replacementCount), Platzhalter: \(result.placeholders.count)."
         }
+    }
+
+    private func hydrateFromLastSession() {
+        guard let session = detector.lastClipboardSession else { return }
+        hydrate(from: session)
+    }
+
+    private func hydrate(from session: ClipboardAnonymizationSession) {
+        originalText = session.originalText
+        anonymizedText = session.anonymizedText
+        placeholders = session.placeholders
+            .sorted { $0.key < $1.key }
+            .map { ($0.key, $0.value) }
+        replacementCount = session.replacementCount
+        restorePreview(from: aiResponseText)
+    }
+
+    private func loadResponseFromClipboard() {
+        guard let clipboardText = NSPasteboard.general.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !clipboardText.isEmpty
+        else {
+            restoreStatusMessage = "Bitte kopiere zuerst die KI-Antwort in die Zwischenablage."
+            return
+        }
+        aiResponseText = clipboardText
+        restorePreview(from: clipboardText)
+    }
+
+    private func restorePreview(from responseText: String) {
+        guard !responseText.isEmpty else {
+            restoredText = ""
+            restoreCount = 0
+            unresolvedPlaceholders = detector.lastClipboardSession?.placeholders.keys.sorted() ?? []
+            suspiciousPlaceholderTokens = []
+            restoreStatusMessage = "Füge danach die KI-Antwort ein oder lade sie aus der Zwischenablage, um die Platzhalter wieder zurückzuführen."
+            return
+        }
+
+        guard let result = detector.restoreText(responseText) else {
+            restoredText = ""
+            restoreCount = 0
+            unresolvedPlaceholders = []
+            suspiciousPlaceholderTokens = []
+            restoreStatusMessage = "Noch kein Mapping vorhanden. Bitte anonymisiere zuerst oben einen Text."
+            return
+        }
+
+        restoredText = result.restoredText
+        restoreCount = result.replacementCount
+        unresolvedPlaceholders = result.unresolvedPlaceholders.sorted()
+        suspiciousPlaceholderTokens = result.suspiciousTokens.sorted()
+        restoreStatusMessage = restoreStatusText(for: result)
+    }
+
+    private func restoreStatusText(for result: TextRestorationResult) -> String {
+        if result.replacementCount == 0 {
+            return "Im Antworttext wurden noch keine passenden Platzhalter gefunden."
+        }
+        if !result.suspiciousTokens.isEmpty {
+            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Bitte prüfe die verdächtigen Rest-Tokens."
+        }
+        if !result.unresolvedPlaceholders.isEmpty {
+            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Einige erwartete Tokens fehlen noch."
+        }
+        return "Zurückgeführt: \(result.replacementCount) Platzhalter."
     }
 }
 
@@ -1164,19 +1366,21 @@ private struct CustomPatternsTransferDocument: FileDocument {
 private struct ReviewSidebar: View {
     let findings: [ReviewFinding]
     let pendingCount: Int
+    let acceptedCount: Int
+    let rejectedCount: Int
     let onAcceptAll: () -> Void
     let onSelect: (UUID) -> Void
     let onAccept: (UUID) -> Void
     let onReject: (UUID) -> Void
-    @State private var showOnlyPending = false
+    @State private var showOnlyPending = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Treffer prüfen")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.system(size: 15, weight: .semibold))
                         Text(headerText)
                             .font(.system(size: 12))
                             .foregroundStyle(pendingCount > 0 ? .orange : .secondary)
@@ -1186,51 +1390,113 @@ private struct ReviewSidebar: View {
 
                     if pendingCount > 0 {
                         Button("Alle bestätigen", action: onAcceptAll)
-                            .buttonStyle(.glass)
+                            .buttonStyle(.bordered)
                             .controlSize(.small)
                     }
                 }
 
+                summaryRow
+
                 Toggle("Nur offene Treffer", isOn: $showOnlyPending)
                     .toggleStyle(.switch)
                     .controlSize(.small)
+                    .disabled(pendingCount == 0)
             }
 
-            ScrollView {
-                LazyVStack(spacing: 10) {
-                    ForEach(filteredFindings) { finding in
-                        ReviewFindingRow(
-                            finding: finding,
-                            onSelect: { onSelect(finding.id) },
-                            onAccept: { onAccept(finding.id) },
-                            onReject: { onReject(finding.id) }
-                        )
+            if findings.isEmpty {
+                emptyInspectorState
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(filteredFindings) { finding in
+                            ReviewFindingRow(
+                                finding: finding,
+                                onSelect: { onSelect(finding.id) },
+                                onAccept: { onAccept(finding.id) },
+                                onReject: { onReject(finding.id) }
+                            )
+                        }
                     }
+                    .padding(.vertical, 2)
                 }
-                .padding(.vertical, 2)
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(width: 320, alignment: .topLeading)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .glassEffect(.regular.tint(.white.opacity(0.06)), in: .rect(cornerRadius: 22))
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.985), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.7)
+        )
+        .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
     }
 
     private var headerText: String {
         if findings.isEmpty {
-            return "Noch keine Treffer vorhanden."
+            return "Nach der Erkennung erscheinen hier die gefundenen Stellen zur Prüfung."
         }
         if pendingCount > 0 {
-            return "\(pendingCount) Treffer müssen vor dem Speichern bestätigt oder abgelehnt werden."
+            return "\(pendingCount) Treffer brauchen vor dem Speichern noch deine Entscheidung."
         }
         return "Alle Treffer wurden geprüft."
     }
 
     private var filteredFindings: [ReviewFinding] {
-        if showOnlyPending {
+        if showOnlyPending && pendingCount > 0 {
             return findings.filter { $0.status == .pending }
         }
         return findings
+    }
+
+    private var summaryRow: some View {
+        HStack(spacing: 8) {
+            summaryBadge(title: "Erkannt", value: findings.count, tint: .secondary)
+            summaryBadge(title: "Offen", value: pendingCount, tint: .orange)
+            summaryBadge(title: "Bestätigt", value: acceptedCount, tint: .green)
+        }
+    }
+
+    private func summaryBadge(title: String, value: Int, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text("\(value)")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(value > 0 ? tint : .secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.6)
+        )
+    }
+
+    private var emptyInspectorState: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: "text.magnifyingglass")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text("Noch keine Prüfung aktiv")
+                .font(.system(size: 13, weight: .semibold))
+
+            Text("Starte `Erkennen`, damit hier die Treffer erscheinen. Danach kannst du sie bestätigen oder ablehnen.")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.6)
+        )
     }
 }
 
@@ -1241,46 +1507,64 @@ private struct ReviewFindingRow: View {
     let onReject: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 9) {
             Button(action: onSelect) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        Text(finding.category)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        Spacer(minLength: 0)
-                        statusBadge
-                    }
+                HStack(alignment: .top, spacing: 12) {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(categoryColor.opacity(0.6))
+                        .frame(width: 4)
+                        .padding(.top, 10)
+                        .padding(.bottom, 10)
 
-                    Text(finding.snippet.isEmpty ? "Ohne Textausschnitt" : finding.snippet)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 8) {
+                            Text(finding.category)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(categoryTextColor)
+                            Spacer(minLength: 0)
+                            statusBadge
+                        }
 
-                    HStack(spacing: 8) {
-                        sourceBadge
-                        confidenceBadge
-                        if let pageIndex = finding.pageIndex {
-                            Text("Seite \(pageIndex + 1)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.tertiary)
+                        Text(finding.snippet.isEmpty ? "Ohne Textausschnitt" : finding.snippet)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+
+                        HStack(spacing: 8) {
+                            sourceBadge
+                            confidenceBadge
+                            if let pageIndex = finding.pageIndex {
+                                Text("Seite \(pageIndex + 1)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(.white.opacity(0.05), in: .rect(cornerRadius: 16))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(.white.opacity(0.82))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.09), lineWidth: 0.9)
+                )
+                .shadow(color: .black.opacity(0.055), radius: 16, y: 6)
             }
             .buttonStyle(.plain)
 
             if finding.status == .pending {
                 HStack(spacing: 8) {
                     Button("Bestätigen", action: onAccept)
-                        .buttonStyle(.glassProminent)
+                        .buttonStyle(.borderedProminent)
                     Button("Ablehnen", action: onReject)
-                        .buttonStyle(.glass)
+                        .buttonStyle(.bordered)
                 }
                 .controlSize(.small)
+                .padding(.horizontal, 18)
             }
         }
     }
@@ -1299,7 +1583,7 @@ private struct ReviewFindingRow: View {
             .font(.system(size: 10, weight: .semibold, design: .rounded))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(.white.opacity(0.08), in: Capsule())
+            .background(categoryColor.opacity(0.06), in: Capsule())
             .foregroundStyle(.secondary)
     }
 
@@ -1317,6 +1601,44 @@ private struct ReviewFindingRow: View {
         case .model: .blue
         case .pattern: .mint
         case .mixed: .orange
+        }
+    }
+
+    private var categoryColor: Color {
+        switch finding.category.lowercased() {
+        case "private_email", "kontakt":
+            return .green
+        case "private_address", "adressblock", "adresse":
+            return .red
+        case "account_number":
+            return Color(hue: 0.12, saturation: 0.72, brightness: 0.88)
+        case "private_phone":
+            return .teal
+        case "private_person":
+            return .blue
+        case "private_date":
+            return .purple
+        default:
+            return .orange
+        }
+    }
+
+    private var categoryTextColor: Color {
+        switch finding.category.lowercased() {
+        case "private_email", "kontakt":
+            return .green.opacity(0.82)
+        case "private_address", "adressblock", "adresse":
+            return .red.opacity(0.82)
+        case "account_number":
+            return Color(hue: 0.12, saturation: 0.72, brightness: 0.72)
+        case "private_phone":
+            return .teal.opacity(0.82)
+        case "private_person":
+            return .blue.opacity(0.82)
+        case "private_date":
+            return .purple.opacity(0.82)
+        default:
+            return .primary.opacity(0.9)
         }
     }
 

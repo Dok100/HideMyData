@@ -1,6 +1,11 @@
 import SwiftUI
 
 struct GlassSegmented<T: Hashable>: View {
+    enum VisualStyle {
+        case standard
+        case emphasized
+    }
+
     struct Item: Identifiable {
         let value: T
         let image: String
@@ -11,7 +16,14 @@ struct GlassSegmented<T: Hashable>: View {
 
     @Binding var selection: T
     let items: [Item]
+    let style: VisualStyle
     @Namespace private var ns
+
+    init(selection: Binding<T>, items: [Item], style: VisualStyle = .standard) {
+        self._selection = selection
+        self.items = items
+        self.style = style
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -19,17 +31,36 @@ struct GlassSegmented<T: Hashable>: View {
                 Segment(
                     item: item,
                     isSelected: selection == item.value,
+                    style: style,
                     namespace: ns,
                     action: { select(item.value) }
                 )
             }
         }
         .padding(3)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92), in: Capsule())
+        .background(backgroundColor, in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(borderColor, lineWidth: style == .emphasized ? 0.8 : 0.5)
         )
+    }
+
+    private var backgroundColor: Color {
+        switch style {
+        case .standard:
+            Color(nsColor: .controlBackgroundColor).opacity(0.92)
+        case .emphasized:
+            Color(nsColor: .windowBackgroundColor).opacity(0.98)
+        }
+    }
+
+    private var borderColor: Color {
+        switch style {
+        case .standard:
+            Color.black.opacity(0.08)
+        case .emphasized:
+            Color.accentColor.opacity(0.18)
+        }
     }
 
     private func select(_ value: T) {
@@ -42,6 +73,7 @@ struct GlassSegmented<T: Hashable>: View {
 private struct Segment<T: Hashable>: View {
     let item: GlassSegmented<T>.Item
     let isSelected: Bool
+    let style: GlassSegmented<T>.VisualStyle
     let namespace: Namespace.ID
     let action: () -> Void
 
@@ -49,20 +81,20 @@ private struct Segment<T: Hashable>: View {
         Button(action: action) {
             Label(item.label, systemImage: item.image)
                 .labelStyle(.titleAndIcon)
-                .font(.subheadline)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
+                .font(style == .emphasized ? .system(size: 14, weight: .semibold) : .subheadline)
+                .padding(.horizontal, style == .emphasized ? 12 : 9)
+                .padding(.vertical, style == .emphasized ? 7 : 6)
                 .frame(maxWidth: .infinity)
-                .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+                .foregroundStyle(foregroundColor)
                 .background {
                     if isSelected {
                         Capsule()
-                            .fill(Color.white.opacity(0.94))
+                            .fill(selectedFill)
                             .overlay(
                                 Capsule()
-                                    .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.5)
+                                    .strokeBorder(selectedBorder, lineWidth: style == .emphasized ? 0.8 : 0.5)
                             )
-                            .shadow(color: .black.opacity(0.05), radius: 6, y: 1)
+                            .shadow(color: shadowColor, radius: style == .emphasized ? 8 : 6, y: 1)
                             .matchedGeometryEffect(id: "selection", in: namespace)
                     }
                 }
@@ -70,5 +102,39 @@ private struct Segment<T: Hashable>: View {
         }
         .buttonStyle(.plain)
         .help(item.help)
+    }
+
+    private var foregroundColor: Color {
+        if isSelected {
+            return style == .emphasized ? .accentColor : .primary
+        }
+        return .secondary
+    }
+
+    private var selectedFill: Color {
+        switch style {
+        case .standard:
+            Color.white.opacity(0.94)
+        case .emphasized:
+            Color.white
+        }
+    }
+
+    private var selectedBorder: Color {
+        switch style {
+        case .standard:
+            Color.black.opacity(0.07)
+        case .emphasized:
+            Color.accentColor.opacity(0.35)
+        }
+    }
+
+    private var shadowColor: Color {
+        switch style {
+        case .standard:
+            Color.black.opacity(0.05)
+        case .emphasized:
+            Color.accentColor.opacity(0.10)
+        }
     }
 }

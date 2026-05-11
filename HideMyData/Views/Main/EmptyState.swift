@@ -53,9 +53,9 @@ struct EmptyState: View {
     private var dropZone: some View {
         VStack(spacing: 28) {
             Text("INKOGNITO")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .tracking(3.2)
-                .foregroundStyle(.tertiary)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .tracking(4.0)
+                .foregroundStyle(Color.primary.opacity(0.5))
 
             VStack(spacing: 12) {
                 Text(isTargeted ? "Zum Öffnen ablegen" : "Anonymisieren. Direkt auf deinem Mac.")
@@ -63,12 +63,17 @@ struct EmptyState: View {
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
 
-                Text("Vertrauliches bleibt vertraulich. Ziehe ein PDF oder Bild hierher – sensible Daten werden automatisch erkannt und vor dem Export dauerhaft geschwärzt.")
+                Text("Ziehe ein PDF oder Bild hierher. Inkognito erkennt sensible Daten, zeigt sie zur Prüfung an und schwärzt sie dauerhaft.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .frame(maxWidth: 460)
+                    .opacity(isTargeted ? 0 : 1)
+
+                Text("Keine Cloud. Keine Übertragung. Alles bleibt lokal.")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.tertiary)
                     .opacity(isTargeted ? 0 : 1)
             }
             .multilineTextAlignment(.center)
@@ -107,11 +112,11 @@ struct EmptyState: View {
                 Image(systemName: "doc.text.viewfinder")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.accentColor)
-                Text("Dokument schwärzen")
+                Text("Dokument anonymisieren")
                     .font(.system(size: 15, weight: .semibold))
             }
 
-            Text("Öffne ein PDF oder Bild und prüfe gefundene Stellen vor dem finalen Schwärzen.")
+            Text("Öffne ein PDF oder Bild und prüfe erkannte sensible Stellen vor dem finalen Schwärzen.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -125,8 +130,8 @@ struct EmptyState: View {
                     .fixedSize()
 
                 Text(modeSelectionHint)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(Color.accentColor.opacity(0.9))
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
                     .contentTransition(.opacity)
             }
 
@@ -153,11 +158,11 @@ struct EmptyState: View {
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.green)
-                Text("Zwischenablage schützen")
+                Text("Kopierten Text schützen")
                     .font(.system(size: 15, weight: .semibold))
             }
 
-            Text("Einfacher Schutz sensibler Inhalte vor dem Einfügen per Copy & Paste in KI-Chatbots, E-Mails oder Dokumente.")
+            Text("Anonymisiere sensible Inhalte, bevor du sie in KI-Chatbots, E-Mails oder Dokumente einfügst.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -166,14 +171,14 @@ struct EmptyState: View {
                 Text("Schnellzugriff")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.tertiary)
-                Text("`cmd` + `shift` + `A` öffnet direkt die Vorher-/Nachher-Vorschau für kopierten Text.")
+                Text("⌘ ⇧ A öffnet die Vorschau für kopierten Text.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
             Button(action: onOpenClipboardAnonymizer) {
-                Label("Zwischenablage anonymisieren", systemImage: "arrow.left.arrow.right.square")
+                Label("Kopierten Text anonymisieren", systemImage: "arrow.left.arrow.right.square")
                     .padding(.horizontal, 6)
             }
             .buttonStyle(.bordered)
@@ -205,8 +210,8 @@ struct EmptyState: View {
 
     private var modeSelectionHint: String {
         switch inputMode {
-        case .pdf: "Aktuell ausgewählt: PDF-Dokument"
-        case .image: "Aktuell ausgewählt: Bilddatei"
+        case .pdf: "PDF-Dokument ausgewählt"
+        case .image: "Bilddatei ausgewählt"
         }
     }
 

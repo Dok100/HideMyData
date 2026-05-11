@@ -8,7 +8,8 @@ struct InputTabSegmented: View {
             selection: $inputMode,
             items: InputMode.allCases.map {
                 .init(value: $0, image: $0.systemImage, label: $0.displayName, help: "\($0.displayName)-Eingabe")
-            }
+            },
+            style: .emphasized
         )
     }
 }

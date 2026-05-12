@@ -944,7 +944,9 @@ final class PIIDetector {
         let sanitized = sanitizeSpans(spans)
         let deduplicated = deduplicateExactSpans(sanitized)
         let merged = mergeEquivalentSpans(deduplicated)
-        return suppressContainedCustomIdentifierSpans(merged)
+        let withoutConjoinedFragments = suppressConjoinedNameFragments(merged)
+        let withoutLeadingAddressTails = suppressLeadingConjunctionAddressSpans(withoutConjoinedFragments)
+        return suppressContainedCustomIdentifierSpans(withoutLeadingAddressTails)
     }
 
     nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
@@ -982,6 +984,9 @@ final class PIIDetector {
         switch category {
         case "private_person":
             if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
+                return true
+            }
+            if normalizedComparableText(text) == "eheleute" {
                 return true
             }
             if looksLikeOrganizationSnippet(text) || personSpanContainsAddressOrContactTail(text) {
@@ -1111,6 +1116,14 @@ final class PIIDetector {
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
+    nonisolated private static func looksLikeConjoinedCoupleName(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
     nonisolated private static func looksLikeNameishWord(_ text: String) -> Bool {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
@@ -1160,6 +1173,48 @@ final class PIIDetector {
         }
 
         return order.compactMap { bestByKey[$0] }
+    }
+
+    nonisolated private static func suppressConjoinedNameFragments(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        spans.filter { candidate in
+            guard candidate.category == "private_person" else { return true }
+
+            let normalizedCandidate = normalizedComparableText(candidate.text)
+            guard !normalizedCandidate.isEmpty,
+                  !looksLikeConjoinedCoupleName(candidate.text)
+            else { return true }
+
+            let candidateLength = max(candidate.end - candidate.start, 1)
+            return !spans.contains { other in
+                guard other.id != candidate.id,
+                      other.category == "private_person",
+                      looksLikeConjoinedCoupleName(other.text)
+                else { return false }
+
+                let normalizedOther = normalizedComparableText(other.text)
+                guard normalizedOther.count > normalizedCandidate.count,
+                      normalizedOther.contains(normalizedCandidate)
+                else { return false }
+
+                if other.start <= candidate.start && other.end >= candidate.end {
+                    return true
+                }
+
+                let overlapStart = max(candidate.start, other.start)
+                let overlapEnd = min(candidate.end, other.end)
+                guard overlapEnd > overlapStart else { return false }
+
+                let overlapRatio = Double(overlapEnd - overlapStart) / Double(candidateLength)
+                return overlapRatio >= 0.7
+            }
+        }
+    }
+
+    nonisolated private static func suppressLeadingConjunctionAddressSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        spans.filter { candidate in
+            guard candidate.category == "private_address" else { return true }
+            return !looksLikeLeadingConjunctionAddressTail(candidate.text)
+        }
     }
 
     nonisolated private static func suppressContainedCustomIdentifierSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {

@@ -270,6 +270,16 @@ func looksLikeHonorificStreetCombo(_ text: String) -> Bool {
     return cleaned.range(of: pattern, options: .regularExpression) != nil
 }
 
+func looksLikeLeadingConjunctionAddressTail(_ text: String) -> Bool {
+    let cleaned = text
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard looksLikeGermanStreetAddress(cleaned) else { return false }
+
+    let pattern = #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
+    return cleaned.range(of: pattern, options: .regularExpression) != nil
+}
+
 func assert(_ condition: @autoclosure () -> Bool, _ message: String) throws {
     if !condition() {
         throw DetectionRegressionFailure.failed(message)
@@ -375,6 +385,29 @@ func run() throws {
     try assert(
         firstMatch(for: #"(?<=\bVorgangsnummer:\s)\d{6,}\b"#, in: invoiceText) == "501075621",
         "Expected Vorgangsnummer regex to extract the process number value"
+    )
+
+    let contactFixtureURL = URL(fileURLWithPath: "fixtures/detection/kontaktdaten_bankseite_pdf_text.txt")
+    let contactText = try String(contentsOf: contactFixtureURL, encoding: .utf8)
+
+    try assert(
+        firstMatch(
+            for: #"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#,
+            in: contactText
+        ) == "Milan und Lara Sommer",
+        "Expected couple-name regex to extract the full shared-surname name"
+    )
+    try assert(
+        looksLikeLeadingConjunctionAddressTail("und Lara Sommer Birkenstr. 12"),
+        "Expected conjunction-led address tail to be rejected"
+    )
+    try assert(
+        firstMatch(for: #"(?<=\bBLZ\s)\d{8}\b"#, in: contactText) == "62050000",
+        "Expected BLZ regex to extract the bank code value"
+    )
+    try assert(
+        firstMatch(for: #"(?<=\bKonto\s)\d{5,}\b"#, in: contactText) == "1886182",
+        "Expected Konto regex to extract the account number value"
     )
 
     print("Detection regressions passed.")

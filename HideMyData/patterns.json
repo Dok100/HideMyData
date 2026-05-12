@@ -49,6 +49,24 @@
       "regex": "(?<=\\bVorgangsnummer:\\s)\\d{6,}\\b"
     },
     {
+      "id": "konto_labeled",
+      "description": "Bank account value anchored on a Konto label",
+      "category": "account_number",
+      "regex": "(?<=\\bKonto\\s)\\d{5,}\\b"
+    },
+    {
+      "id": "kontonummer_labeled",
+      "description": "Bank account value anchored on a Kontonummer label",
+      "category": "account_number",
+      "regex": "(?<=\\bKontonummer:\\s)\\d{5,}\\b"
+    },
+    {
+      "id": "blz_labeled",
+      "description": "Bank code value anchored on a BLZ label",
+      "category": "account_number",
+      "regex": "(?<=\\bBLZ\\s)\\d{8}\\b"
+    },
+    {
       "id": "credit_card_16",
       "description": "16-digit credit card (Visa / MC / Discover / JCB), with optional separators",
       "category": "account_number",
@@ -89,6 +107,12 @@
       "description": "German honorific with a likely full person name, e.g. Frau Sylvia Kern",
       "category": "private_person",
       "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+){1,2}\\b"
+    },
+    {
+      "id": "german_couple_name_shared_surname",
+      "description": "Two likely person names joined by 'und' with a shared surname, e.g. Oliver und Sylvia Kern",
+      "category": "private_person",
+      "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
     },
     {
       "id": "german_street_house_number",

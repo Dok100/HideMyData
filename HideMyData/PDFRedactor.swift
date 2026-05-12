@@ -739,7 +739,21 @@ final class PDFRedactor {
                 let rects = perLineRects(of: selection, on: page)
                 if !rects.isEmpty { return rects }
             }
-            return rectsByTextSearch(needle: span.text, on: page)
+            let textSearchRects = rectsByTextSearch(needle: span.text, on: page)
+            if !textSearchRects.isEmpty { return textSearchRects }
+
+            if span.category == "private_person",
+               span.text.localizedCaseInsensitiveContains(" und "),
+               let occurrenceIndex = occurrenceIndex(of: span.text, in: pageText, start: span.start) {
+                let fallbackRects = rectsByConjoinedNameSearch(
+                    needle: span.text,
+                    occurrenceIndex: occurrenceIndex,
+                    on: page
+                )
+                if !fallbackRects.isEmpty { return fallbackRects }
+            }
+
+            return []
 
         case .ocr(let ocrPage):
             let normRects = ocrPage.normalizedBoxes(start: span.start, end: span.end)
@@ -785,6 +799,57 @@ final class PDFRedactor {
             rects.append(contentsOf: perLineRects(of: selection, on: page))
         }
         return rects
+    }
+
+    private func occurrenceIndex(of needle: String, in text: String, start: Int) -> Int? {
+        guard !needle.isEmpty, start >= 0, start <= text.count else { return nil }
+        let prefixEnd = text.index(text.startIndex, offsetBy: start)
+        let prefix = String(text[..<prefixEnd])
+        var count = 0
+        var searchStart = prefix.startIndex
+        while let range = prefix.range(
+            of: needle,
+            options: [.caseInsensitive, .diacriticInsensitive],
+            range: searchStart..<prefix.endIndex
+        ) {
+            count += 1
+            searchStart = range.upperBound
+        }
+        return count
+    }
+
+    private func rectsByConjoinedNameSearch(needle: String, occurrenceIndex: Int, on page: PDFPage) -> [CGRect] {
+        let separators = [" und ", " UND "]
+        guard let separator = separators.first(where: { needle.localizedCaseInsensitiveContains($0) }) else { return [] }
+
+        let parts = needle.components(separatedBy: separator)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard parts.count == 2 else { return [] }
+
+        let selectionsPerPart = parts.map { selections(for: $0, on: page) }
+        guard selectionsPerPart.allSatisfy({ $0.count > occurrenceIndex }) else { return [] }
+
+        return selectionsPerPart[0][occurrenceIndex].rects + selectionsPerPart[1][occurrenceIndex].rects
+    }
+
+    private func selections(for needle: String, on page: PDFPage) -> [(rects: [CGRect], anchor: CGRect)] {
+        guard let doc = page.document, !needle.isEmpty else { return [] }
+        return doc.findString(needle, withOptions: [.caseInsensitive])
+            .compactMap { selection in
+                let rects = perLineRects(of: selection, on: page)
+                guard !rects.isEmpty else { return nil }
+                let anchor = rects.reduce(.null) { partial, rect in
+                    partial.isNull ? rect : partial.union(rect)
+                }
+                return (rects, anchor)
+            }
+            .sorted { lhs, rhs in
+                if abs(lhs.anchor.minY - rhs.anchor.minY) > 8 {
+                    return lhs.anchor.minY > rhs.anchor.minY
+                }
+                return lhs.anchor.minX < rhs.anchor.minX
+            }
     }
 
     private func rectsViaOCRFallback(for spans: [DetectedSpan], on page: PDFPage) async -> [(CGRect, DetectedSpan)] {

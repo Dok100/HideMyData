@@ -142,8 +142,18 @@ enum ReviewFindingCompactor {
                 return false
             }
 
+            if candidate.category == "private_person",
+               isPartialPersonWithinConjoinedName(candidate, in: candidates) {
+                return false
+            }
+
             if candidate.category == "private_address",
                looksLikeCompanyAddressBlock(candidate.snippet) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               looksLikeLeadingConjunctionAddressTail(candidate.snippet) {
                 return false
             }
 
@@ -578,6 +588,16 @@ enum ReviewFindingCompactor {
             cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
     }
 
+    private static func looksLikeLeadingConjunctionAddressTail(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeGermanStreetAddress(cleaned) else { return false }
+
+        let pattern = #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
     private static func looksLikeBareCityToken(_ text: String) -> Bool {
         let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]{3,}$"#
@@ -606,6 +626,51 @@ enum ReviewFindingCompactor {
         lhs.pageIndex == rhs.pageIndex &&
         lhs.source == rhs.source &&
         lhs.rects == rhs.rects
+    }
+
+    private static func isPartialPersonWithinConjoinedName(
+        _ candidate: ReviewFindingCandidate,
+        in candidates: [ReviewFindingCandidate]
+    ) -> Bool {
+        let normalizedCandidate = normalized(candidate.snippet)
+        guard !normalizedCandidate.isEmpty,
+              !looksLikeConjoinedCoupleName(candidate.snippet)
+        else { return false }
+
+        let candidateBounds = union(of: candidate.rects)
+        guard !candidateBounds.isNull else { return false }
+
+        return candidates.contains { other in
+            guard !areSameCandidate(candidate, other),
+                  other.category == "private_person",
+                  other.pageIndex == candidate.pageIndex,
+                  looksLikeConjoinedCoupleName(other.snippet)
+            else { return false }
+
+            let normalizedOther = normalized(other.snippet)
+            guard normalizedOther.count > normalizedCandidate.count,
+                  normalizedOther.contains(normalizedCandidate)
+            else { return false }
+
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return false }
+
+            if rectGroupsOverlap(candidate.rects, other.rects) {
+                return true
+            }
+
+            let verticalGap = gapBetween(candidateBounds.minY...candidateBounds.maxY, otherBounds.minY...otherBounds.maxY)
+            let horizontalGap = gapBetween(candidateBounds.minX...candidateBounds.maxX, otherBounds.minX...otherBounds.maxX)
+            return verticalGap <= 10 && horizontalGap <= 60
+        }
+    }
+
+    private static func looksLikeConjoinedCoupleName(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 }
 
@@ -1033,6 +1098,16 @@ final class PIIDetector {
         else { return false }
 
         let pattern = #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeLeadingConjunctionAddressTail(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeGermanStreetAddress(cleaned) else { return false }
+
+        let pattern = #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 

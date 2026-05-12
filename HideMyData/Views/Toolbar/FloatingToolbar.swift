@@ -16,7 +16,10 @@ struct FloatingToolbar: View {
             primaryActions
             Divider()
                 .frame(height: 26)
-            contextControls
+            editingControls
+            Divider()
+                .frame(height: 26)
+            styleControls
             Divider()
                 .frame(height: 26)
             utilityMenu
@@ -83,11 +86,16 @@ struct FloatingToolbar: View {
     }
 
     @ViewBuilder
-    private var contextControls: some View {
+    private var editingControls: some View {
         HStack(spacing: 8) {
             modeSegmented
+        }
+    }
+
+    @ViewBuilder
+    private var styleControls: some View {
+        HStack(spacing: 8) {
             styleSegmented
-            clearButton
         }
     }
 
@@ -108,6 +116,13 @@ struct FloatingToolbar: View {
                 Label("Diagnose öffnen", systemImage: "ladybug")
             }
             .disabled(!hasDiagnostics)
+
+            Divider()
+
+            Button(role: .destructive, action: clearAction) {
+                Label("Alle Schwärzungen entfernen", systemImage: "xmark.circle")
+            }
+            .disabled(!hasRedactions || isDetecting)
         } label: {
             Label("Werkzeuge", systemImage: "ellipsis.circle")
                 .padding(.horizontal, 4)
@@ -139,15 +154,6 @@ struct FloatingToolbar: View {
         )
         .fixedSize()
         .disabled(!detector.isReady || !hasFile || isDetecting)
-    }
-
-    @ViewBuilder
-    private var clearButton: some View {
-        Button("Schwärzungen entfernen", systemImage: "xmark.circle", action: clearAction)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
-            .disabled(!hasRedactions || isDetecting)
-            .help("Alle Schwärzungen entfernen")
     }
 
     // MARK: - Mode-aware dispatch

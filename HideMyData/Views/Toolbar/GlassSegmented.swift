@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GlassSegmented<T: Hashable>: View {
+    @Environment(\.colorScheme) private var colorScheme
     enum VisualStyle {
         case standard
         case emphasized
@@ -48,18 +49,22 @@ struct GlassSegmented<T: Hashable>: View {
     private var backgroundColor: Color {
         switch style {
         case .standard:
-            Color(nsColor: .controlBackgroundColor).opacity(0.92)
+            colorScheme == .dark
+                ? Color.white.opacity(0.08)
+                : Color(nsColor: .controlBackgroundColor).opacity(0.92)
         case .emphasized:
-            Color(nsColor: .windowBackgroundColor).opacity(0.98)
+            colorScheme == .dark
+                ? Color.white.opacity(0.05)
+                : Color(nsColor: .windowBackgroundColor).opacity(0.98)
         }
     }
 
     private var borderColor: Color {
         switch style {
         case .standard:
-            Color.black.opacity(0.08)
+            colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
         case .emphasized:
-            Color.accentColor.opacity(0.18)
+            colorScheme == .dark ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.18)
         }
     }
 
@@ -71,6 +76,7 @@ struct GlassSegmented<T: Hashable>: View {
 }
 
 private struct Segment<T: Hashable>: View {
+    @Environment(\.colorScheme) private var colorScheme
     let item: GlassSegmented<T>.Item
     let isSelected: Bool
     let style: GlassSegmented<T>.VisualStyle
@@ -108,22 +114,22 @@ private struct Segment<T: Hashable>: View {
         if isSelected {
             return style == .emphasized ? .accentColor : .primary
         }
-        return .secondary
+        return colorScheme == .dark ? Color.white.opacity(0.72) : .secondary
     }
 
     private var selectedFill: Color {
         switch style {
         case .standard:
-            Color.white.opacity(0.94)
+            colorScheme == .dark ? Color.white.opacity(0.14) : Color.white.opacity(0.94)
         case .emphasized:
-            Color.white
+            colorScheme == .dark ? Color.white.opacity(0.10) : Color.white
         }
     }
 
     private var selectedBorder: Color {
         switch style {
         case .standard:
-            Color.black.opacity(0.07)
+            colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.07)
         case .emphasized:
             Color.accentColor.opacity(0.35)
         }

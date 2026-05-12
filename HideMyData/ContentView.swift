@@ -30,7 +30,7 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(minWidth: 760, minHeight: 600)
+        .frame(minWidth: 980, minHeight: 760)
         .background(AmbientBackdrop())
         .background(WindowGlassConfigurator())
         .task { await detector.loadIfCached() }

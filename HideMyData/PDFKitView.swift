@@ -21,6 +21,10 @@ struct PDFKitView: NSViewRepresentable {
         if nsView.document !== document {
             nsView.document = document
             nsView.goToFirstPage(nil)
+            if let document, let firstPage = document.page(at: 0) {
+                let current = nsView.currentPage ?? firstPage
+                redactor.updateVisiblePage(index: max(document.index(for: current), 0))
+            }
         }
         if nsView.editingMode != editingMode {
             nsView.editingMode = editingMode
@@ -28,6 +32,7 @@ struct PDFKitView: NSViewRepresentable {
         if nsView.redactor !== redactor {
             nsView.redactor = redactor
         }
+        nsView.navigateIfNeeded(requestID: redactor.pageNavigationRequest, pageIndex: redactor.requestedPageIndex)
         nsView.focusIfNeeded(requestID: redactor.focusRequestID, target: redactor.focusTarget)
     }
 }
@@ -48,6 +53,7 @@ final class InteractivePDFView: PDFView {
     private var previewAnnotation: PDFAnnotation?
     private var cursorTrackingArea: NSTrackingArea?
     private var lastFocusRequestID: UUID?
+    private var lastPageNavigationRequestID: UUID?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -55,6 +61,12 @@ final class InteractivePDFView: PDFView {
             self,
             selector: #selector(clearAnySelection),
             name: .PDFViewSelectionChanged,
+            object: self
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(pageDidChange),
+            name: .PDFViewPageChanged,
             object: self
         )
     }
@@ -67,11 +79,29 @@ final class InteractivePDFView: PDFView {
             name: .PDFViewSelectionChanged,
             object: self
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(pageDidChange),
+            name: .PDFViewPageChanged,
+            object: self
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     @objc private func clearAnySelection() {
         if currentSelection != nil {
             setCurrentSelection(nil, animate: false)
+        }
+    }
+
+    @objc private func pageDidChange() {
+        guard let currentPage, let document = document else { return }
+        let pageIndex = document.index(for: currentPage)
+        if pageIndex >= 0 {
+            redactor?.updateVisiblePage(index: pageIndex)
         }
     }
 
@@ -203,6 +233,28 @@ final class InteractivePDFView: PDFView {
         guard lastFocusRequestID != requestID else { return }
         lastFocusRequestID = requestID
         guard let target, let page = document?.page(at: target.pageIndex) else { return }
-        go(to: target.rect, on: page)
+        let contextRect = expandedContextRect(for: target.rect, on: page)
+        go(to: contextRect, on: page)
+    }
+
+    func navigateIfNeeded(requestID: UUID, pageIndex: Int?) {
+        guard lastPageNavigationRequestID != requestID else { return }
+        lastPageNavigationRequestID = requestID
+        guard let pageIndex, let page = document?.page(at: pageIndex) else { return }
+        go(to: page)
+    }
+
+    private func expandedContextRect(for rect: CGRect, on page: PDFPage) -> CGRect {
+        let pageBounds = page.bounds(for: .mediaBox)
+        let expanded = rect.insetBy(dx: -80, dy: -110)
+        let minWidth = max(rect.width + 100, pageBounds.width * 0.36)
+        let minHeight = max(rect.height + 130, pageBounds.height * 0.20)
+        let centered = CGRect(
+            x: rect.midX - (minWidth / 2),
+            y: rect.midY - (minHeight / 2),
+            width: minWidth,
+            height: minHeight
+        )
+        return expanded.union(centered).intersection(pageBounds)
     }
 }

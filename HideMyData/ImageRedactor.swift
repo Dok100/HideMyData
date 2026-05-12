@@ -246,7 +246,7 @@ final class ImageRedactor {
     }
 
     func addRedaction(rect: CGRect, findingID: UUID? = nil) {
-        redactionEntries.append(RedactionEntry(rect: rect, findingID: findingID))
+        redactionEntries.append(RedactionEntry(rect: harmonizedDisplayRect(for: rect), findingID: findingID))
         switch phase {
         case .loaded, .redacted:
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
@@ -256,7 +256,7 @@ final class ImageRedactor {
     }
 
     private func addPreview(rect: CGRect, findingID: UUID) {
-        previewEntries.append(RedactionEntry(rect: rect, findingID: findingID))
+        previewEntries.append(RedactionEntry(rect: harmonizedDisplayRect(for: rect), findingID: findingID))
         if case .loaded = phase {
             phase = .redacted(spanCount: 0, rectCount: previewRects.count)
         }
@@ -313,6 +313,23 @@ final class ImageRedactor {
         let x = norm.minX * w
         let y = (1 - norm.maxY) * h
         return CGRect(x: x, y: y, width: norm.width * w, height: norm.height * h)
+    }
+
+    private func harmonizedDisplayRect(for rect: CGRect) -> CGRect {
+        let imageBounds = CGRect(origin: .zero, size: pixelSize)
+        let workingRect = rect.standardized
+        guard redactionStyle == .blackRectangle else {
+            return workingRect.insetBy(dx: -1, dy: -1).intersection(imageBounds)
+        }
+
+        let targetHeight = max(12, round(workingRect.height + 4))
+        let adjusted = CGRect(
+            x: workingRect.minX - 1,
+            y: workingRect.midY - (targetHeight / 2),
+            width: workingRect.width + 2,
+            height: targetHeight
+        )
+        return adjusted.intersection(imageBounds)
     }
 
     private func writeRedacted(to url: URL, uti: UTType, options: ExportOptions) -> Bool {

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -10,14 +10,14 @@ APPLOGO_DIR = ROOT / "HideMyData" / "Assets.xcassets" / "AppLogo.imageset"
 
 def optical_profile(size: int) -> dict[str, float]:
     if size < 32:
-        return dict(top_w=80, top_h=22, stem_w=36, stem_h=62, top_r=0, stem_r=0)
+        return dict(top_w=84, top_h=26, stem_w=40, stem_h=66, top_r=2, stem_r=4, top_x=28, top_y=25, stem_x=50, stem_y=54)
     if size < 64:
-        return dict(top_w=72, top_h=20, stem_w=32, stem_h=62, top_r=0, stem_r=0)
+        return dict(top_w=74, top_h=22, stem_w=32, stem_h=64, top_r=2, stem_r=3, top_x=33, top_y=27, stem_x=54, stem_y=55)
     if size < 128:
-        return dict(top_w=68, top_h=18, stem_w=28, stem_h=62, top_r=1, stem_r=1)
+        return dict(top_w=70, top_h=18, stem_w=28, stem_h=62, top_r=2, stem_r=3, top_x=35, top_y=30, stem_x=56, stem_y=56)
     if size < 256:
-        return dict(top_w=64, top_h=16, stem_w=24, stem_h=60, top_r=1, stem_r=1)
-    return dict(top_w=64, top_h=14, stem_w=20, stem_h=60, top_r=2, stem_r=3)
+        return dict(top_w=68, top_h=16, stem_w=24, stem_h=60, top_r=2, stem_r=3, top_x=36, top_y=31, stem_x=58, stem_y=58)
+    return dict(top_w=64, top_h=15 if size == 256 else 14, stem_w=20, stem_h=60, top_r=2, stem_r=3, top_x=38, top_y=32, stem_x=60, stem_y=58)
 
 
 def interpolate(c1, c2, t: float):
@@ -26,17 +26,18 @@ def interpolate(c1, c2, t: float):
 
 def render_icon(size: int, dark: bool = False) -> Image.Image:
     base = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(base)
 
-    inset = round(size * 0.033)
-    rect = (inset, inset, size - inset, size - inset)
-    radius = round((rect[2] - rect[0]) * 0.185)
+    rect = (
+        round(size * 5 / 140),
+        round(size * 5 / 140),
+        round(size * 135 / 140),
+        round(size * 135 / 140),
+    )
+    radius = round(size * 25 / 140)
 
     start = (44, 44, 46) if dark else (255, 255, 255)
     end = (28, 28, 30) if dark else (229, 229, 234)
     glyph = (245, 245, 247, 255) if dark else (10, 10, 12, 255)
-    border = (255, 255, 255, 26) if dark else (10, 10, 12, 16)
-
     mask = Image.new("L", (size, size), 0)
     ImageDraw.Draw(mask).rounded_rectangle(rect, radius=radius, fill=255)
 
@@ -48,23 +49,9 @@ def render_icon(size: int, dark: bool = False) -> Image.Image:
         for x in range(size):
             grad_px[x, y] = (*color, 255)
     gradient.putalpha(mask)
-
-    shadow = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_offset = max(1, round(size * 0.01))
-    shadow_rect = (rect[0], rect[1] + shadow_offset, rect[2], rect[3] + shadow_offset)
-    shadow_draw.rounded_rectangle(
-        shadow_rect,
-        radius=radius,
-        fill=(0, 0, 0, 92 if dark else 40),
-    )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=max(1, round(size * 0.045))))
-    base.alpha_composite(shadow)
     base.alpha_composite(gradient)
 
     draw = ImageDraw.Draw(base)
-    draw.rounded_rectangle(rect, radius=radius, outline=border, width=max(1, round(size * 0.004)))
-
     prof = optical_profile(size)
     scale = (rect[2] - rect[0]) / 140.0
     ox, oy = rect[0], rect[1]
@@ -77,10 +64,8 @@ def render_icon(size: int, dark: bool = False) -> Image.Image:
             round(oy + (y + h) * scale),
         )
 
-    top_x = 70 - prof["top_w"] / 2
-    stem_x = 70 - prof["stem_w"] / 2
-    top_box = scaled_box(top_x, 32, prof["top_w"], prof["top_h"])
-    stem_box = scaled_box(stem_x, 58, prof["stem_w"], prof["stem_h"])
+    top_box = scaled_box(prof["top_x"], prof["top_y"], prof["top_w"], prof["top_h"])
+    stem_box = scaled_box(prof["stem_x"], prof["stem_y"], prof["stem_w"], prof["stem_h"])
 
     draw.rounded_rectangle(top_box, radius=prof["top_r"] * scale, fill=glyph)
     draw.rounded_rectangle(stem_box, radius=prof["stem_r"] * scale, fill=glyph)

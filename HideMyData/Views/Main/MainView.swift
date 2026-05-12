@@ -3,6 +3,7 @@ import AppKit
 internal import UniformTypeIdentifiers
 
 struct MainView: View {
+    @Environment(\.colorScheme) private var colorScheme
     private static let recentsEnabledKey = "Inkognito.recents.enabled"
     private static let legacyRecentsEnabledKey = "HMD.recents.enabled"
 
@@ -34,7 +35,6 @@ struct MainView: View {
                 EmptyState(
                     inputMode: $inputMode,
                     recents: recents,
-                    recentsEnabled: $recentsEnabled,
                     onOpenClipboardAnonymizer: { clipboardAnonymizerPresented = true },
                     onOpenPDF: openPDFAndAdd,
                     onOpenImage: openImageAndAdd,
@@ -66,6 +66,25 @@ struct MainView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 18)
                     .padding(.bottom, 12)
+
+                    HStack(alignment: .center, spacing: 14) {
+                        WorkflowStepStrip(currentStep: currentWorkflowStep)
+
+                        Spacer(minLength: 0)
+
+                        if inputMode == .pdf, currentPDFPageCount > 1 {
+                            PDFPageNavigationBar(
+                                currentPageIndex: currentPDFPageIndex,
+                                pageCount: currentPDFPageCount,
+                                canGoPrevious: pdfRedactor.canGoToPreviousPage,
+                                canGoNext: pdfRedactor.canGoToNextPage,
+                                onPrevious: pdfRedactor.goToPreviousPage,
+                                onNext: pdfRedactor.goToNextPage
+                            )
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 6)
 
                     HStack(spacing: 0) {
                         Group {
@@ -144,16 +163,29 @@ struct MainView: View {
     @ViewBuilder
     private var workspaceBackdrop: some View {
         ZStack {
-            Color(nsColor: .windowBackgroundColor)
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.10),
-                    Color.black.opacity(0.015),
-                    Color.accentColor.opacity(0.025)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            if colorScheme == .dark {
+                Color(nsColor: .windowBackgroundColor)
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.025),
+                        Color.black.opacity(0.10),
+                        Color.accentColor.opacity(0.06)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            } else {
+                Color(nsColor: .windowBackgroundColor)
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.10),
+                        Color.black.opacity(0.015),
+                        Color.accentColor.opacity(0.025)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         }
     }
 
@@ -236,6 +268,31 @@ struct MainView: View {
 
     private var currentRejectedReviewCount: Int {
         currentReviewFindings.filter { $0.status == .rejected }.count
+    }
+
+    private var currentWorkflowStep: WorkflowStepStrip.Step {
+        if hasPendingReview {
+            return .review
+        }
+        switch inputMode {
+        case .pdf:
+            if pdfRedactor.hasRedactions || !pdfRedactor.reviewFindings.isEmpty {
+                return .save
+            }
+        case .image:
+            if imageRedactor.hasRedactions || !imageRedactor.reviewFindings.isEmpty {
+                return .save
+            }
+        }
+        return .detect
+    }
+
+    private var currentPDFPageCount: Int {
+        inputMode == .pdf ? pdfRedactor.pageCount : 0
+    }
+
+    private var currentPDFPageIndex: Int {
+        inputMode == .pdf ? pdfRedactor.currentPageIndex : 0
     }
 
     private var hasPendingReview: Bool {
@@ -1377,7 +1434,103 @@ private struct CustomPatternsTransferDocument: FileDocument {
     }
 }
 
+private struct WorkflowStepStrip: View {
+    enum Step: Int {
+        case detect = 1
+        case review = 2
+        case save = 3
+    }
+
+    let currentStep: Step
+
+    var body: some View {
+        HStack(spacing: 10) {
+            stepBadge(number: 1, title: "Erkennen", isActive: currentStep == .detect, isCompleted: currentStep.rawValue > 1)
+            connector
+            stepBadge(number: 2, title: "Prüfen", isActive: currentStep == .review, isCompleted: currentStep.rawValue > 2)
+            connector
+            stepBadge(number: 3, title: "Speichern", isActive: currentStep == .save, isCompleted: false)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.88), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.6)
+        )
+    }
+
+    private func stepBadge(number: Int, title: String, isActive: Bool, isCompleted: Bool) -> some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(isActive ? Color.accentColor : (isCompleted ? Color.green.opacity(0.18) : Color.secondary.opacity(0.12)))
+                    .frame(width: 22, height: 22)
+                if isCompleted {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Color.green)
+                } else {
+                    Text("\(number)")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(isActive ? Color.white : .secondary)
+                }
+            }
+
+            Text(title)
+                .font(.system(size: 12, weight: isActive ? .semibold : .medium))
+                .foregroundStyle(isActive ? .primary : .secondary)
+        }
+    }
+
+    private var connector: some View {
+        Capsule()
+            .fill(Color.secondary.opacity(0.14))
+            .frame(width: 18, height: 2)
+    }
+}
+
+private struct PDFPageNavigationBar: View {
+    let currentPageIndex: Int
+    let pageCount: Int
+    let canGoPrevious: Bool
+    let canGoNext: Bool
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onPrevious) {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canGoPrevious)
+
+            Text("Seite \(currentPageIndex + 1) von \(pageCount)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 96)
+
+            Button(action: onNext) {
+                Image(systemName: "chevron.right")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canGoNext)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.88), in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.6)
+        )
+    }
+}
+
 private struct ReviewSidebar: View {
+    @Environment(\.colorScheme) private var colorScheme
     let findings: [ReviewFinding]
     let pendingCount: Int
     let acceptedCount: Int
@@ -1387,6 +1540,7 @@ private struct ReviewSidebar: View {
     let onAccept: (UUID) -> Void
     let onReject: (UUID) -> Void
     @State private var showOnlyPending = true
+    @State private var confirmAcceptAll = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -1403,13 +1557,19 @@ private struct ReviewSidebar: View {
                     Spacer(minLength: 0)
 
                     if pendingCount > 0 {
-                        Button("Alle bestätigen", action: onAcceptAll)
+                        Button("Alle bestätigen") {
+                            confirmAcceptAll = true
+                        }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                     }
                 }
 
                 summaryRow
+
+                if pendingCount == 0, !findings.isEmpty {
+                    successBanner
+                }
 
                 Toggle("Nur offene Treffer", isOn: $showOnlyPending)
                     .toggleStyle(.switch)
@@ -1444,6 +1604,14 @@ private struct ReviewSidebar: View {
                 .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.7)
         )
         .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
+        .confirmationDialog("Alle offenen Treffer bestätigen?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
+            Button("Alle bestätigen") {
+                onAcceptAll()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Damit werden alle aktuell offenen Treffer ohne Einzelprüfung freigegeben.")
+        }
     }
 
     private var headerText: String {
@@ -1483,10 +1651,10 @@ private struct ReviewSidebar: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.70), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(summaryFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.6)
+                .strokeBorder(summaryBorder, lineWidth: 0.6)
         )
     }
 
@@ -1506,80 +1674,151 @@ private struct ReviewSidebar: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
-        .background(Color.white.opacity(0.68), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(summaryFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.07), lineWidth: 0.6)
+                .strokeBorder(summaryBorder, lineWidth: 0.6)
         )
+    }
+
+    private var successBanner: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            Text("Alles geprüft. Du kannst jetzt speichern.")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.green.opacity(0.9))
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.green.opacity(0.18), lineWidth: 0.8)
+        )
+    }
+
+    private var summaryFill: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.70)
+    }
+
+    private var summaryBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.07)
     }
 }
 
 private struct ReviewFindingRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let finding: ReviewFinding
     let onSelect: () -> Void
     let onAccept: () -> Void
     let onReject: () -> Void
+    @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Button(action: onSelect) {
-                HStack(alignment: .top, spacing: 12) {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .fill(categoryColor.opacity(0.6))
-                        .frame(width: 4)
-                        .padding(.top, 10)
-                        .padding(.bottom, 10)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(categoryColor.opacity(0.84))
+                    .frame(width: 4)
+                    .padding(.vertical, 4)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 8) {
-                            Text(finding.category)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(categoryTextColor)
-                            Spacer(minLength: 0)
-                            statusBadge
+                VStack(alignment: .leading, spacing: 10) {
+                    Button(action: onSelect) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .center, spacing: 8) {
+                                Text(displayCategory)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(categoryTextColor)
+                                Spacer(minLength: 0)
+                                statusBadge
+                            }
+
+                            Text(finding.snippet.isEmpty ? "Ohne Textausschnitt" : finding.snippet)
+                                .font(.system(size: 13))
+                                .foregroundStyle(snippetColor)
+                                .lineLimit(isExpanded ? 4 : 2)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
+                    }
+                    .buttonStyle(.plain)
 
-                        Text(finding.snippet.isEmpty ? "Ohne Textausschnitt" : finding.snippet)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-
+                    if isExpanded {
                         HStack(spacing: 8) {
                             sourceBadge
                             confidenceBadge
                             if let pageIndex = finding.pageIndex {
                                 Text("Seite \(pageIndex + 1)")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(pageLabelColor)
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.white.opacity(0.82))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.09), lineWidth: 0.9)
-                )
-                .shadow(color: .black.opacity(0.055), radius: 16, y: 6)
-            }
-            .buttonStyle(.plain)
 
-            if finding.status == .pending {
-                HStack(spacing: 8) {
-                    Button("Bestätigen", action: onAccept)
-                        .buttonStyle(.borderedProminent)
-                    Button("Ablehnen", action: onReject)
-                        .buttonStyle(.bordered)
+                    HStack(spacing: 8) {
+                        Button {
+                            isExpanded.toggle()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(isExpanded ? "Weniger" : "Details")
+                                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(detailControlColor)
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer(minLength: 0)
+
+                        if finding.status == .pending {
+                            Button("Bestätigen", action: onAccept)
+                                .buttonStyle(.borderedProminent)
+                            Button("Ablehnen", action: onReject)
+                                .buttonStyle(.bordered)
+                        }
+                    }
+                    .controlSize(.small)
                 }
-                .controlSize(.small)
-                .padding(.horizontal, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(cardFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(cardBorder, lineWidth: 0.9)
+        )
+        .shadow(color: shadowColor, radius: 16, y: 6)
+    }
+
+    private var displayCategory: String {
+        switch finding.category.lowercased() {
+        case "private_person":
+            return "Person"
+        case "private_phone":
+            return "Telefon"
+        case "private_email":
+            return "E-Mail"
+        case "private_date":
+            return "Datum"
+        case "private_address", "adresse":
+            return "Adresse"
+        case "adressblock":
+            return "Adressblock"
+        case "kontakt":
+            return "Kontakt"
+        case "account_number":
+            return "Kontonummer"
+        case "custom_identifier":
+            return "Eigene Regel"
+        case "secret":
+            return "Vertraulich"
+        default:
+            return finding.category.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 
@@ -1592,13 +1831,37 @@ private struct ReviewFindingRow: View {
             .foregroundStyle(sourceColor)
     }
 
+    private var cardFill: Color {
+        colorScheme == .dark ? Color.white.opacity(0.095) : Color.white.opacity(0.84)
+    }
+
+    private var cardBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.09)
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.16) : Color.black.opacity(0.055)
+    }
+
+    private var snippetColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.90) : .secondary
+    }
+
+    private var detailControlColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.72) : .secondary
+    }
+
+    private var pageLabelColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.58) : .secondary.opacity(0.9)
+    }
+
     private var confidenceBadge: some View {
         Text("Konf. \(confidenceText)")
             .font(.system(size: 10, weight: .semibold, design: .rounded))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(categoryColor.opacity(0.06), in: Capsule())
-            .foregroundStyle(.secondary)
+            .foregroundStyle(confidenceTextColor)
     }
 
     private var statusBadge: some View {
@@ -1638,22 +1901,31 @@ private struct ReviewFindingRow: View {
     }
 
     private var categoryTextColor: Color {
+        let alpha: Double = colorScheme == .dark ? 0.98 : 0.82
         switch finding.category.lowercased() {
         case "private_email", "kontakt":
-            return .green.opacity(0.82)
+            return .green.opacity(alpha)
         case "private_address", "adressblock", "adresse":
-            return .red.opacity(0.82)
+            return .red.opacity(alpha)
         case "account_number":
-            return Color(hue: 0.12, saturation: 0.72, brightness: 0.72)
+            return Color(
+                hue: 0.12,
+                saturation: colorScheme == .dark ? 0.48 : 0.72,
+                brightness: colorScheme == .dark ? 0.96 : 0.72
+            )
         case "private_phone":
-            return .teal.opacity(0.82)
+            return .teal.opacity(alpha)
         case "private_person":
-            return .blue.opacity(0.82)
+            return .blue.opacity(alpha)
         case "private_date":
-            return .purple.opacity(0.82)
+            return .purple.opacity(alpha)
         default:
-            return .primary.opacity(0.9)
+            return colorScheme == .dark ? .white.opacity(0.92) : .primary.opacity(0.9)
         }
+    }
+
+    private var confidenceTextColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.72) : .secondary
     }
 
     private var statusColor: Color {

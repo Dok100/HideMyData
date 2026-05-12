@@ -1,4 +1,4 @@
-name: HideMyData
+name: Inkognito
 
 options:
   createIntermediateGroups: true
@@ -10,10 +10,6 @@ packages:
   OpenMedKit:
     url: https://github.com/maziyarpanahi/openmed.git
     from: 1.2.0
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle
-    from: 2.6.0
-
 settings:
   base:
     CLANG_ANALYZER_NONNULL: YES
@@ -78,7 +74,7 @@ settings:
       SWIFT_COMPILATION_MODE: wholemodule
 
 targets:
-  HideMyData:
+  Inkognito:
     type: application
     platform: macOS
     deploymentTarget: "26.0"
@@ -89,8 +85,6 @@ targets:
     dependencies:
       - package: OpenMedKit
         product: OpenMedKit
-      - package: Sparkle
-        product: Sparkle
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -118,10 +112,10 @@ targets:
         INFOPLIST_FILE: Info.plist
         INFOPLIST_KEY_CFBundleDisplayName: Inkognito
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSHumanReadableCopyright: © 2026 Maciej Bula
+        INFOPLIST_KEY_NSHumanReadableCopyright: © 2026 Kern Consulting
         LD_RUNPATH_SEARCH_PATHS: $(inherited) @executable_path/../Frameworks
         MARKETING_VERSION: "0.2.0"
-        PRODUCT_BUNDLE_IDENTIFIER: com.maciejbula.hidemydata
+        PRODUCT_BUNDLE_IDENTIFIER: de.kernconsulting.inkognito
         PRODUCT_NAME: $(TARGET_NAME)
         REGISTER_APP_GROUPS: YES
         RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES: NO
@@ -144,10 +138,10 @@ targets:
           DEVELOPMENT_TEAM: 834CMTRWP6
 
 schemes:
-  HideMyData:
+  Inkognito:
     build:
       targets:
-        HideMyData: all
+        Inkognito: all
     run:
       config: Debug
     test:

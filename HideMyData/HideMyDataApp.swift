@@ -2,6 +2,60 @@ import SwiftUI
 import AppKit
 import Carbon.HIToolbox
 
+enum AppPreferencesKeys {
+    static let appearanceMode = "Inkognito.appearanceMode"
+    static let recentsEnabled = "Inkognito.recents.enabled"
+}
+
+enum AppAppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Hell"
+        case .dark: "Dunkel"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .system: "Folgt automatisch dem macOS-Erscheinungsbild."
+        case .light: "Verwendet dauerhaft das helle Erscheinungsbild."
+        case .dark: "Verwendet dauerhaft das dunkle Erscheinungsbild."
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+
+    static func from(rawValue: String) -> AppAppearanceMode {
+        AppAppearanceMode(rawValue: rawValue) ?? .system
+    }
+
+    static func apply(rawValue: String) {
+        let mode = AppAppearanceMode.from(rawValue: rawValue)
+        NSApp.appearance = mode.nsAppearance
+    }
+}
+
 extension Notification.Name {
     static let showClipboardAnonymizer = Notification.Name("HMD.showClipboardAnonymizer")
 }
@@ -9,27 +63,23 @@ extension Notification.Name {
 @main
 struct HideMyDataApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var updater = UpdaterModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(updater)
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
-            CommandGroup(after: .appInfo) {
-                Button("Nach Updates suchen…") {
-                    updater.checkForUpdates()
-                }
-            }
-
             CommandMenu("Anonymisieren") {
                 Button("Zwischenablage anonymisieren…") {
                     NotificationCenter.default.post(name: .showClipboardAnonymizer, object: nil)
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
             }
+        }
+
+        Settings {
+            AppSettingsView()
         }
     }
 }
@@ -39,11 +89,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let globalHotKeyController = GlobalHotKeyController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let storedAppearance = UserDefaults.standard.string(forKey: AppPreferencesKeys.appearanceMode) ?? AppAppearanceMode.system.rawValue
+        AppAppearanceMode.apply(rawValue: storedAppearance)
         globalHotKeyController.register()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         globalHotKeyController.unregister()
+    }
+}
+
+struct AppSettingsView: View {
+    @AppStorage(AppPreferencesKeys.appearanceMode) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
+    @AppStorage(AppPreferencesKeys.recentsEnabled) private var recentsEnabled = true
+
+    private var selectedAppearance: Binding<AppAppearanceMode> {
+        Binding(
+            get: { AppAppearanceMode.from(rawValue: appearanceModeRawValue) },
+            set: { newValue in
+                appearanceModeRawValue = newValue.rawValue
+                AppAppearanceMode.apply(rawValue: newValue.rawValue)
+            }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section("Erscheinungsbild") {
+                Picker("Darstellung", selection: selectedAppearance) {
+                    ForEach(AppAppearanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(selectedAppearance.wrappedValue.description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Datenschutz") {
+                Toggle("Zuletzt verwendete Dateien merken", isOn: $recentsEnabled)
+
+                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac, damit zuletzt geoeffnete Dokumente schneller wieder verfuegbar sind.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .padding(20)
+        .frame(width: 460)
     }
 }
 

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Inkognito Icons – Preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    background: #f5f5f7;
+    padding: 40px 24px;
+    color: #1d1d1f;
+  }
+  .container { max-width: 1100px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 40px; }
+  h1 { font-size: 28px; font-weight: 600; margin-bottom: 8px; }
+  p { font-size: 14px; color: #6e6e73; line-height: 1.5; }
+
+  .section-title {
+    font-size: 12px; font-weight: 600; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #8e8e93; margin: 32px 0 16px;
+  }
+
+  .card {
+    background: #fff; border-radius: 16px; padding: 32px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
+  }
+  .card-dark {
+    background: linear-gradient(135deg, #1c1c1e 0%, #0a0a0c 100%);
+    color: #f5f5f7;
+  }
+
+  .size-row {
+    display: flex; gap: 24px; align-items: flex-end;
+    flex-wrap: wrap; justify-content: center;
+    padding: 24px 0;
+  }
+  .size-cell { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .size-cell img { display: block; image-rendering: -webkit-optimize-contrast; }
+  .size-label {
+    font-size: 11px; color: #8e8e93; font-weight: 500;
+    font-family: "SF Mono", monospace;
+  }
+  .card-dark .size-label { color: #98989d; }
+
+  .real-size-row {
+    display: flex; gap: 32px; align-items: center; justify-content: center;
+    padding: 32px 16px;
+    background: linear-gradient(135deg, #e8eef5 0%, #f5f5f7 100%);
+    border-radius: 12px;
+    margin-top: 16px;
+  }
+  .real-size-cell {
+    text-align: center; display: flex; flex-direction: column;
+    align-items: center; gap: 8px;
+  }
+
+  /* Dock simulation */
+  .dock-sim {
+    background: rgba(255,255,255,0.6); backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 18px; padding: 10px;
+    display: inline-flex; gap: 8px; align-items: center;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.15);
+    margin: 16px;
+  }
+  .dock-sim .app {
+    width: 56px; height: 56px;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+  .dock-sim .divider {
+    width: 1px; height: 36px;
+    background: rgba(0,0,0,0.1);
+  }
+
+  /* Menubar simulation */
+  .menubar-sim {
+    background: rgba(255,255,255,0.85); backdrop-filter: blur(20px);
+    border-radius: 6px; padding: 6px 14px;
+    display: inline-flex; gap: 18px; align-items: center;
+    font-size: 13px; color: #1d1d1f;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    margin: 8px;
+  }
+
+  .files-list {
+    background: #1c1c1e; color: #98989d;
+    border-radius: 12px; padding: 20px;
+    font-family: "SF Mono", monospace; font-size: 12px;
+    line-height: 1.7;
+  }
+  .files-list .dir { color: #6bdfff; }
+  .files-list .file { color: #d9c97e; }
+  .files-list .arrow { color: #5e6063; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Inkognito Icons – Preview</h1>
+    <p>Alle Größen mit Optical Sizing. Vergleiche die kleinen Renderings:<br>
+       Bei 16 und 32 px sind Stamm und Balken proportional dicker, damit das Glyph klar bleibt.</p>
+  </header>
+
+  <div class="section-title">Light Mode – Alle Größen 1:1</div>
+  <div class="card">
+    <div class="size-row">
+      <div class="size-cell">
+        <img src="light/inkognito-16.svg" width="16" height="16" alt="16">
+        <div class="size-label">16 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="light/inkognito-32.svg" width="32" height="32" alt="32">
+        <div class="size-label">32 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="light/inkognito-64.svg" width="64" height="64" alt="64">
+        <div class="size-label">64 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="light/inkognito-128.svg" width="128" height="128" alt="128">
+        <div class="size-label">128 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="light/inkognito-256.svg" width="256" height="256" alt="256">
+        <div class="size-label">256 px</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Light Mode – Große Renderings</div>
+  <div class="card">
+    <div class="size-row">
+      <div class="size-cell">
+        <img src="light/inkognito-512.svg" width="380" height="380" alt="512">
+        <div class="size-label">512 px (auf 380 angezeigt)</div>
+      </div>
+      <div class="size-cell">
+        <img src="light/inkognito-1024.svg" width="380" height="380" alt="1024">
+        <div class="size-label">1024 px (auf 380 angezeigt)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Dark Mode</div>
+  <div class="card card-dark">
+    <div class="size-row">
+      <div class="size-cell">
+        <img src="dark/inkognito-16-dark.svg" width="16" height="16" alt="16">
+        <div class="size-label">16 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="dark/inkognito-32-dark.svg" width="32" height="32" alt="32">
+        <div class="size-label">32 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="dark/inkognito-64-dark.svg" width="64" height="64" alt="64">
+        <div class="size-label">64 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="dark/inkognito-128-dark.svg" width="128" height="128" alt="128">
+        <div class="size-label">128 px</div>
+      </div>
+      <div class="size-cell">
+        <img src="dark/inkognito-256-dark.svg" width="256" height="256" alt="256">
+        <div class="size-label">256 px</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Realitätscheck: Dock-Simulation</div>
+  <div class="card">
+    <p style="text-align:center; margin-bottom:16px; font-size:13px;">
+      So sieht das Icon zwischen typischen macOS Apps im Dock aus (64 px):
+    </p>
+    <div style="text-align:center;">
+      <div class="dock-sim">
+        <div class="app" style="background: linear-gradient(135deg, #007aff, #0040a0);"></div>
+        <div class="app" style="background: linear-gradient(135deg, #ff9500, #c46c00);"></div>
+        <div class="app" style="background: linear-gradient(135deg, #34c759, #1e7e34);"></div>
+        <div class="divider"></div>
+        <img src="light/inkognito-64.svg" class="app" alt="Inkognito">
+        <div class="divider"></div>
+        <div class="app" style="background: linear-gradient(135deg, #ff3b30, #a01a14);"></div>
+        <div class="app" style="background: linear-gradient(135deg, #af52de, #6f1e9b);"></div>
+        <div class="app" style="background: linear-gradient(135deg, #5ac8fa, #0e4d8c);"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Realitätscheck: Menüleisten-Simulation</div>
+  <div class="card">
+    <p style="text-align:center; margin-bottom:16px; font-size:13px;">
+      Das 16-px-Icon in der Menüleiste:
+    </p>
+    <div style="text-align:center;">
+      <div class="menubar-sim">
+        <img src="light/inkognito-16.svg" width="16" height="16" alt="16">
+        <span>Inkognito</span>
+        <span style="opacity:0.5;">·</span>
+        <span style="opacity:0.6;">Datei</span>
+        <span style="opacity:0.6;">Bearbeiten</span>
+        <span style="opacity:0.6;">Hilfe</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Dateistruktur</div>
+  <div class="card">
+    <div class="files-list">
+<span class="dir">inkognito-icons/</span>
+├── <span class="dir">light/</span>                  <span class="arrow">← Standard-Variante</span>
+│   ├── <span class="file">inkognito-16.svg</span>
+│   ├── <span class="file">inkognito-32.svg</span>
+│   ├── <span class="file">inkognito-64.svg</span>
+│   ├── <span class="file">inkognito-128.svg</span>
+│   ├── <span class="file">inkognito-256.svg</span>
+│   ├── <span class="file">inkognito-512.svg</span>
+│   └── <span class="file">inkognito-1024.svg</span>
+├── <span class="dir">dark/</span>                   <span class="arrow">← Inverse Variante</span>
+│   └── <span class="file">inkognito-*-dark.svg</span>
+├── <span class="dir">appstore/</span>
+│   └── <span class="file">inkognito-1024-square.svg</span>  <span class="arrow">← Ohne Squircle</span>
+├── <span class="file">Contents.json</span>          <span class="arrow">← Drop-in für Xcode</span>
+├── <span class="file">convert-to-png.sh</span>      <span class="arrow">← SVG → PNG Pipeline</span>
+└── <span class="file">README.md</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -77,6 +77,10 @@ final class PDFRedactor {
     var focusedFindingID: UUID?
     var focusTarget: FocusTarget?
     var focusRequestID = UUID()
+    var pageCount: Int = 0
+    var currentPageIndex: Int = 0
+    var pageNavigationRequest = UUID()
+    var requestedPageIndex: Int?
     var debugEntries: [DetectionDebugEntry] = []
 
     private var redactionAnnotations: [RedactionEntry] = []
@@ -111,6 +115,8 @@ final class PDFRedactor {
     var hasReviewFindings: Bool { !reviewFindings.isEmpty }
     var pendingReviewCount: Int { reviewFindings.filter { $0.status == .pending }.count }
     var hasPendingReview: Bool { pendingReviewCount > 0 }
+    var canGoToPreviousPage: Bool { currentPageIndex > 0 }
+    var canGoToNextPage: Bool { currentPageIndex + 1 < pageCount }
 
     // MARK: - Open / Save
 
@@ -136,6 +142,9 @@ final class PDFRedactor {
         clearReviewState()
         self.document = doc
         self.sourceURL = url
+        self.pageCount = doc.pageCount
+        self.currentPageIndex = 0
+        self.requestedPageIndex = nil
         self.phase = .loaded
         return true
     }
@@ -155,6 +164,9 @@ final class PDFRedactor {
         clearReviewState()
         self.document = doc
         self.sourceURL = originalURL
+        self.pageCount = doc.pageCount
+        self.currentPageIndex = 0
+        self.requestedPageIndex = nil
         self.phase = .loaded
         return true
     }
@@ -362,7 +374,7 @@ final class PDFRedactor {
         source: RedactionSource = .manual,
         findingID: UUID? = nil
     ) -> PDFAnnotation {
-        let padded = rect.insetBy(dx: -1, dy: -1)
+        let padded = normalizedDisplayRect(for: rect, on: page)
         let ann: PDFAnnotation
         switch redactionStyle {
         case .blackRectangle:
@@ -393,7 +405,7 @@ final class PDFRedactor {
 
     @discardableResult
     private func addPreview(rect: CGRect, on page: PDFPage, findingID: UUID) -> PDFAnnotation {
-        let padded = rect.insetBy(dx: -1, dy: -1)
+        let padded = normalizedDisplayRect(for: rect, on: page)
         let annotation = PreviewRedactionAnnotation(bounds: padded, forType: .square, withProperties: nil)
         annotation.border = nil
         if let finding = reviewFindings.first(where: { $0.id == findingID }) {
@@ -455,8 +467,29 @@ final class PDFRedactor {
         focusedFindingID = id
         focusTarget = nil
         guard let target = firstFocusTarget(for: id) else { return }
+        currentPageIndex = target.pageIndex
         focusTarget = target
         focusRequestID = UUID()
+    }
+
+    func goToPreviousPage() {
+        goToPage(currentPageIndex - 1)
+    }
+
+    func goToNextPage() {
+        goToPage(currentPageIndex + 1)
+    }
+
+    func goToPage(_ pageIndex: Int) {
+        guard pageIndex >= 0, pageIndex < pageCount else { return }
+        currentPageIndex = pageIndex
+        requestedPageIndex = pageIndex
+        pageNavigationRequest = UUID()
+    }
+
+    func updateVisiblePage(index: Int) {
+        guard index >= 0 else { return }
+        currentPageIndex = index
     }
 
     func clearRedactions() {
@@ -482,7 +515,7 @@ final class PDFRedactor {
         let snapshot = redactionAnnotations
         redactionAnnotations.removeAll()
         for entry in snapshot {
-            let bounds = entry.annotation.bounds.insetBy(dx: 1, dy: 1)
+            let bounds = entry.annotation.bounds
             entry.page.removeAnnotation(entry.annotation)
             addRedaction(rect: bounds, on: entry.page, source: .auto, findingID: entry.findingID)
         }
@@ -493,6 +526,9 @@ final class PDFRedactor {
         reviewFindings.removeAll()
         focusedFindingID = nil
         focusTarget = nil
+        pageCount = document?.pageCount ?? 0
+        currentPageIndex = 0
+        requestedPageIndex = nil
         debugEntries.removeAll()
     }
 
@@ -518,7 +554,7 @@ final class PDFRedactor {
         previewAnnotations.removeAll { $0.findingID == findingID }
         for entry in matches {
             let page = entry.page
-            let rect = entry.annotation.bounds.insetBy(dx: 1, dy: 1)
+            let rect = entry.annotation.bounds
             page.removeAnnotation(entry.annotation)
             addRedaction(rect: rect, on: page, source: .auto, findingID: findingID)
         }
@@ -545,6 +581,24 @@ final class PDFRedactor {
         let pageIndex = doc.index(for: entry.page)
         guard pageIndex >= 0 else { return nil }
         return FocusTarget(pageIndex: pageIndex, rect: entry.annotation.bounds)
+    }
+
+    func normalizedDisplayRect(for rect: CGRect, on page: PDFPage) -> CGRect {
+        let pageBounds = page.bounds(for: .mediaBox)
+        let workingRect = rect.standardized
+        guard redactionStyle == .blackRectangle else {
+            return workingRect.insetBy(dx: -1, dy: -1).intersection(pageBounds)
+        }
+
+        let targetHeight = max(12, round(workingRect.height + 4))
+        let centerY = workingRect.midY
+        let adjusted = CGRect(
+            x: workingRect.minX - 1,
+            y: centerY - (targetHeight / 2),
+            width: workingRect.width + 2,
+            height: targetHeight
+        )
+        return adjusted.intersection(pageBounds)
     }
 
     private func previewColor(for category: String) -> NSColor {

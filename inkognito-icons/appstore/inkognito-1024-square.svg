@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 140 140">
+  <defs>
+    <linearGradient id="bgsq1024light" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E5E5EA"/>
+    </linearGradient>
+  </defs>
+  <rect width="140" height="140" fill="url(#bgsq1024light)"/>
+  <rect x="38" y="32" width="64" height="14" rx="2" fill="#0A0A0C"/>
+  <rect x="60" y="58" width="20" height="60" rx="3" fill="#0A0A0C"/>
+</svg>

@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0577AA1F653021F9CC2B966E /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 63F7FE88E8ED1B5CC40576DA /* Sparkle */; };
 		0674E494C4846F884B583FE2 /* ExportOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E09D912BEB75B1C5145E3548 /* ExportOptions.swift */; };
 		1066B4CD114E05EC1ACA8166 /* BlackRedactionAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4031A729053A3FF3DDAC497 /* BlackRedactionAnnotation.swift */; };
 		1632A8901BD1E3281D4576EE /* OCREngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51501230D5992057C9F93B29 /* OCREngine.swift */; };
@@ -40,7 +39,6 @@
 		DD4251E23DB1C311CAD95FA9 /* PIIDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5682A395E7604FC095E7FB84 /* PIIDetector.swift */; };
 		E5DB15C9679B31161C520231 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 663CD89A7239649CB385B317 /* Assets.xcassets */; };
 		E84CA8B2D16341EE72CFB7C5 /* ImageDocumentSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AA1FC025034419BA2801F30 /* ImageDocumentSurface.swift */; };
-		ED3C3B3A9BCA01C203A96296 /* UpdaterModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EEB30406060F66DDB8CCFB /* UpdaterModel.swift */; };
 		F0E06F2BDC4D575914D5C99F /* OCRNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39CD590ED07A7F3BFD6FC744 /* OCRNormalizer.swift */; };
 		F137F982BC0E77C4E472E504 /* OpenMedKit in Frameworks */ = {isa = PBXBuildFile; productRef = F7409CFE2E2D83AA08D8E076 /* OpenMedKit */; };
 		FB315673A56F0632AA65524C /* DocumentSurface.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF5C57B65350D249E4DC294 /* DocumentSurface.swift */; };
@@ -64,7 +62,6 @@
 		663CD89A7239649CB385B317 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		71768E109F4DAAF0C37A9490 /* FirstRunPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunPhase.swift; sourceTree = "<group>"; };
 		7FD9BFDBDCC4E109D5B64106 /* HideMyDataApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HideMyDataApp.swift; sourceTree = "<group>"; };
-		88EEB30406060F66DDB8CCFB /* UpdaterModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdaterModel.swift; sourceTree = "<group>"; };
 		90DCF724FC337ADD0614E158 /* InputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMode.swift; sourceTree = "<group>"; };
 		90F9F75F8D210057CB761037 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 		92C6C93C751BEB171041EE9C /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
@@ -81,7 +78,7 @@
 		DEAC294E583A1CD61B3783D7 /* ImageRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRedactor.swift; sourceTree = "<group>"; };
 		DFF5C57B65350D249E4DC294 /* DocumentSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSurface.swift; sourceTree = "<group>"; };
 		E09D912BEB75B1C5145E3548 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptions.swift; sourceTree = "<group>"; };
-		E0E665C2C50895FD2F4558F2 /* HideMyData.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HideMyData.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E0E665C2C50895FD2F4558F2 /* Inkognito.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Inkognito.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E4031A729053A3FF3DDAC497 /* BlackRedactionAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlackRedactionAnnotation.swift; sourceTree = "<group>"; };
 		ED509B4A7F683F1ABDA9141A /* InputTabSegmented.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputTabSegmented.swift; sourceTree = "<group>"; };
 		F53B2E9EF4286D275C125DBA /* IntroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroView.swift; sourceTree = "<group>"; };
@@ -94,7 +91,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				F137F982BC0E77C4E472E504 /* OpenMedKit in Frameworks */,
-				0577AA1F653021F9CC2B966E /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -104,7 +100,7 @@
 		21ABE26EE3AE7E582E967D38 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E0E665C2C50895FD2F4558F2 /* HideMyData.app */,
+				E0E665C2C50895FD2F4558F2 /* Inkognito.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -177,7 +173,6 @@
 				3869EEB40A00C03732A0D344 /* PDFRedactor.swift */,
 				5682A395E7604FC095E7FB84 /* PIIDetector.swift */,
 				08435884DD0FB255AC929867 /* RecentsStore.swift */,
-				88EEB30406060F66DDB8CCFB /* UpdaterModel.swift */,
 				405F6E1491A99DCC488D7F1F /* Models */,
 				35807631139BB6E1B7462B77 /* Views */,
 			);
@@ -235,10 +230,9 @@
 			name = HideMyData;
 			packageProductDependencies = (
 				F7409CFE2E2D83AA08D8E076 /* OpenMedKit */,
-				63F7FE88E8ED1B5CC40576DA /* Sparkle */,
 			);
-			productName = HideMyData;
-			productReference = E0E665C2C50895FD2F4558F2 /* HideMyData.app */;
+			productName = Inkognito;
+			productReference = E0E665C2C50895FD2F4558F2 /* Inkognito.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -266,7 +260,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				3E35E75C5FA34956A94714F7 /* XCRemoteSwiftPackageReference "openmed" */,
-				888EAF2248386707F1E66476 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 21ABE26EE3AE7E582E967D38 /* Products */;
@@ -328,7 +321,6 @@
 				8C85EA4C7B3EE4C6C90E33C8 /* RedactionStyle+UI.swift in Sources */,
 				5EE9FE9129BEB86AC4D3841D /* StatusPill.swift in Sources */,
 				695108E323B4CB36AD7F93EC /* UpdateStatusFooter.swift in Sources */,
-				ED3C3B3A9BCA01C203A96296 /* UpdaterModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -429,14 +421,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleName = Inkognito;
 				INFOPLIST_KEY_CFBundleDisplayName = Inkognito;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Maciej Bula";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.maciejbula.hidemydata;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = de.kernconsulting.inkognito;
+				PRODUCT_NAME = Inkognito;
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
 				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
@@ -540,14 +533,15 @@
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
+				INFOPLIST_KEY_CFBundleName = Inkognito;
 				INFOPLIST_KEY_CFBundleDisplayName = Inkognito;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 Maciej Bula";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.maciejbula.hidemydata;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = de.kernconsulting.inkognito;
+				PRODUCT_NAME = Inkognito;
 				REGISTER_APP_GROUPS = YES;
 				RUNTIME_EXCEPTION_ALLOW_DYLD_ENVIRONMENT_VARIABLES = NO;
 				RUNTIME_EXCEPTION_ALLOW_JIT = NO;
@@ -598,22 +592,9 @@
 				minimumVersion = 1.2.0;
 			};
 		};
-		888EAF2248386707F1E66476 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/sparkle-project/Sparkle";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		63F7FE88E8ED1B5CC40576DA /* Sparkle */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 888EAF2248386707F1E66476 /* XCRemoteSwiftPackageReference "Sparkle" */;
-			productName = Sparkle;
-		};
 		F7409CFE2E2D83AA08D8E076 /* OpenMedKit */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3E35E75C5FA34956A94714F7 /* XCRemoteSwiftPackageReference "openmed" */;

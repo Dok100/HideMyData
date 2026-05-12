@@ -892,17 +892,25 @@ final class PIIDetector {
 
     private static func loadPersistedClipboardSession() -> ClipboardAnonymizationSession? {
         let defaults = UserDefaults.standard
+        let isUsingLegacyValue = defaults.data(forKey: lastClipboardSessionKey) == nil
         guard let data =
                 defaults.data(forKey: lastClipboardSessionKey) ??
-                defaults.data(forKey: legacyLastClipboardSessionKey),
-              let session = try? JSONDecoder().decode(ClipboardAnonymizationSession.self, from: data)
+                defaults.data(forKey: legacyLastClipboardSessionKey)
         else {
             return nil
         }
-        if defaults.data(forKey: lastClipboardSessionKey) == nil {
-            persistClipboardSession(session)
+
+        do {
+            let session = try JSONDecoder().decode(ClipboardAnonymizationSession.self, from: data)
+            if isUsingLegacyValue {
+                persistClipboardSession(session)
+            }
+            return session
+        } catch {
+            defaults.removeObject(forKey: lastClipboardSessionKey)
+            defaults.removeObject(forKey: legacyLastClipboardSessionKey)
+            return nil
         }
-        return session
     }
 }
 

@@ -1560,12 +1560,17 @@ private struct ReviewSidebar: View {
                         Button("Alle bestätigen") {
                             confirmAcceptAll = true
                         }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
                     }
                 }
 
                 summaryRow
+
+                if !findings.isEmpty {
+                    categoryLegend
+                }
 
                 if pendingCount == 0, !findings.isEmpty {
                     successBanner
@@ -1681,21 +1686,94 @@ private struct ReviewSidebar: View {
         )
     }
 
+    private var categoryLegend: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Farblegende")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    legendChip(title: "Person", color: .blue)
+                    legendChip(title: "Adresse", color: .red)
+                    legendChip(title: "Nummer", color: Color(hue: 0.12, saturation: 0.72, brightness: 0.88))
+                }
+                HStack(spacing: 6) {
+                    legendChip(title: "Kontakt", color: .teal)
+                    legendChip(title: "Datum", color: .purple)
+                    legendChip(title: "E-Mail", color: .green)
+                }
+            }
+        }
+    }
+
+    private func legendChip(title: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color.opacity(0.92))
+                .frame(width: 7, height: 7)
+
+            Text(title)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(summaryFill, in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(summaryBorder, lineWidth: 0.6)
+        )
+    }
+
     private var successBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            Text("Alles geprüft. Du kannst jetzt speichern.")
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(.green.opacity(0.9))
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.14))
+                    .frame(width: 28, height: 28)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: pendingCount)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Prüfung abgeschlossen")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.green.opacity(0.95))
+
+                Text("Alle Treffer wurden bestätigt oder abgelehnt. Du kannst jetzt speichern.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Spacer(minLength: 0)
+
+            Text("Bereit")
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.green.opacity(0.92))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.green.opacity(0.12), in: Capsule())
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.green.opacity(colorScheme == .dark ? 0.20 : 0.11),
+                    Color.mint.opacity(colorScheme == .dark ? 0.10 : 0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.green.opacity(0.18), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.green.opacity(0.24), lineWidth: 0.9)
         )
     }
 

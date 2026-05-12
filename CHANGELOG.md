@@ -1,27 +1,47 @@
 # Unreleased
 
-* Modelldownload auf eine feste Hugging-Face-Revision gepinnt, statt `main` zu folgen.
-* Validierung von Manifest-Pfaden ergänzt, um unsichere Pfad-Traversal beim Download zu verhindern.
-* Laden des Modells auf einen revisionsgebundenen lokalen Cache-Pfad umgestellt.
-* Sichtbare UI-Texte, Statusmeldungen und Exportoptionen ins Deutsche übersetzt.
-* Option ergänzt, um „Zuletzt verwendet“ und lokale Vorschaubilder für sensible Dokumente zu deaktivieren.
-* README um einen Hinweis auf das gepinnte Modellverhalten ergänzt.
-* Bestehende Installationen müssen das Modell möglicherweise einmal neu herunterladen, da der Cache jetzt revisionsgebunden ist.
+## Branding und Sprache
+
+* Sichtbares Branding in App, Projekt, Update-Dialog und Sparkle-Assets auf `Inkognito` umgestellt.
+* Startansicht sprachlich und visuell geschaerft, inklusive klarerer Kernbotschaft, Trust-Zeile und ueberarbeiteter Karten fuer Dokumente und Zwischenablage.
+* Sichtbare UI-Texte, Statusmeldungen und Exportoptionen ins Deutsche uebersetzt.
+
+## Erkennung und OCR
+
+* OCR-Fallback fuer PDFs mit defektem oder stark zerfallenem Textlayer ergaenzt.
+* Native PDF-Textschichten und OCR-Texte werden jetzt unterschiedlich normalisiert, damit saubere PDFs nicht unnoetig verformt werden.
+* Erkennung fuer deutsche Namen, Strassen, Hausnummern und `PLZ + Ort`-Kombinationen erweitert, auch bei OCR-Fragmentierung und Zeilenumbruechen.
+* Nachgelagerte Filter gegen Dokumentrauschen, Briefkopf-Orte und false positives verschaerft, insbesondere fuer Steuer- und Behördendokumente.
+* Modell- und Regex-Treffer werden robuster zusammengefuehrt, damit Empfaenger- und Adressbloecke natuerlicher im Review erscheinen.
+* Zu aggressive modellseitige Kontonummern-Treffer werden staerker unterdrueckt, waehrend plausible strukturierte Identifier erhalten bleiben.
+* OCR-Diagnostikansicht fuer gelesenen und normalisierten Text hinzugefuegt.
+* Kleiner lokaler Regression-Check fuer die juengsten OCR-, Briefkopf- und Adress-Fixes hinzugefuegt.
+
+## Regeln und Review
+
 * Eigene Erkennungsregeln um komfortable Verwaltung, Import und Export per JSON erweitert.
-* Import-Verhalten für Regeln um die Modi `Ergänzen` und `Ersetzen` ergänzt.
-* Funktionen zum Modernisieren bestehender Regeln und zum Entfernen von Duplikaten hinzugefügt.
-* Regelverwaltung optisch überarbeitet und stärker an den macOS-/Apple-Stil angepasst.
-* Layout der Regelverwaltung für vergrößerte Fenster verbessert.
-* Unterstützung für mehrzeilige Adressblöcke und robustere Zerlegung in Teil- und Blockregeln ergänzt.
-* Erkennung für deutsche `PLZ + Ort`-Kombinationen verbessert, auch bei Zeilenumbrüchen.
-* Datumserkennung für OCR-Fälle robuster gemacht, z. B. bei `01.10.1938` mit zusätzlichen Zeichen oder abweichender Zeichenerkennung.
-* Globalen Zwischenablage-Workflow ergänzt: kopierten Text lokal anonymisieren, Vorschau prüfen und direkt in die KI übernehmen.
-* Rückführung für KI-Antworten ergänzt: Platzhalter können wieder mit Originalwerten ersetzt werden.
-* Platzhalter-Erkennung bei der Rückführung robuster gemacht, auch bei leicht veränderten Tokens wie `NAME 1` oder `[name-1]`.
-* Review-Inspector überarbeitet: Treffer werden verdichtet, ruhiger dargestellt und stärker als Prüf-Workflow aufbereitet.
-* Automatisch erkannte Treffer werden vor der Bestätigung zunächst nur markiert und erst danach final geschwärzt oder unscharf exportiert.
-* Hauptarbeitsfläche und Toolbar visuell beruhigt und stärker an eine sachliche macOS-Utility-App angenähert.
-* Bekannter Punkt: Die Erkennungsqualität einzelner OCR-/Adress-/Kontofälle wird im nächsten Schritt gezielt nachstabilisiert.
+* Import-Verhalten fuer Regeln um die Modi `Ergaenzen` und `Ersetzen` erweitert.
+* Funktionen zum Modernisieren bestehender Regeln und zum Entfernen von Duplikaten hinzugefuegt.
+* Unterstuetzung fuer mehrzeilige Adressbloecke und robustere Zerlegung in Teil- und Blockregeln ergaenzt.
+* Datumserkennung fuer OCR-Faelle robuster gemacht, z. B. bei `01.10.1938` mit zusaetzlichen Zeichen oder abweichender Zeichenerkennung.
+* Review-Inspector ueberarbeitet: Treffer werden verdichtet, ruhiger dargestellt und staerker als Pruef-Workflow aufbereitet.
+* Automatisch erkannte Treffer werden vor der Bestaetigung zunaechst nur markiert und erst danach final geschwaerzt oder unscharf exportiert.
+
+## Zwischenablage und UI
+
+* Globalen Zwischenablage-Workflow ergaenzt: kopierten Text lokal anonymisieren, Vorschau pruefen und direkt in KI-Tools uebernehmen.
+* Rueckfuehrung fuer KI-Antworten ergaenzt: Platzhalter koennen wieder mit Originalwerten ersetzt werden.
+* Platzhalter-Erkennung bei der Rueckfuehrung robuster gemacht, auch bei leicht veraenderten Tokens wie `NAME 1` oder `[name-1]`.
+* Hauptarbeitsflaeche und Toolbar visuell beruhigt und staerker an eine sachliche macOS-Utility-App angenaehert.
+* Option ergaenzt, um `Zuletzt verwendet` und lokale Vorschaubilder fuer sensible Dokumente zu deaktivieren.
+
+## Modell und Sicherheit
+
+* Modelldownload auf eine feste Hugging-Face-Revision gepinnt, statt `main` zu folgen.
+* Validierung von Manifest-Pfaden ergaenzt, um unsichere Pfad-Traversal beim Download zu verhindern.
+* Laden des Modells auf einen revisionsgebundenen lokalen Cache-Pfad umgestellt.
+* README um einen Hinweis auf das gepinnte Modellverhalten und die neuen Regression-Checks ergaenzt.
+* Bestehende Installationen muessen das Modell moeglicherweise einmal neu herunterladen, da der Cache jetzt revisionsgebunden ist.
 
 # 0.2.0
 

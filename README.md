@@ -2,90 +2,168 @@
 
 <img width="180" height="180" alt="Inkognito" src="HideMyData/Assets.xcassets/AppLogo.imageset/logo.png" />
 
-### Inkognito — Anonymisieren. Direkt auf deinem Mac.
+### Inkognito
 
-Lokale KI-gestützte Schwärzung sensibler Inhalte für macOS. Gebaut mit [OpenMed](https://github.com/maziyarpanahi/openmed), [MLX-Swift](https://github.com/ml-explore/mlx-swift) und Apple Vision.
+**Anonymisieren. Direkt auf deinem Mac.**
+
+Lokale KI-gestuetzte Schwaerzung sensibler Inhalte fuer macOS. Inkognito kombiniert OpenMed, Apple Vision OCR und manuelle Review-Schritte, damit vertrauliche PDFs, Bilder und Zwischenablage-Texte den Mac nicht verlassen muessen.
 
 ![Swift](https://img.shields.io/badge/Swift-FA7343?style=for-the-badge&logo=swift&logoColor=white)
 ![Xcode](https://img.shields.io/badge/Xcode-007ACC?style=for-the-badge&logo=Xcode&logoColor=white)
-![macOS](https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=apple&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-000000?style=for-the-badge&logo=apple&logoColor=white)
 
 </div>
 
-## Install
+## Ueberblick
 
-Grab the latest `.dmg` from the [Releases](../../releases) page, or build from source - see [Build](#build) below.
+Inkognito ist eine native macOS-App fuer das lokale Anonymisieren von:
 
-https://github.com/user-attachments/assets/353899ca-3810-4fbc-9cbf-45bdf50ec30d
+- PDFs
+- Bildern
+- kopierten Texten aus der Zwischenablage
 
-## Features
+Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur zur Pruefung und erzeugt erst nach deiner Freigabe die finalen Schwaerzungen. Fuer OCR-lastige Dokumente gibt es einen Fallback ueber Apple Vision. Fuer problematische PDF-Textlayer kombiniert Inkognito eingebetteten Text, OCR, Regexe und nachgelagerte Heuristiken.
 
-- **Direkt auf deinem Mac** — Modell, Erkennung und Verarbeitung laufen lokal auf dem Gerät
-- **PDF and image input** — both formats share the same detection and redaction pipeline
-- **OCR** — Apple Vision handles scanned PDFs, images, and rescues PDFs whose embedded fonts hide text from selection
-- **AI detection** — OpenAI `privacy-filter` (MLX 8-bit) catches names, emails, phones, addresses, dates, IDs in context
-- **Manually maintained regex** — IBAN, SSN, Personal identifiers, MAC, IPv4/v6, JWT, API keys, crypto wallets and more to come
-- **Two redaction styles** — solid black or frosted glass blur
-- **Review before final redaction** — automatic hits are marked first and only become final redactions after confirmation
-- **Manual editing** — add or remove redaction rectangles by hand before saving
-- **Clipboard-Anonymisierung** — kopierten Text lokal anonymisieren und sicher in KI-Tools, E-Mails oder Dokumente einfügen
-- **Platzhalter-Rückführung** — KI-Antwort zurückholen und Originalwerte lokal wieder einsetzen
-- **Permanent on save** — pages are rasterized and rebuilt - the original text and glyphs are gone, not just hidden
-- **Safer PDF sharing** — for confidential exports, use `Black`. The final exported PDF bakes redactions into the saved page instead of leaving removable overlay bars on top
+## Kernfunktionen
 
-## Clipboard Workflow
+- **Alles lokal**: Modell, OCR, Erkennung und Nachbearbeitung laufen auf deinem Mac.
+- **PDF- und Bild-Workflow**: beide Formate teilen sich dieselbe Review-Logik.
+- **OCR-Fallback**: gescannte Dokumente und kaputte PDF-Textlayer werden ueber Apple Vision abgefangen.
+- **KI-Erkennung**: OpenMed `privacy-filter` auf MLX erkennt Namen, Adressen, Telefonnummern, Daten und weitere PII im Kontext.
+- **Regex-Ergaenzungen**: zusaetzliche Muster fuer IBANs, Karten, Wallets, typische Identifier und sprachspezifische Adressformen.
+- **Review vor Finalisierung**: automatische Treffer werden erst bestaetigt oder verworfen, bevor sie dauerhaft geschwaerzt werden.
+- **Manuelle Bearbeitung**: Redaktionsrechtecke koennen jederzeit hinzugefuegt oder entfernt werden.
+- **Zwischenablage-Anonymisierung**: sensible Inhalte lokal durch Platzhalter ersetzen, sicher in KI-Tools einfuegen und Antworten spaeter lokal rueckfuehren.
+- **Persistente Schwaerzung beim Export**: finale PDFs werden aus gerenderten Seiten neu aufgebaut.
 
-Nutze den integrierten Zwischenablage-Workflow, wenn du Texte mit einer KI verbessern willst, ohne Rohdaten weiterzugeben:
+## Typische Workflows
 
-1. Text in die Zwischenablage kopieren
-2. Vorschau über die App oder den globalen Shortcut öffnen
-3. Anonymisierte Version prüfen und in ChatGPT, Claude, Gemini oder ein anderes Tool einfügen
-4. KI-Antwort zurück in Inkognito holen
-5. Originalwerte lokal aus den Platzhaltern wiederherstellen
+### Dokumente anonymisieren
 
-Die Platzhalter-Zuordnung bleibt auf deinem Mac. Inkognito lädt keine Originalwerte hoch.
+1. PDF oder Bild oeffnen oder per Drag-and-drop auf die Startseite legen.
+2. Automatische Treffer pruefen.
+3. Treffer bestaetigen oder ablehnen.
+4. Bei Bedarf manuelle Schwaerzungen ergaenzen.
+5. Finale Datei exportieren.
 
-## Review Flow
+### Zwischenablage anonymisieren
 
-Für PDFs und Bilder nutzt Inkognito einen zweistufigen Prüf-Workflow:
+1. Text in die Zwischenablage kopieren.
+2. Vorschau ueber die App oder den globalen Shortcut `Cmd+Shift+A` oeffnen.
+3. Anonymisierte Version pruefen und in ChatGPT, Claude, Gemini oder ein anderes Tool einfuegen.
+4. KI-Antwort wieder in Inkognito holen.
+5. Originalwerte lokal aus den Platzhaltern wiederherstellen.
 
-- automatische Treffer werden zunächst nur farbig markiert
-- bestätigte Treffer werden erst danach final geschwärzt oder unscharf exportiert
-- abgelehnte Treffer verschwinden wieder
-- manuelles `Hinzufügen` / `Entfernen` bleibt jederzeit verfügbar
+Die Platzhalter-Zuordnung bleibt lokal auf dem Geraet.
 
-## Security Notes
+## Erkennungspipeline
 
-- Der stärkste Exportmodus für vertrauliche PDFs ist **`Schwarz`**.
-- In diesem Modus wird die finale PDF aus gerenderten Seiten neu aufgebaut, statt nur mit entfernbaren Balken überdeckt zu werden.
-- **`Unschärfe`** ist visuell nützlich, aber schwächer als eine vollständige schwarze Schwärzung.
-- Gib keine Datei aus dem Zwischenzustand weiter. Nur der finale Export enthält die eingebrannten Schwärzungen.
+Inkognito nutzt mehrere Ebenen, damit schwierige Dokumente trotzdem brauchbare Treffer liefern:
 
-## Requirements
+1. **Nativer PDF-Text**, wenn die Textschicht sauber genug ist.
+2. **OCR ueber Apple Vision**, wenn die Seite gescannt ist oder der eingebettete Textlayer zerfaellt.
+3. **Normalisierung**, um OCR-Artefakte wie auseinandergezogene Buchstaben oder zerhackte Ziffernfolgen zu glätten.
+4. **OpenMed-Modell**, um kontextbezogene PII zu finden.
+5. **Regex-Matching**, um strukturierte Muster zu ergaenzen.
+6. **Post-Processing**, um Dokumentrauschen, Briefkopf-Orte, false positives und OCR-Muell wieder zu entfernen.
+7. **Review-Compaction**, um einzelne Treffer in lesbare Bloecke zusammenzufassen.
 
-- macOS 26 or later
-- Apple Silicon (the MLX backend does not run on Intel)
+Diese letzte Stufe ist gerade fuer deutsche Steuerbescheide, Briefkoepfe und OCR-lastige PDFs wichtig.
+
+## Sicherheitsnotizen
+
+- Der staerkste Exportmodus fuer vertrauliche Dokumente ist **`Schwarz`**.
+- In diesem Modus wird die finale PDF aus gerenderten Seiten neu aufgebaut, statt nur mit entfernbaren Balken ueberdeckt zu werden.
+- **`Unschaerfe`** ist visuell nuetzlich, aber schwaecher als eine vollstaendige schwarze Schwaerzung.
+- Zwischenstaende sollten nicht weitergegeben werden. Relevant ist nur der finale Export.
+
+## Voraussetzungen
+
+- macOS 26 oder neuer
+- Apple Silicon
+- Xcode 16 oder neuer empfohlen
+
+## Installation
+
+Die einfachste Nutzung erfolgt ueber die aktuelle `.dmg` aus den GitHub Releases.
+
+- Releases: [Releases](../../releases)
+
+Alternativ kann die App lokal aus dem Repository gebaut werden.
 
 ## Build
 
 ```bash
-open HideMyData.xcodeproj
-# build & run via Xcode (⌘R)
+open Inkognito.xcodeproj
 ```
 
-Beim ersten Start lädt Inkognito das Modell (~1.5 GB) von Hugging Face nach `~/Library/Application Support/Inkognito/ModelCache/`.
-Die App pinnt das Modell auf eine feste Hugging-Face-Revision statt `main` zu verfolgen, damit spätere Upstream-Änderungen nicht unbemerkt übernommen werden.
+Dann in Xcode:
 
-## Current Notes
+1. Scheme `Inkognito` auswaehlen
+2. `Cmd+R` zum Starten
 
-- Die App befindet sich aktuell in einer aktiven UX-/Workflow-Feinabstimmung.
-- Einige OCR-lastige Randfälle bei Adressen, Kontodaten und Klassifikation brauchen noch einen weiteren Stabilisierungsschritt.
-- Review- und Clipboard-Workflow funktionieren bereits, die Erkennungsqualität wird aber noch weiter nachgeschärft.
+Beim ersten Start laedt Inkognito das Modell nach:
+
+```text
+~/Library/Application Support/Inkognito/ModelCache/
+```
+
+Die App pinnt das Modell auf eine feste Hugging-Face-Revision, statt `main` zu verfolgen.
+
+## Regressions-Checks
+
+Fuer die juengsten OCR-/Briefkopf-/Adress-Fixes gibt es einen kleinen lokalen Regression-Check:
+
+```bash
+CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift
+```
+
+Der Check verifiziert aktuell unter anderem:
+
+- Briefkopf-Orte wie `74076 Heilbronn` und `74064 Heilbronn` werden unterdrueckt
+- echte Empfaenger-Orte wie `74229 Oodheim` bleiben erhalten
+- kurze modellseitige Kontonummern werden verworfen
+- OCR- und Native-Normalisierung regressieren nicht wieder in den frueheren Fehlerzustand
+
+Die zugehoerige Fixture liegt hier:
+
+- [fixtures/detection/steuerbescheid_page1_ocr.txt](fixtures/detection/steuerbescheid_page1_ocr.txt)
+
+## Projektstruktur
+
+Wichtige Dateien und Bereiche:
+
+- [HideMyData/HideMyDataApp.swift](HideMyData/HideMyDataApp.swift): App-Einstieg, globaler Shortcut, Einstellungen
+- [HideMyData/PDFRedactor.swift](HideMyData/PDFRedactor.swift): PDF-Erkennung, OCR-Fallback, Review-Kandidaten, Export
+- [HideMyData/ImageRedactor.swift](HideMyData/ImageRedactor.swift): Bilderkennung und Redaktionslogik
+- [HideMyData/PIIDetector.swift](HideMyData/PIIDetector.swift): Modellintegration, Regex-Postprocessing, Filter-Heuristiken
+- [HideMyData/OCRNormalizer.swift](HideMyData/OCRNormalizer.swift): OCR- und Native-Textnormalisierung
+- [HideMyData/patterns.json](HideMyData/patterns.json): eingebaute Regex-Muster
+- [HideMyData/Views/Main/MainView.swift](HideMyData/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
+- [scripts/run_detection_regressions.swift](scripts/run_detection_regressions.swift): schlanker Regression-Check
+
+## Aktueller Stand
+
+Inkognito ist funktional nutzbar, aber weiter in aktiver Qualitaetsarbeit.
+
+Besonders in letzter Zeit geschaerft wurden:
+
+- OCR-Fallback fuer defekte PDF-Textlayer
+- deutsche Adress- und Namensmuster
+- Briefkopf-Unterdrueckung bei Steuer- und Behördendokumenten
+- Filter gegen Dokumentrauschen und false positives
+
+Weitere Verbesserungen werden weiterhin an echten Problembeispielen iterativ abgesichert.
 
 ## Tech Stack
 
-Swift 6, SwiftUI, MLX-Swift, Apple Vision, PDFKit, OpenMedKit
+- Swift 6
+- SwiftUI
+- PDFKit
+- Apple Vision
+- OpenMedKit
+- MLX-Swift
 
-## License
+## Lizenz
 
 GPL-3.0

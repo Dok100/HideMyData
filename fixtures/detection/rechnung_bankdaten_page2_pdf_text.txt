@@ -1,0 +1,24 @@
+Bankverbindung:
+
+IBAN: DE12 3456 7890 1234 5678 90
+
+BIC: TESTDEFFXXX
+
+Kontoinhaber: Lena Sommer
+
+Lieferadresse:
+
+Lena Sommer
+
+Birkenstraße 12
+
+24576 Heidefeld
+
+Schriftverkehr bi<e auch an:
+
+Jonas Sommer, Birkenstraße 12, 24576 Heidefeld
+
+Für Rückfragen wenden Sie sich bi<e an Frau Lena Sommer oder Herrn Jonas Sommer.
+
+Die Unterlagen wurden am 12. Mai 2026 erstellt und an lena.sommer@example.de
+versendet.

@@ -1,0 +1,23 @@
+Nordlicht Service GmbH
+Musterweg 88
+80331 Mon<heim
+Kundin:
+Frau Lena Sommer
+Birkenstraße 12
+24576 Heidefeld
+Deutschland
+Kundennummer: 120034854
+Vertragsnummer: ES-2026-004281
+Zählernummer: 341939022
+Vorgangsnummer: 501075621
+Kontakt:
+Telefon: +49 7941 932 297
+Mobil: +49 171 1234567
+E-Mail: lena.sommer@example.de
+Abweichender Ansprechpartner:
+Herr Jonas Sommer
+E-Mail: jonas.sommer@example.de
+Telefon: 07131 987654
+Rechnungsdatum: 12. Mai 2026
+Leistungszeitraum: 01. Januar 2026 bis 31. Dezember 2026
+Geburtsdatum: 04.11.1983

@@ -187,7 +187,7 @@ final class ImageRedactor {
             return
         }
 
-        let (modelInput, offsetMap) = OCRNormalizer.normalize(ocr.combinedText)
+        let (modelInput, offsetMap) = OCRNormalizer.normalize(ocr.combinedText, mode: .ocr)
         let originalCount = ocr.combinedText.count
 
         let result = await detector.detect(modelInput)
@@ -245,8 +245,9 @@ final class ImageRedactor {
         if image != nil { phase = .loaded }
     }
 
-    func addRedaction(rect: CGRect, findingID: UUID? = nil) {
-        redactionEntries.append(RedactionEntry(rect: harmonizedDisplayRect(for: rect), findingID: findingID))
+    func addRedaction(rect: CGRect, findingID: UUID? = nil, rectIsPreNormalized: Bool = false) {
+        let finalRect = rectIsPreNormalized ? rect : harmonizedDisplayRect(for: rect)
+        redactionEntries.append(RedactionEntry(rect: finalRect, findingID: findingID))
         switch phase {
         case .loaded, .redacted:
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count)
@@ -453,7 +454,7 @@ final class ImageRedactor {
         guard !matches.isEmpty else { return }
         previewEntries.removeAll { $0.findingID == findingID }
         for entry in matches {
-            addRedaction(rect: entry.rect, findingID: findingID)
+            addRedaction(rect: entry.rect, findingID: findingID, rectIsPreNormalized: true)
         }
     }
 

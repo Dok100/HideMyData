@@ -17,7 +17,7 @@
                BlueprintIdentifier = "857CE039FD4D8CE090846F51"
                BuildableName = "Inkognito.app"
                BlueprintName = "HideMyData"
-               ReferencedContainer = "container:HideMyData.xcodeproj">
+               ReferencedContainer = "container:Inkognito.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,7 +33,7 @@
             BlueprintIdentifier = "857CE039FD4D8CE090846F51"
             BuildableName = "Inkognito.app"
             BlueprintName = "HideMyData"
-            ReferencedContainer = "container:HideMyData.xcodeproj">
+            ReferencedContainer = "container:Inkognito.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -56,7 +56,7 @@
             BlueprintIdentifier = "857CE039FD4D8CE090846F51"
             BuildableName = "Inkognito.app"
             BlueprintName = "HideMyData"
-            ReferencedContainer = "container:HideMyData.xcodeproj">
+            ReferencedContainer = "container:Inkognito.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -73,7 +73,7 @@
             BlueprintIdentifier = "857CE039FD4D8CE090846F51"
             BuildableName = "Inkognito.app"
             BlueprintName = "HideMyData"
-            ReferencedContainer = "container:HideMyData.xcodeproj">
+            ReferencedContainer = "container:Inkognito.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

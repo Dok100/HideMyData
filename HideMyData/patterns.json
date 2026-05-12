@@ -19,6 +19,36 @@
       "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b"
     },
     {
+      "id": "bic_labeled",
+      "description": "BIC value anchored on a BIC label",
+      "category": "account_number",
+      "regex": "(?<=\\bBIC:\\s)[A-Z0-9]{8}(?:[A-Z0-9]{3})?\\b"
+    },
+    {
+      "id": "kundennummer_labeled",
+      "description": "Customer number value anchored on a Kundennummer label",
+      "category": "account_number",
+      "regex": "(?<=\\bKundennummer:\\s)[A-Z0-9][A-Z0-9\\-]{5,}\\b"
+    },
+    {
+      "id": "vertragsnummer_labeled",
+      "description": "Contract number value anchored on a Vertragsnummer label",
+      "category": "account_number",
+      "regex": "(?<=\\bVertragsnummer:\\s)[A-Z0-9][A-Z0-9\\-]{5,}\\b"
+    },
+    {
+      "id": "zaehlernummer_labeled",
+      "description": "Meter number value anchored on a Zählernummer label",
+      "category": "account_number",
+      "regex": "(?<=\\b(?:Zählernummer|Zaehlernummer):\\s)\\d{6,}\\b"
+    },
+    {
+      "id": "vorgangsnummer_labeled",
+      "description": "Process number value anchored on a Vorgangsnummer label",
+      "category": "account_number",
+      "regex": "(?<=\\bVorgangsnummer:\\s)\\d{6,}\\b"
+    },
+    {
       "id": "credit_card_16",
       "description": "16-digit credit card (Visa / MC / Discover / JCB), with optional separators",
       "category": "account_number",
@@ -50,9 +80,21 @@
     },
     {
       "id": "german_postal_city",
-      "description": "German postal code with a single city token, tolerating one line break between zip and city and filtering obvious document terms",
+      "description": "German postal code with up to three city tokens, tolerating one line break between zip and city and filtering obvious document terms",
       "category": "private_address",
-      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+\\b"
+      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}\\b(?!<)"
+    },
+    {
+      "id": "german_honorific_name",
+      "description": "German honorific with a likely full person name, e.g. Frau Sylvia Kern",
+      "category": "private_person",
+      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+){1,2}\\b"
+    },
+    {
+      "id": "german_street_house_number",
+      "description": "German-style street name with house number, including multi-word street names such as Berliner Platz 1 or An der Allee 3",
+      "category": "private_address",
+      "regex": "(?i)\\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*\\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*(?:straße|str\\.|strasse|weg|allee|platz|gasse|ring|ufer)\\s*\\d+[A-Za-z]?\\b"
     },
     {
       "id": "date_eu_dotted",

@@ -220,17 +220,20 @@ final class PDFRedactor {
             let source: PageTextSource
             let modelInput: String
             let offsetMap: [Int]
-            if pageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                guard let ocrPage = await ocrText(for: page) else { continue }
-                if ocrPage.combinedText.isEmpty { continue }
+            let trimmedPageText = pageText.trimmingCharacters(in: .whitespacesAndNewlines)
+            let shouldPreferOCR = trimmedPageText.isEmpty || nativeTextLikelyNeedsOCR(trimmedPageText)
+            if shouldPreferOCR, let ocrPage = await ocrText(for: page), !ocrPage.combinedText.isEmpty {
                 source = .ocr(ocrPage)
-                let n = OCRNormalizer.normalize(ocrPage.combinedText)
+                let n = OCRNormalizer.normalize(ocrPage.combinedText, mode: .ocr)
+                modelInput = n.text
+                offsetMap = n.offsetMap
+            } else if !trimmedPageText.isEmpty {
+                source = .nativeText(pageText)
+                let n = OCRNormalizer.normalize(pageText, mode: .native)
                 modelInput = n.text
                 offsetMap = n.offsetMap
             } else {
-                source = .nativeText(pageText)
-                modelInput = pageText
-                offsetMap = []
+                continue
             }
             let result = await detector.detect(modelInput)
             if Task.isCancelled { return }
@@ -239,18 +242,19 @@ final class PDFRedactor {
                 phase = .failed("Erkennungsfehler auf Seite \(pageIndex + 1): \(err.localizedDescription)")
                 return
             case .success(let spans):
+                let visibleDebugSpans = spans.filter { !shouldSuppressHeaderLikeFinding($0, in: source.text) }
                 debugEntries.append(
                     DetectionDebugEntry(
                         title: "Seite \(pageIndex + 1)",
                         textSourceLabel: source.debugLabel,
                         rawText: source.text,
                         normalizedText: modelInput,
-                        findings: spans
+                        findings: visibleDebugSpans
                     )
                 )
-                totalSpans += spans.count
+                totalSpans += visibleDebugSpans.count
                 var unmapped: [DetectedSpan] = []
-                for span in spans {
+                for span in visibleDebugSpans {
                     let (s, e) = OCRNormalizer.translateRange(
                         start: span.start, end: span.end, map: offsetMap, originalCount: source.text.count
                     )
@@ -340,6 +344,108 @@ final class PDFRedactor {
         return try? await OCREngine.recognize(cg)
     }
 
+    private func shouldSuppressHeaderLikeFinding(_ span: DetectedSpan, in pageText: String) -> Bool {
+        let cleanedSnippet = span.text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanedSnippet.isEmpty else { return false }
+
+        let normalizedSnippet = cleanedSnippet.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let compactSnippet = cleanedSnippet
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .filter { $0.isLetter || $0.isNumber }
+
+        let isPostalCity = cleanedSnippet.range(
+            of: #"^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#,
+            options: .regularExpression
+        ) != nil
+        let isStreetAddress = span.category == "private_address" &&
+            cleanedSnippet.range(
+                of: #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#,
+                options: .regularExpression
+            ) != nil
+        let isBareCityToken = span.category == "private_person" && compactSnippet.range(
+            of: #"^[a-zäöüß]{4,}$"#,
+            options: .regularExpression
+        ) != nil
+        guard isPostalCity || isBareCityToken || isStreetAddress else { return false }
+
+        let lines = pageText.components(separatedBy: .newlines)
+        let headerKeywords = [
+            "finanzamt", "finanzkasse", "moltkestr", "moltkestra", "tel", "zi.nr",
+            "steuernummer", "idnr", "deutsche post"
+        ]
+        let senderKeywords = [
+            "gmbh", "mbh", "ag", "ug", "kg", "ohg", "gbr", "kundin", "kunde"
+        ]
+        let recipientMarkers = [
+            "kundin", "kunde", "lieferadresse", "schriftverkehr", "kontoinhaber", "abweichender ansprechpartner"
+        ]
+        let firstRecipientIndex = lines.firstIndex { line in
+            let folded = line.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            return recipientMarkers.contains(where: { folded.contains($0) })
+        }
+
+        for (index, line) in lines.enumerated() {
+            let normalizedLine = line.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            let compactLine = normalizedLine.filter { $0.isLetter || $0.isNumber }
+            guard normalizedLine.localizedCaseInsensitiveContains(normalizedSnippet) ||
+                    (!compactSnippet.isEmpty && compactLine.contains(compactSnippet))
+            else { continue }
+
+            let contextStart = max(0, index - 1)
+            let contextEnd = min(lines.count - 1, index + 2)
+            let context = lines[contextStart...contextEnd]
+                .joined(separator: "\n")
+                .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+            if headerKeywords.contains(where: { context.contains($0) }) {
+                return true
+            }
+            if let firstRecipientIndex,
+               index < firstRecipientIndex,
+               senderKeywords.contains(where: { context.contains($0) }) {
+                return true
+            }
+            if isPostalCity,
+               context.range(of: #"\b\d{2}\.\d{2}\.\d{4}\b"#, options: .regularExpression) != nil {
+                return true
+            }
+            if isPostalCity,
+               context.range(of: #"\(?\d{3,5}\)?[ /-]?\d{2,5}[-/]\d{2,5}"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    private func nativeTextLikelyNeedsOCR(_ text: String) -> Bool {
+        let ocrLikeNormalized = OCRNormalizer.normalize(text, mode: .ocr).text
+        let nativeNormalized = OCRNormalizer.normalize(text, mode: .native).text
+        let rawCount = max(text.count, 1)
+        let compactedCount = max(0, nativeNormalized.count - ocrLikeNormalized.count)
+        let compactionRatio = Double(compactedCount) / Double(rawCount)
+
+        let spacedRunCount = matches(
+            for: #"(?u)(?:\b[\p{L}\p{N}]\s+){3,}[\p{L}\p{N}]\b"#,
+            in: text
+        )
+        let suspiciousSymbolCount = text.filter { "^�".contains($0) }.count
+
+        if spacedRunCount >= 3 { return true }
+        if spacedRunCount >= 2, compactionRatio > 0.05 { return true }
+        if compactionRatio > 0.12 { return true }
+        if suspiciousSymbolCount >= 2, compactionRatio > 0.04 { return true }
+        return false
+    }
+
+    private func matches(for pattern: String, in text: String) -> Int {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return regex.numberOfMatches(in: text, options: [], range: range)
+    }
+
     private func renderPageToCGImage(_ page: PDFPage, scale: CGFloat) -> CGImage? {
         let pageBounds = page.bounds(for: .mediaBox)
         let pixelWidth = Int(pageBounds.width * scale)
@@ -372,9 +478,10 @@ final class PDFRedactor {
         rect: CGRect,
         on page: PDFPage,
         source: RedactionSource = .manual,
-        findingID: UUID? = nil
+        findingID: UUID? = nil,
+        rectIsPreNormalized: Bool = false
     ) -> PDFAnnotation {
-        let padded = normalizedDisplayRect(for: rect, on: page)
+        let padded = rectIsPreNormalized ? rect : normalizedDisplayRect(for: rect, on: page)
         let ann: PDFAnnotation
         switch redactionStyle {
         case .blackRectangle:
@@ -556,7 +663,7 @@ final class PDFRedactor {
             let page = entry.page
             let rect = entry.annotation.bounds
             page.removeAnnotation(entry.annotation)
-            addRedaction(rect: rect, on: page, source: .auto, findingID: findingID)
+            addRedaction(rect: rect, on: page, source: .auto, findingID: findingID, rectIsPreNormalized: true)
         }
     }
 

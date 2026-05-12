@@ -104,6 +104,62 @@ enum ReviewFindingCompactor {
             let normalizedCandidate = normalized(candidate.snippet)
             guard !normalizedCandidate.isEmpty else { return false }
 
+            if candidate.category == "private_address",
+               looksLikeGermanPostalCity(candidate.snippet),
+               isRepeatedNonRecipientPostalCity(candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               looksLikeGermanPostalCity(candidate.snippet),
+               hasNearbyAuthorityContext(for: candidate, in: candidates) &&
+               !hasNearbyRecipientContext(for: candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               (looksLikeGermanPostalCity(candidate.snippet) || looksLikeGermanStreetAddress(candidate.snippet)),
+               hasNearbySenderContext(for: candidate, in: candidates) &&
+               !hasNearbyRecipientContext(for: candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_person",
+               looksLikeBareCityToken(candidate.snippet),
+               matchesRepeatedNonRecipientPostalCity(candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_person",
+               looksLikeBareCityToken(candidate.snippet),
+               hasNearbyAuthorityContext(for: candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_person",
+               looksLikeBareCityToken(candidate.snippet),
+               hasNearbySenderContext(for: candidate, in: candidates) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               looksLikeCompanyAddressBlock(candidate.snippet) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               addressLikelyContainsPersonTail(candidate.snippet),
+               candidates.contains(where: { other in
+                   guard !areSameCandidate(candidate, other),
+                         other.category == "private_address",
+                         other.pageIndex == candidate.pageIndex,
+                         looksLikeGermanPostalCity(other.snippet)
+                   else { return false }
+                   return rectGroupsOverlap(candidate.rects, other.rects)
+               }) {
+                return false
+            }
+
             return !candidates.contains { other in
                 guard !areSameCandidate(candidate, other),
                       candidate.pageIndex == other.pageIndex
@@ -114,6 +170,13 @@ enum ReviewFindingCompactor {
                       normalizedOther.count > normalizedCandidate.count,
                       normalizedOther.contains(normalizedCandidate)
                 else { return false }
+
+                if candidate.category == "private_address",
+                   other.category == "private_address",
+                   looksLikeGermanPostalCity(candidate.snippet),
+                   addressLikelyContainsPersonTail(other.snippet) {
+                    return false
+                }
 
                 if family(for: candidate.category) == .standalone,
                    family(for: other.category) == .standalone,
@@ -222,7 +285,19 @@ enum ReviewFindingCompactor {
         var snippets: [String] = []
         var seen = Set<String>()
 
-        for candidate in cluster.candidates {
+        let orderedCandidates = cluster.candidates.sorted { lhs, rhs in
+            let lhsBounds = union(of: lhs.rects)
+            let rhsBounds = union(of: rhs.rects)
+            if abs(lhsBounds.minY - rhsBounds.minY) > 8 {
+                return lhsBounds.minY > rhsBounds.minY
+            }
+            if abs(lhsBounds.minX - rhsBounds.minX) > 8 {
+                return lhsBounds.minX < rhsBounds.minX
+            }
+            return lhs.snippet.count > rhs.snippet.count
+        }
+
+        for candidate in orderedCandidates {
             let cleaned = candidate.snippet
                 .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -284,6 +359,245 @@ enum ReviewFindingCompactor {
         text
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             .replacingOccurrences(of: "[^a-z0-9]+", with: "", options: .regularExpression)
+    }
+
+    private static func looksLikeGermanPostalCity(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func looksLikeGermanStreetAddress(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func looksLikeAddressBlock(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikeGermanPostalCity(cleaned) || looksLikeGermanStreetAddress(cleaned) {
+            return true
+        }
+        let pattern = #"(?i)\b(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+.+\d{5}\s+[A-ZÄÖÜa-zäöüß]"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func addressLikelyContainsPersonTail(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+){2,}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func hasNearbyRecipientContext(for candidate: ReviewFindingCandidate, in candidates: [ReviewFindingCandidate]) -> Bool {
+        let candidateBounds = union(of: candidate.rects)
+        guard !candidateBounds.isNull else { return false }
+
+        return candidates.contains { other in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex
+            else { return false }
+
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return false }
+
+            let otherLooksRecipientLike =
+                other.category == "private_person" ||
+                (other.category == "private_address" &&
+                 (looksLikeGermanStreetAddress(other.snippet) ||
+                  looksLikeAddressBlock(other.snippet) ||
+                  addressLikelyContainsPersonTail(other.snippet)))
+            guard otherLooksRecipientLike else { return false }
+
+            if candidateBounds.insetBy(dx: -24, dy: -28).intersects(otherBounds) {
+                return true
+            }
+
+            let verticalGap = gapBetween(candidateBounds.minY...candidateBounds.maxY, otherBounds.minY...otherBounds.maxY)
+            let horizontalGap = gapBetween(candidateBounds.minX...candidateBounds.maxX, otherBounds.minX...otherBounds.maxX)
+            return verticalGap <= 44 && horizontalGap <= 160
+        }
+    }
+
+    private static func isRepeatedNonRecipientPostalCity(_ candidate: ReviewFindingCandidate, in candidates: [ReviewFindingCandidate]) -> Bool {
+        guard let city = postalCityName(from: candidate.snippet),
+              !hasNearbyRecipientContext(for: candidate, in: candidates)
+        else { return false }
+
+        return candidates.contains { other in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex,
+                  looksLikeGermanPostalCity(other.snippet),
+                  !hasNearbyRecipientContext(for: other, in: candidates),
+                  let otherCity = postalCityName(from: other.snippet)
+            else { return false }
+            return otherCity == city
+        }
+    }
+
+    private static func matchesRepeatedNonRecipientPostalCity(_ candidate: ReviewFindingCandidate, in candidates: [ReviewFindingCandidate]) -> Bool {
+        let normalizedCandidate = normalized(candidate.snippet)
+        guard !normalizedCandidate.isEmpty else { return false }
+
+        return candidates.contains { other in
+            guard other.pageIndex == candidate.pageIndex,
+                  looksLikeGermanPostalCity(other.snippet),
+                  isRepeatedNonRecipientPostalCity(other, in: candidates),
+                  let otherCity = postalCityName(from: other.snippet)
+            else { return false }
+            return normalized(otherCity) == normalizedCandidate
+        }
+    }
+
+    private static func hasNearbyAuthorityContext(for candidate: ReviewFindingCandidate, in candidates: [ReviewFindingCandidate]) -> Bool {
+        let candidateBounds = union(of: candidate.rects)
+        guard !candidateBounds.isNull else { return false }
+
+        let recipientCenters = candidates.compactMap { other -> CGFloat? in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex
+            else { return nil }
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return nil }
+
+            let otherLooksRecipientLike =
+                other.category == "private_person" ||
+                (other.category == "private_address" &&
+                 (looksLikeGermanStreetAddress(other.snippet) ||
+                  looksLikeAddressBlock(other.snippet) ||
+                  addressLikelyContainsPersonTail(other.snippet)))
+            guard otherLooksRecipientLike else { return nil }
+            return otherBounds.midY
+        }
+
+        let authorityOnPage = candidates.contains { other in
+            other.pageIndex == candidate.pageIndex && looksLikeAuthoritySnippet(other.snippet)
+        }
+        if authorityOnPage,
+           let recipientBandTop = recipientCenters.max(),
+           candidateBounds.midY + 120 < recipientBandTop {
+            return true
+        }
+
+        return candidates.contains { other in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex,
+                  looksLikeAuthoritySnippet(other.snippet)
+            else { return false }
+
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return false }
+
+            if candidateBounds.insetBy(dx: -28, dy: -30).intersects(otherBounds) {
+                return true
+            }
+
+            let verticalGap = gapBetween(candidateBounds.minY...candidateBounds.maxY, otherBounds.minY...otherBounds.maxY)
+            let horizontalGap = gapBetween(candidateBounds.minX...candidateBounds.maxX, otherBounds.minX...otherBounds.maxX)
+            return verticalGap <= 36 && horizontalGap <= 220
+        }
+    }
+
+    private static func hasNearbySenderContext(for candidate: ReviewFindingCandidate, in candidates: [ReviewFindingCandidate]) -> Bool {
+        let candidateBounds = union(of: candidate.rects)
+        guard !candidateBounds.isNull else { return false }
+
+        let recipientCenters = candidates.compactMap { other -> CGFloat? in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex
+            else { return nil }
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return nil }
+
+            let otherLooksRecipientLike =
+                other.category == "private_person" ||
+                (other.category == "private_address" &&
+                 (looksLikeGermanStreetAddress(other.snippet) ||
+                  looksLikeAddressBlock(other.snippet) ||
+                  addressLikelyContainsPersonTail(other.snippet)))
+            guard otherLooksRecipientLike else { return nil }
+            return otherBounds.midY
+        }
+
+        let senderOnPage = candidates.contains { other in
+            other.pageIndex == candidate.pageIndex && looksLikeOrganizationSnippet(other.snippet)
+        }
+        if senderOnPage,
+           let recipientBandTop = recipientCenters.max(),
+           candidateBounds.midY + 120 < recipientBandTop {
+            return true
+        }
+
+        return candidates.contains { other in
+            guard !areSameCandidate(candidate, other),
+                  other.pageIndex == candidate.pageIndex,
+                  looksLikeOrganizationSnippet(other.snippet)
+            else { return false }
+
+            let otherBounds = union(of: other.rects)
+            guard !otherBounds.isNull else { return false }
+
+            if candidateBounds.insetBy(dx: -28, dy: -30).intersects(otherBounds) {
+                return true
+            }
+
+            let verticalGap = gapBetween(candidateBounds.minY...candidateBounds.maxY, otherBounds.minY...otherBounds.maxY)
+            let horizontalGap = gapBetween(candidateBounds.minX...candidateBounds.maxX, otherBounds.minX...otherBounds.maxX)
+            return verticalGap <= 42 && horizontalGap <= 240
+        }
+    }
+
+    private static func looksLikeAuthoritySnippet(_ text: String) -> Bool {
+        let normalizedText = normalized(text)
+        return normalizedText.contains("finanzamt") ||
+            normalizedText.contains("finanzkasse") ||
+            normalizedText.contains("steuernummer") ||
+            normalizedText.contains("idnr")
+    }
+
+    private static func looksLikeOrganizationSnippet(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func looksLikeCompanyAddressBlock(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeOrganizationSnippet(cleaned) else { return false }
+        return looksLikeGermanStreetAddress(cleaned) ||
+            looksLikeGermanPostalCity(cleaned) ||
+            cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
+    }
+
+    private static func looksLikeBareCityToken(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]{3,}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func postalCityName(from text: String) -> String? {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let range = cleaned.range(of: #"^(?:D\s*-\s*)?\d{5}\s+(.+)$"#, options: .regularExpression) else {
+            return nil
+        }
+        let suffix = String(cleaned[range]).replacingOccurrences(
+            of: #"^(?:D\s*-\s*)?\d{5}\s+"#,
+            with: "",
+            options: .regularExpression
+        )
+        let normalizedSuffix = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedSuffix.isEmpty ? nil : normalizedSuffix
     }
 
     private static func areSameCandidate(_ lhs: ReviewFindingCandidate, _ rhs: ReviewFindingCandidate) -> Bool {
@@ -562,9 +876,196 @@ final class PIIDetector {
     }
 
     nonisolated private static func postProcessSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        let deduplicated = deduplicateExactSpans(spans)
+        let sanitized = sanitizeSpans(spans)
+        let deduplicated = deduplicateExactSpans(sanitized)
         let merged = mergeEquivalentSpans(deduplicated)
         return suppressContainedCustomIdentifierSpans(merged)
+    }
+
+    nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+        spans.compactMap { span in
+            let cleanedText = cleanedSpanText(span.text)
+            guard !shouldDropSpan(category: span.category, text: cleanedText, source: span.source) else {
+                return nil
+            }
+            let category = sanitizedCategory(for: span.category, text: cleanedText)
+            return DetectedSpan(
+                category: category,
+                text: cleanedText,
+                start: span.start,
+                end: span.end,
+                confidence: span.confidence,
+                source: span.source
+            )
+        }
+    }
+
+    nonisolated private static func cleanedSpanText(_ text: String) -> String {
+        OCRNormalizer.normalize(text, mode: .native).text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated private static func sanitizedCategory(for category: String, text: String) -> String {
+        guard category == "account_number" else { return category }
+        return looksLikePostalCity(text) ? "private_address" : category
+    }
+
+    nonisolated private static func shouldDropSpan(category: String, text: String, source: DetectionSource) -> Bool {
+        guard !text.isEmpty else { return true }
+
+        switch category {
+        case "private_person":
+            if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
+                return true
+            }
+            if looksLikeOrganizationSnippet(text) || personSpanContainsAddressOrContactTail(text) {
+                return true
+            }
+            if source == .model, text.count <= 4, !looksLikeNameishWord(text) {
+                return true
+            }
+            if source == .model, text.rangeOfCharacter(from: .decimalDigits) != nil, !text.contains(" ") {
+                return true
+            }
+            return false
+
+        case "private_address":
+            if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
+                return true
+            }
+            if looksLikeCompanyAddressBlock(text) {
+                return true
+            }
+            if looksLikeHonorificStreetCombo(text) {
+                return true
+            }
+            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeAddressBlock(text) {
+                return false
+            }
+            if source == .pattern {
+                return true
+            }
+            return text.count < 8
+
+        case "account_number":
+            if source != .model {
+                return false
+            }
+            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeTaxOfficeHeader(text) {
+                return true
+            }
+            let digitsOnly = text.replacingOccurrences(of: "\\D+", with: "", options: .regularExpression)
+            let hasLetters = text.rangeOfCharacter(from: .letters) != nil
+            if !hasLetters && digitsOnly.count < 12 {
+                return true
+            }
+            return false
+
+        default:
+            return false
+        }
+    }
+
+    nonisolated private static func looksLikePostalCity(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeGermanStreetAddress(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeAddressBlock(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikePostalCity(cleaned) || looksLikeGermanStreetAddress(cleaned) {
+            return true
+        }
+        let pattern = #"(?i)\b(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+.+\d{5}\s+[A-ZÄÖÜa-zäöüß]"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeCompanyAddressBlock(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeOrganizationSnippet(cleaned) else { return false }
+        return looksLikeGermanStreetAddress(cleaned) ||
+            looksLikePostalCity(cleaned) ||
+            cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func personSpanContainsAddressOrContactTail(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedText = normalizedComparableText(cleaned)
+        guard normalizedText.contains("frau") || normalizedText.contains("herr") else { return false }
+
+        if looksLikeGermanStreetAddress(cleaned) {
+            return true
+        }
+
+        let bannedFragments = [
+            "email", "telefon", "mobil", "kontakt", "ansprechpartner",
+            "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer"
+        ]
+        return bannedFragments.contains { fragment in
+            cleaned.localizedCaseInsensitiveContains(fragment) || normalizedText.contains(normalizedComparableText(fragment))
+        }
+    }
+
+    nonisolated private static func looksLikeHonorificStreetCombo(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !looksLikePostalCity(cleaned),
+              looksLikeGermanStreetAddress(cleaned)
+        else { return false }
+
+        let pattern = #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeNameishWord(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
+        let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeTaxOfficeHeader(_ text: String) -> Bool {
+        let normalizedText = normalizedComparableText(text)
+        return normalizedText.contains("finanzamt") ||
+            normalizedText.contains("finanzkasse") ||
+            normalizedText.contains("steuernummer") ||
+            normalizedText.contains("idnr") ||
+            normalizedText.contains("bescheid")
+    }
+
+    nonisolated private static func looksLikeOrganizationSnippet(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func isDocumentNoise(_ text: String) -> Bool {
+        let normalizedText = normalizedComparableText(text)
+        let bannedFragments = [
+            "eink", "einkommensteuer", "kirchensteuer", "solidaritatszuschlag",
+            "fortsotzung", "fortsetzung", "nachsteseite", "nachsteselte",
+            "selto", "luszetch", "reste", "ruckfragen", "angeben"
+        ]
+        return bannedFragments.contains { normalizedText.contains($0) }
     }
 
     nonisolated private static func deduplicateExactSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {

@@ -1,0 +1,17 @@
+Kundenservice Nord GmbH
+Musterweg 9
+50667 Rheinhafen
+
+SEPA-Lastschriftmandat
+Kundin:
+Frau Paula Winter
+Ahornweg 21
+24589 Lindenried
+Deutschland
+
+E-Mail: paula.winter@example.de
+Telefon: +49 431 220011
+IBAN: DE88 5001 0517 5407 3249 31
+BIC: TESTDEFF500
+Kundennummer: KD-2026-00981
+Vertragsnummer: SD-2026-0042

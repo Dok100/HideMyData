@@ -16,7 +16,7 @@
       "id": "iban",
       "description": "IBAN (International Bank Account, e.g. PL61 1090 1014 ...)",
       "category": "account_number",
-      "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b"
+      "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b(?!\\s*BIC\\b)"
     },
     {
       "id": "bic_labeled",
@@ -26,9 +26,9 @@
     },
     {
       "id": "kundennummer_labeled",
-      "description": "Customer number value anchored on a Kundennummer label",
+      "description": "Customer number value anchored on a Kundennummer label, with or without colon and allowing grouped digits",
       "category": "account_number",
-      "regex": "(?<=\\bKundennummer:\\s)[A-Z0-9][A-Z0-9\\-]{5,}\\b"
+      "regex": "(?:(?<=\\bKundennummer:\\s)|(?<=\\bKundennummer\\s))(?:[A-Z0-9][A-Z0-9\\-]{5,}|\\d{2,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "vertragsnummer_labeled",
@@ -50,15 +50,57 @@
     },
     {
       "id": "konto_labeled",
-      "description": "Bank account value anchored on a Konto label",
+      "description": "Bank account value anchored on a Konto label, with or without colon and allowing grouped digits",
       "category": "account_number",
-      "regex": "(?<=\\bKonto\\s)\\d{5,}\\b"
+      "regex": "(?:(?<=\\bKonto:\\s)|(?<=\\bKonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "konto_field",
+      "description": "Bank account field anchored on a Konto label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "\\bKonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "kontonummer_labeled",
-      "description": "Bank account value anchored on a Kontonummer label",
+      "description": "Bank account value anchored on a Kontonummer label, with or without colon and allowing grouped digits",
       "category": "account_number",
-      "regex": "(?<=\\bKontonummer:\\s)\\d{5,}\\b"
+      "regex": "(?:(?<=\\bKontonummer:\\s)|(?<=\\bKontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "kontonummer_field",
+      "description": "Bank account field anchored on a Kontonummer label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "\\bKontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokonto_labeled",
+      "description": "Bank account value anchored on a Girokonto label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bGirokonto:\\s)|(?<=\\bGirokonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokonto_field",
+      "description": "Bank account field anchored on a Girokonto label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "\\bGirokonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokontonummer_labeled",
+      "description": "Bank account value anchored on a Girokontonummer label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bGirokontonummer:\\s)|(?<=\\bGirokontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokontonummer_field",
+      "description": "Bank account field anchored on a Girokontonummer label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "\\bGirokontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "buchungskonto_labeled",
+      "description": "Booking account value anchored on a Buchungskonto label, with or without colon and allowing grouped digits",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bBuchungskonto:\\s)|(?<=\\bBuchungskonto\\s))(?:\\d{2,}(?:\\s\\d{2,})+|[A-Z0-9][A-Z0-9\\- ]{5,})\\b"
     },
     {
       "id": "blz_labeled",
@@ -77,6 +119,18 @@
       "description": "American Express 15-digit credit card",
       "category": "account_number",
       "regex": "\\b3[47]\\d{2}[\\s\\-]?\\d{6}[\\s\\-]?\\d{5}\\b"
+    },
+    {
+      "id": "credit_card_labeled",
+      "description": "Credit card number anchored on an explicit credit card label",
+      "category": "account_number",
+      "regex": "(?i)\\b(?:Kreditkarten(?:nummer|nr\\.?|num(?:mer)?)|Kartennummer|Kartennr\\.?|Karten(?:nr\\.?|nummer)|Credit\\s*Card\\s*Number|Card\\s*Number|Kreditkarte)[:\\s-]+(?:[\\d*][\\s\\-*]?){12,22}[\\d*]\\b"
+    },
+    {
+      "id": "german_honorific_name_slash",
+      "description": "German honorific with surname/forename slash format, e.g. Herr Knobel/Helmut",
+      "category": "private_person",
+      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
     },
     {
       "id": "ipv4",
@@ -100,7 +154,7 @@
       "id": "german_postal_city",
       "description": "German postal code with up to three city tokens, tolerating one line break between zip and city and filtering obvious document terms",
       "category": "private_address",
-      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}\\b(?!<)"
+      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse|Seite|Steuer(?:-Nr)?|Vorsitzender|Datum|Ersetzt)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}\\b(?!<)"
     },
     {
       "id": "german_honorific_name",

@@ -1,0 +1,20 @@
+Rechnung
+Rechnungsanschrift:
+Herr
+Herr
+Oliver Kern
+Oliver Kern
+Friedenstr. 25
+Friedenstr. 25
+74229 Oedheim
+74229 Oedheim
+
+Lieferanschrift:
+Herr
+Herr
+Oliver Kern
+Oliver Kern
+Birkenweg 12
+Birkenweg 12
+74229 Oedheim
+74229 Oedheim

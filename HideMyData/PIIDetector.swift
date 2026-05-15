@@ -147,6 +147,19 @@ enum ReviewFindingCompactor {
                 return false
             }
 
+            if candidate.category == "private_person",
+               looksLikeRepeatedHonorificPersonNoise(candidate.snippet),
+               candidates.contains(where: { other in
+                   guard !areSameCandidate(candidate, other),
+                         other.category == "private_person",
+                         other.pageIndex == candidate.pageIndex,
+                         !looksLikeRepeatedHonorificPersonNoise(other.snippet)
+                   else { return false }
+                   return rectGroupsOverlap(candidate.rects, other.rects)
+               }) {
+                return false
+            }
+
             if candidate.category == "private_address",
                looksLikeCompanyAddressBlock(candidate.snippet) {
                 return false
@@ -154,6 +167,18 @@ enum ReviewFindingCompactor {
 
             if candidate.category == "private_address",
                looksLikeLeadingConjunctionAddressTail(candidate.snippet) {
+                return false
+            }
+
+            if candidate.category == "private_address",
+               looksLikeStreetAddressWithLeadingPersonNoise(candidate.snippet),
+               candidates.contains(where: { other in
+                   guard !areSameCandidate(candidate, other),
+                         other.category == "private_person",
+                         other.pageIndex == candidate.pageIndex
+                   else { return false }
+                   return rectGroupsOverlap(candidate.rects, other.rects)
+               }) {
                 return false
             }
 
@@ -183,8 +208,14 @@ enum ReviewFindingCompactor {
 
                 if candidate.category == "private_address",
                    other.category == "private_address",
-                   looksLikeGermanPostalCity(candidate.snippet),
-                   addressLikelyContainsPersonTail(other.snippet) {
+                   (looksLikeGermanPostalCity(candidate.snippet) || looksLikeGermanStreetAddress(candidate.snippet)),
+                   (addressLikelyContainsPersonTail(other.snippet) || looksLikeStreetAddressWithLeadingPersonNoise(other.snippet)) {
+                    return false
+                }
+
+                if candidate.category == "private_person",
+                   other.category == "private_person",
+                   looksLikeRepeatedHonorificPersonNoise(other.snippet) {
                     return false
                 }
 
@@ -375,7 +406,7 @@ enum ReviewFindingCompactor {
         let cleaned = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
+        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -403,6 +434,15 @@ enum ReviewFindingCompactor {
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+){2,}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    private static func looksLikeStreetAddressWithLeadingPersonNoise(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeGermanStreetAddress(cleaned) else { return false }
+        let pattern = #"(?i)^(?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+){2,}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -672,6 +712,14 @@ enum ReviewFindingCompactor {
         let pattern = #"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
+
+    private static func looksLikeRepeatedHonorificPersonNoise(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^(?:herr|frau)\s+(?:herr|frau)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
 }
 
 struct DetectedSpan: Identifiable, Equatable, Sendable {
@@ -691,6 +739,8 @@ struct DetectionDebugEntry: Identifiable, Equatable, Sendable {
     let rawText: String
     let normalizedText: String
     let findings: [DetectedSpan]
+    let diagnostics: [String]
+    let previewDiagnostics: [String]
 }
 
 struct TextAnonymizationResult: Sendable {
@@ -894,8 +944,14 @@ final class PIIDetector {
                         source: .model
                     )
                 }
-                let patternSpans = PatternMatcher.detect(text)
-                return .success(Self.postProcessSpans(modelSpans + patternSpans))
+                let patternDetection = PatternMatcher.detectWithDiagnostics(text)
+                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans)
+                Self.printPatternDiagnostics(
+                    patternDetection.diagnostics,
+                    postProcessed: postProcessed,
+                    in: text
+                )
+                return .success(postProcessed)
             } catch {
                 return .failure(error)
             }
@@ -932,6 +988,16 @@ final class PIIDetector {
     func restoreText(_ text: String) -> TextRestorationResult? {
         guard let session = lastClipboardSession else { return nil }
         return Self.restorePlaceholders(in: text, placeholders: session.placeholders)
+    }
+
+    nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
+        let detection = PatternMatcher.detectWithDiagnostics(text)
+        let postProcessed = postProcessSpans(detection.spans)
+        return patternDiagnosticsLines(
+            detection.diagnostics,
+            postProcessed: postProcessed,
+            in: text
+        )
     }
 
     // MARK: - Helpers
@@ -1010,8 +1076,14 @@ final class PIIDetector {
             if looksLikeHonorificStreetCombo(text) {
                 return true
             }
+            if hasLeadingSentenceFragmentBeforeStreetAddress(text) {
+                return true
+            }
             if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeAddressBlock(text) {
                 return false
+            }
+            if source == .model {
+                return true
             }
             if source == .pattern {
                 return true
@@ -1019,6 +1091,9 @@ final class PIIDetector {
             return text.count < 8
 
         case "account_number":
+            if normalizedComparableText(text).contains("bic") {
+                return true
+            }
             if source != .model {
                 return false
             }
@@ -1041,7 +1116,11 @@ final class PIIDetector {
         let cleaned = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
+        let normalizedText = normalizedComparableText(cleaned)
+        if normalizedText.hasSuffix("seite") {
+            return false
+        }
+        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -1061,6 +1140,16 @@ final class PIIDetector {
             return true
         }
         let pattern = #"(?i)\b(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+.+\d{5}\s+[A-ZÄÖÜa-zäöüß]"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard looksLikeGermanStreetAddress(cleaned) else { return false }
+
+        let pattern = #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -1223,6 +1312,9 @@ final class PIIDetector {
                 return true
             }
 
+            let normalizedCandidate = normalizedComparableText(candidate.text)
+            guard !normalizedCandidate.isEmpty else { return false }
+
             let candidateLength = candidate.end - candidate.start
             return !spans.contains { other in
                 guard other.id != candidate.id,
@@ -1245,12 +1337,62 @@ final class PIIDetector {
                 guard overlapRatio >= 0.75 else { return false }
 
                 if other.category != "custom_identifier" {
+                    if shouldPreserveStrongCustomIdentifier(candidate, inside: other) {
+                        return false
+                    }
                     return true
                 }
 
-                return normalizedComparableText(other.text).contains(normalizedComparableText(candidate.text))
+                return normalizedComparableText(other.text).contains(normalizedCandidate)
             }
         }
+    }
+
+    nonisolated private static func shouldPreserveStrongCustomIdentifier(_ candidate: DetectedSpan, inside other: DetectedSpan) -> Bool {
+        let normalizedCandidate = normalizedComparableText(candidate.text)
+        guard !normalizedCandidate.isEmpty else { return false }
+
+        if candidate.text.rangeOfCharacter(from: .decimalDigits) != nil {
+            return false
+        }
+
+        let candidateTokenCount = candidate.text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \.isWhitespace)
+            .count
+
+        guard candidateTokenCount >= 2 else { return false }
+
+        if other.category == "private_person",
+           isHonorificWrappedPerson(candidate: normalizedCandidate, wrapper: other.text) {
+            return true
+        }
+
+        return false
+    }
+
+    nonisolated private static func isHonorificWrappedPerson(candidate: String, wrapper: String) -> Bool {
+        let normalizedWrapper = normalizedComparableText(wrapper)
+        guard normalizedWrapper.count > candidate.count,
+              normalizedWrapper.contains(candidate)
+        else { return false }
+
+        let pattern = #"^(frau|herr)\s+"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return false
+        }
+
+        let fullRange = NSRange(normalizedWrapper.startIndex..<normalizedWrapper.endIndex, in: normalizedWrapper)
+        guard let match = regex.firstMatch(in: normalizedWrapper, options: [], range: fullRange),
+              match.range.location != NSNotFound,
+              let matchRange = Range(match.range, in: normalizedWrapper)
+        else {
+            return false
+        }
+
+        let stripped = String(normalizedWrapper[matchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped == candidate
     }
 
     nonisolated private static func mergeEquivalentSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
@@ -1485,6 +1627,82 @@ final class PIIDetector {
             .replacingOccurrences(of: "[\\[\\]\\s-]+", with: "_", options: .regularExpression)
             .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
             .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+    }
+
+    nonisolated private static func printPatternDiagnostics(
+        _ diagnostics: PatternMatcher.Diagnostics,
+        postProcessed: [DetectedSpan],
+        in text: String
+    ) {
+        for line in patternDiagnosticsLines(diagnostics, postProcessed: postProcessed, in: text) {
+            print(line)
+        }
+    }
+
+    nonisolated private static func patternDiagnosticsLines(
+        _ diagnostics: PatternMatcher.Diagnostics,
+        postProcessed: [DetectedSpan],
+        in text: String
+    ) -> [String] {
+        let storageLine = "PatternMatcher custom rule storage: \(diagnostics.storagePath) [exists=\(diagnostics.storageFileExists)]"
+        let legacyStorageLine = "PatternMatcher legacy custom rule storage: \(diagnostics.legacyStoragePath) [exists=\(diagnostics.legacyStorageFileExists)]"
+
+        guard !diagnostics.loadedCustomPatterns.isEmpty else {
+            return [
+                storageLine,
+                legacyStorageLine,
+                "PatternMatcher custom rules loaded (0): <none>"
+            ]
+        }
+
+        let loadedRules = diagnostics.loadedCustomPatterns.map { descriptor in
+            "\(descriptor.label) [\(descriptor.category)] = \(descriptor.value)"
+        }.joined(separator: " | ")
+
+        let oliverRules = diagnostics.loadedCustomPatterns.filter {
+            $0.value.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            $0.label.localizedCaseInsensitiveContains("Oliver Kern")
+        }
+
+        let rawCustomSpans = diagnostics.rawCustomMatches.map { spanDescription($0) }.joined(separator: " | ")
+
+        let survivingCustomSpans = postProcessed.filter { span in
+            diagnostics.loadedCustomPatterns.contains { descriptor in
+                descriptor.category == span.category &&
+                descriptor.value.compare(span.text, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }
+        }
+        let survivingDescriptions = survivingCustomSpans.map { spanDescription($0) }.joined(separator: " | ")
+
+        let oliverInText = text.range(of: "Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        let oliverRaw = diagnostics.rawCustomMatches.filter {
+            $0.text.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+        let oliverSurviving = survivingCustomSpans.filter {
+            $0.text.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+
+        return [
+            storageLine,
+            legacyStorageLine,
+            "PatternMatcher custom rules loaded (\(diagnostics.loadedCustomPatterns.count)): \(loadedRules)",
+            "PatternMatcher custom rule contains 'Oliver Kern': \(oliverRules.isEmpty ? "no" : "yes")",
+            "PatternMatcher raw custom matches: \(rawCustomSpans.isEmpty ? "<none>" : rawCustomSpans)",
+            "PatternMatcher surviving custom matches: \(survivingDescriptions.isEmpty ? "<none>" : survivingDescriptions)",
+            "PatternMatcher Oliver Kern diagnostics: textContains=\(oliverInText) rawCustomSpan=\(!oliverRaw.isEmpty) survivingCustomSpan=\(!oliverSurviving.isEmpty)"
+        ]
+    }
+
+    nonisolated private static func spanDescription(_ span: DetectedSpan) -> String {
+        "[\(detectionSourceLabel(span.source))] \(span.category) '\(span.text)' @ \(span.start)-\(span.end)"
+    }
+
+    nonisolated private static func detectionSourceLabel(_ source: DetectionSource) -> String {
+        switch source {
+        case .model: return "Modell"
+        case .pattern: return "Regex"
+        case .mixed: return "Modell + Regex"
+        }
     }
 
     nonisolated private static func detectSuspiciousPlaceholderTokens(in text: String, expectedPlaceholders: [String]) -> [String] {

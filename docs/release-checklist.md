@@ -8,7 +8,7 @@
   - OCR-lastigem PDF
   - nativem PDF mit Adressblock
   - Bilddatei
-  - Clipboard-Flow
+  - Clipboard-Flow inklusive Platzhalter-Rueckfuehrung
 
 ## Inhaltlich pruefen
 
@@ -16,6 +16,7 @@
 - App-Icon aktuell
 - Review-Workflow klar
 - keine offensichtlichen Diagnose-/Label-Leaks wie `private_person`
+- keine funktionalen Blindspots in der Platzhalter-Rueckfuehrung
 
 ## Release-Artefakte
 

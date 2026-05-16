@@ -32,9 +32,9 @@
     },
     {
       "id": "vertragsnummer_labeled",
-      "description": "Contract number value anchored on a Vertragsnummer label",
+      "description": "Contract number value anchored on a Vertragsnummer label, with or without colon",
       "category": "account_number",
-      "regex": "(?<=\\bVertragsnummer:\\s)[A-Z0-9][A-Z0-9\\-]{5,}\\b"
+      "regex": "(?:(?<=\\bVertragsnummer:\\s)|(?<=\\bVertragsnummer\\s))[A-Z0-9][A-Z0-9\\-]{5,}\\b"
     },
     {
       "id": "zaehlernummer_labeled",
@@ -44,9 +44,21 @@
     },
     {
       "id": "vorgangsnummer_labeled",
-      "description": "Process number value anchored on a Vorgangsnummer label",
+      "description": "Process number value anchored on a Vorgangsnummer label, with or without colon",
       "category": "account_number",
-      "regex": "(?<=\\bVorgangsnummer:\\s)\\d{6,}\\b"
+      "regex": "(?:(?<=\\bVorgangsnummer:\\s)|(?<=\\bVorgangsnummer\\s))\\d{6,}\\b"
+    },
+    {
+      "id": "telefon_labeled",
+      "description": "Domestic phone number value anchored on a Telefon/Tel label",
+      "category": "private_phone",
+      "regex": "(?im)(?:(?<=\\bTelefon:\\s)|(?<=\\bTelefon\\s)|(?<=\\bTel\\.:\\s)|(?<=\\bTel\\.\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
+    },
+    {
+      "id": "mobil_labeled",
+      "description": "Domestic mobile number value anchored on a Mobil/Handy label",
+      "category": "private_phone",
+      "regex": "(?im)(?:(?<=\\bMobil:\\s)|(?<=\\bMobil\\s)|(?<=\\bHandy:\\s)|(?<=\\bHandy\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
     },
     {
       "id": "konto_labeled",
@@ -170,9 +182,9 @@
     },
     {
       "id": "german_street_house_number",
-      "description": "German-style street name with house number, including multi-word street names such as Berliner Platz 1 or An der Allee 3",
+      "description": "German-style street name with house number, including multi-word street names such as Berliner Platz 1, An der Allee 3, or Weinbergsteige 2",
       "category": "private_address",
-      "regex": "(?i)\\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*\\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*(?:straße|str\\.|strasse|weg|allee|platz|gasse|ring|ufer)\\s*\\d+[A-Za-z]?\\b"
+      "regex": "(?i)\\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*\\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*(?:straße|str\\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\\s*\\d+[A-Za-z]?\\b"
     },
     {
       "id": "date_eu_dotted",

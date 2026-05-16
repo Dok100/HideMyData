@@ -186,7 +186,7 @@ func looksLikeGermanStreetAddress(_ text: String) -> Bool {
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.range(
-        of: #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#,
+        of: #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
         options: .regularExpression
     ) != nil
 }
@@ -198,7 +198,7 @@ func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
     guard looksLikeGermanStreetAddress(cleaned) else { return false }
 
     return cleaned.range(
-        of: #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#,
+        of: #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
         options: .regularExpression
     ) != nil
 }
@@ -296,7 +296,7 @@ func personSpanContainsAddressOrContactTail(_ text: String) -> Bool {
 
     let bannedFragments = [
         "email", "telefon", "mobil", "kontakt", "ansprechpartner",
-        "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer"
+        "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer", "steig", "steige"
     ]
     return bannedFragments.contains { fragment in
         cleaned.localizedCaseInsensitiveContains(fragment) || normalizedText.contains(normalizedComparableText(fragment))
@@ -569,7 +569,12 @@ func runFixtureCases() throws -> Int {
             fixturePath: "fixtures/detection/lieferanschrift_alias_native_pdf_text.txt",
             checks: [
                 ("Fixture contains Lieferanschrift label", expectContains("Lieferanschrift:")),
+                ("Fixture contains duplicated recipient name", expectContains("Oliver Kern")),
                 ("Fixture contains distinct delivery street", expectContains("Birkenweg 12")),
+                ("Resolve delivery recipient name after Lieferanschrift", { text in
+                    let block = deduplicatedLabeledAddressBlock(after: "Lieferanschrift:", in: text)
+                    try assert(block.contains("Oliver Kern"), "Expected Lieferanschrift alias block to preserve the recipient name line")
+                }),
                 ("Resolve delivery street after Lieferanschrift", { text in
                     let block = deduplicatedLabeledAddressBlock(after: "Lieferanschrift:", in: text)
                     try assert(block.contains("Birkenweg 12"), "Expected Lieferanschrift alias block to expose its own street line")
@@ -883,6 +888,10 @@ func runGeneralChecks() throws -> Int {
         "Expected OCR mode to preserve street name spacing before house numbers"
     )
     try assert(
+        looksLikeGermanStreetAddress("Weinbergsteige 2"),
+        "Expected street matcher to accept 'Weinbergsteige 2'"
+    )
+    try assert(
         preservesStrongCustomIdentifier("Oliver Kern"),
         "Expected multi-token custom identifier to remain preservable"
     )
@@ -898,6 +907,10 @@ func runGeneralChecks() throws -> Int {
     try assert(
         personSpanContainsAddressOrContactTail("Frau Lena Sommer Birkenstraße"),
         "Expected person span with street tail to be rejected"
+    )
+    try assert(
+        personSpanContainsAddressOrContactTail("Frau Sylvia Kern Weinbergsteige"),
+        "Expected person span with steige-tail to be rejected"
     )
     try assert(
         personSpanContainsAddressOrContactTail("Herr Jonas Sommer E-Mail"),
@@ -949,6 +962,20 @@ func runGeneralChecks() throws -> Int {
         "Expected account-holder label to accept reversed order"
     )
     try assert(
+        firstMatch(
+            for: #"(?:(?<=\bVorgangsnummer:\s)|(?<=\bVorgangsnummer\s))\d{6,}\b"#,
+            in: "Vorgangsnummer 501075621"
+        ) == "501075621",
+        "Expected Vorgangsnummer without colon to be extracted"
+    )
+    try assert(
+        firstMatch(
+            for: #"(?im)(?:(?<=\bMobil:\s)|(?<=\bMobil\s)|(?<=\bHandy:\s)|(?<=\bHandy\s))0\d(?:[\d\s()./\-]{5,}\d)?\b"#,
+            in: "Mobil: 0176 12345678"
+        ) == "0176 12345678",
+        "Expected labeled mobile number to keep its leading zero"
+    )
+    try assert(
         extractSalutationPersonName("Sehr geehrte Frau Leitz,") == "Frau Leitz",
         "Expected salutation line to expose the honorific surname"
     )
@@ -961,7 +988,7 @@ func runGeneralChecks() throws -> Int {
         "Expected Hallo salutation to expose the honorific surname"
     )
 
-    return 19
+    return 23
 }
 
 func run() throws {

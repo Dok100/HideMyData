@@ -1,5 +1,11 @@
 # Decision Log
 
+## 2026-05-16
+
+- `PROJ-1` wird als abgeschlossen gewertet.
+- Die Detection-Haertung gilt fuer native PDFs, OCR/Bilder und den Clipboard-/Platzhalterpfad als funktional stabil.
+- Nicht-blockierende Restpunkte aus dem Clipboard-Preview werden nicht mehr in `PROJ-1`, sondern spaeter als Produktfeinschliff behandelt.
+
 ## 2026-05-13
 
 - `Inkognito.xcodeproj` ist das aktive Projekt.

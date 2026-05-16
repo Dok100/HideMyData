@@ -219,6 +219,13 @@ enum ReviewFindingCompactor {
                     return false
                 }
 
+                if candidate.category == "private_person",
+                   other.category == "private_address",
+                   (looksLikeStreetAddressWithLeadingPersonNoise(other.snippet) ||
+                    addressLikelyContainsPersonTail(other.snippet)) {
+                    return false
+                }
+
                 if family(for: candidate.category) == .standalone,
                    family(for: other.category) == .standalone,
                    candidate.category != other.category {
@@ -414,7 +421,7 @@ enum ReviewFindingCompactor {
         let cleaned = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -442,7 +449,7 @@ enum ReviewFindingCompactor {
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard looksLikeGermanStreetAddress(cleaned) else { return false }
-        let pattern = #"(?i)^(?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+){2,}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        let pattern = #"(?i)^(?:[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+){2,}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -945,7 +952,8 @@ final class PIIDetector {
                     )
                 }
                 let patternDetection = PatternMatcher.detectWithDiagnostics(text)
-                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans)
+                let supplementalSpans = Self.supplementalClipboardSpans(in: text)
+                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans + supplementalSpans)
                 Self.printPatternDiagnostics(
                     patternDetection.diagnostics,
                     postProcessed: postProcessed,
@@ -1015,9 +1023,148 @@ final class PIIDetector {
         return suppressContainedCustomIdentifierSpans(withoutLeadingAddressTails)
     }
 
+    private struct ClipboardTextLine {
+        let text: String
+        let range: NSRange
+    }
+
+    nonisolated private static func supplementalClipboardSpans(in text: String) -> [DetectedSpan] {
+        var spans: [DetectedSpan] = []
+        let lines = clipboardTextLines(in: text)
+        let addressLabels = ["Rechnungsanschrift", "Lieferanschrift", "Postanschrift", "Korrespondenzanschrift"]
+        let personFieldLabels = ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kontoinhaber"]
+        let streetFieldLabels = ["Straße", "Strasse"]
+        let houseNumberFieldLabels = ["Hausnr", "Hausnummer"]
+        let postalCodeFieldLabels = ["PLZ"]
+        let cityFieldLabels = ["Ort", "Stadt"]
+
+        func appendSpan(for line: ClipboardTextLine, category: String) {
+            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { return }
+            spans.append(
+                DetectedSpan(
+                    category: category,
+                    text: cleaned,
+                    start: line.range.location,
+                    end: line.range.location + line.range.length,
+                    confidence: 0.99,
+                    source: .pattern
+                )
+            )
+        }
+
+        for (index, line) in lines.enumerated() {
+            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard addressLabels.contains(where: { cleaned.localizedCaseInsensitiveContains($0) }) else { continue }
+
+            var previousComparable = ""
+            let searchEnd = min(lines.count, index + 8)
+            for nextIndex in (index + 1)..<searchEnd {
+                let nextLine = lines[nextIndex]
+                let nextCleaned = nextLine.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !nextCleaned.isEmpty else { continue }
+
+                let comparable = normalizedComparableText(nextCleaned)
+                if !comparable.isEmpty && comparable == previousComparable { continue }
+                previousComparable = comparable
+
+                if nextCleaned.compare("Deutschland", options: .caseInsensitive) == .orderedSame {
+                    break
+                }
+
+                if looksLikeHonorificOnlyLine(nextCleaned) || looksLikeNameishWord(nextCleaned) {
+                    appendSpan(for: nextLine, category: "private_person")
+                    continue
+                }
+
+                if looksLikeGermanStreetAddress(nextCleaned) ||
+                    looksLikeStreetNameOnlyLine(nextCleaned) ||
+                    looksLikeHouseNumberOnlyLine(nextCleaned) ||
+                    looksLikePostalCity(nextCleaned) {
+                    appendSpan(for: nextLine, category: "private_address")
+                    if looksLikePostalCity(nextCleaned) { break }
+                }
+            }
+        }
+
+        for (index, line) in lines.enumerated() {
+            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let compactLabel = cleaned.replacingOccurrences(of: ":", with: "")
+
+            guard !compactLabel.isEmpty else { continue }
+            guard let valueLine = nextNonEmptyClipboardLine(after: index, in: lines) else { continue }
+
+            let value = valueLine.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { continue }
+
+            if personFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
+                if looksLikeHonorificOnlyLine(value) || looksLikeNameishWord(value) {
+                    appendSpan(for: valueLine, category: "private_person")
+                }
+                continue
+            }
+
+            if streetFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
+                if looksLikeGermanStreetAddress(value) || looksLikeStreetNameOnlyLine(value) {
+                    appendSpan(for: valueLine, category: "private_address")
+                }
+                continue
+            }
+
+            if houseNumberFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
+                if looksLikeHouseNumberOnlyLine(value) {
+                    appendSpan(for: valueLine, category: "private_address")
+                }
+                continue
+            }
+
+            if postalCodeFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
+                if looksLikePostalCodeOnlyLine(value) {
+                    appendSpan(for: valueLine, category: "private_address")
+                }
+                continue
+            }
+
+            if cityFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
+                if looksLikeCityNameOnlyLine(value) {
+                    appendSpan(for: valueLine, category: "private_address")
+                }
+            }
+        }
+
+        return spans
+    }
+
+    nonisolated private static func clipboardTextLines(in text: String) -> [ClipboardTextLine] {
+        let nsText = text as NSString
+        var lines: [ClipboardTextLine] = []
+        nsText.enumerateSubstrings(in: NSRange(location: 0, length: nsText.length), options: [.byLines, .substringNotRequired]) { _, substringRange, _, _ in
+            lines.append(ClipboardTextLine(text: nsText.substring(with: substringRange), range: substringRange))
+        }
+        return lines
+    }
+
+    nonisolated private static func looksLikeHonorificOnlyLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.range(of: #"(?i)^(?:frau|herr)$"#, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func nextNonEmptyClipboardLine(after index: Int, in lines: [ClipboardTextLine]) -> ClipboardTextLine? {
+        guard index < lines.count - 1 else { return nil }
+        for nextIndex in (index + 1)..<lines.count {
+            let cleaned = lines[nextIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                return lines[nextIndex]
+            }
+        }
+        return nil
+    }
+
     nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
         spans.compactMap { span in
-            let cleanedText = cleanedSpanText(span.text)
+            let cleanedText = sanitizedSpanText(span.text, category: span.category)
             guard !shouldDropSpan(category: span.category, text: cleanedText, source: span.source) else {
                 return nil
             }
@@ -1039,7 +1186,39 @@ final class PIIDetector {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    nonisolated private static func sanitizedSpanText(_ text: String, category: String) -> String {
+        let cleaned = cleanedSpanText(text)
+        guard category == "private_address" else { return cleaned }
+        return sanitizeAddressFieldArtifacts(in: cleaned)
+    }
+
+    nonisolated private static func sanitizeAddressFieldArtifacts(in text: String) -> String {
+        var cleaned = text
+
+        let leadingFieldPatterns = [
+            #"(?i)^(?:straße|strasse|hausnr\.?|hausnummer|plz|ort|stadt):\s*"#,
+            #"(?i)^(?:vorname|name|nachname):\s*"#
+        ]
+
+        for pattern in leadingFieldPatterns {
+            cleaned = cleaned.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
+        }
+
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)^(\d{5})\s+(?:ort|stadt):?$"#,
+            with: "$1",
+            options: .regularExpression
+        )
+
+        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     nonisolated private static func sanitizedCategory(for category: String, text: String) -> String {
+        if category == "custom_identifier" {
+            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeAddressBlock(text) {
+                return "private_address"
+            }
+        }
         guard category == "account_number" else { return category }
         return looksLikePostalCity(text) ? "private_address" : category
     }
@@ -1079,7 +1258,13 @@ final class PIIDetector {
             if hasLeadingSentenceFragmentBeforeStreetAddress(text) {
                 return true
             }
-            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeAddressBlock(text) {
+            if looksLikePostalCity(text) ||
+                looksLikeGermanStreetAddress(text) ||
+                looksLikeAddressBlock(text) ||
+                looksLikeStreetNameOnlyLine(text) ||
+                looksLikeHouseNumberOnlyLine(text) ||
+                looksLikePostalCodeOnlyLine(text) ||
+                looksLikeCityNameOnlyLine(text) {
                 return false
             }
             if source == .model {
@@ -1128,7 +1313,41 @@ final class PIIDetector {
         let cleaned = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeStreetNameOnlyLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty,
+              cleaned.rangeOfCharacter(from: .decimalDigits) == nil
+        else { return false }
+
+        let pattern = #"(?i)^(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeHouseNumberOnlyLine(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.range(of: #"^\d+[A-Za-z]?$"#, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikePostalCodeOnlyLine(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.range(of: #"^\d{5}$"#, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func looksLikeCityNameOnlyLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty,
+              cleaned.rangeOfCharacter(from: .decimalDigits) == nil
+        else { return false }
+
+        let pattern = #"(?i)^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?:\s+(?:bei|an|am|im|der|den|dem|von|vor|hinter|unter|ober|sankt|st\.))?(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+){0,3}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -1149,7 +1368,7 @@ final class PIIDetector {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard looksLikeGermanStreetAddress(cleaned) else { return false }
 
-        let pattern = #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer)\s*\d+[A-Za-z]?\b"#
+        let pattern = #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
@@ -1176,7 +1395,7 @@ final class PIIDetector {
 
         let bannedFragments = [
             "email", "telefon", "mobil", "kontakt", "ansprechpartner",
-            "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer"
+            "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer", "steig", "steige"
         ]
         return bannedFragments.contains { fragment in
             cleaned.localizedCaseInsensitiveContains(fragment) || normalizedText.contains(normalizedComparableText(fragment))
@@ -1518,6 +1737,9 @@ final class PIIDetector {
     nonisolated private static func selectNonOverlappingSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
         let sorted = spans.sorted { lhs, rhs in
             if lhs.start != rhs.start { return lhs.start < rhs.start }
+            let lhsPriority = placeholderSelectionPriority(for: lhs.category)
+            let rhsPriority = placeholderSelectionPriority(for: rhs.category)
+            if lhsPriority != rhsPriority { return lhsPriority > rhsPriority }
             let lhsLength = lhs.end - lhs.start
             let rhsLength = rhs.end - rhs.start
             if lhsLength != rhsLength { return lhsLength > rhsLength }
@@ -1535,6 +1757,17 @@ final class PIIDetector {
             }
         }
         return accepted
+    }
+
+    nonisolated private static func placeholderSelectionPriority(for category: String) -> Int {
+        switch category {
+        case "private_person", "private_address", "private_phone", "private_email", "private_date", "account_number", "secret":
+            return 2
+        case "custom_identifier":
+            return 1
+        default:
+            return 0
+        }
     }
 
     nonisolated private static func placeholderBase(for category: String) -> String {
@@ -1613,12 +1846,12 @@ final class PIIDetector {
         let pieces = rawKey.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: true)
         guard pieces.count == 2 else {
             let escaped = NSRegularExpression.escapedPattern(for: rawKey)
-            return "(?i)\\[?\\s*\(escaped)\\s*\\]?"
+            return "(?i)(?<![A-ZÄÖÜa-zäöüß0-9])\\[?\\s*\(escaped)\\s*\\]?(?![A-ZÄÖÜa-zäöüß0-9])"
         }
 
         let category = NSRegularExpression.escapedPattern(for: String(pieces[0]))
         let index = NSRegularExpression.escapedPattern(for: String(pieces[1]))
-        return "(?i)\\[?\\s*\(category)\\s*[-_ ]\\s*\(index)\\s*\\]?"
+        return "(?i)(?<![A-ZÄÖÜa-zäöüß0-9])\\[?\\s*\(category)\\s*[-_ ]\\s*\(index)\\s*\\]?(?![A-ZÄÖÜa-zäöüß0-9])"
     }
 
     nonisolated private static func canonicalPlaceholderToken(_ token: String) -> String {

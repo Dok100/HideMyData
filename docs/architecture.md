@@ -36,6 +36,6 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 
 ## Aktuelle Schwerpunkte
 
-- Detection-Haertung fuer OCR- und Briefkopf-Faelle
+- abgeschlossene Detection-Haertung fuer native PDFs, OCR/Bilder und Clipboard-Text
 - Review-Workflow und Vertrauenssignale
 - konsistente Terminologie und Dokumentation

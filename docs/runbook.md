@@ -12,6 +12,8 @@ xcodebuild -project Inkognito.xcodeproj -scheme Inkognito -sdk macosx build
 CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift
 ```
 
+Die aktuell abgesicherten Dokumentklassen und Soll-/Nicht-Soll-Faelle stehen in `docs/detection-testmatrix.md`.
+
 ## Typische Wartungsfaelle
 
 ### Neues Detection-Problem aus echter Datei

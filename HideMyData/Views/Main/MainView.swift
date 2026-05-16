@@ -361,7 +361,7 @@ private struct DiagnosticsSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.title)
                         .font(.system(size: 13, weight: .semibold))
-                    Text("\(entry.findings.count) Treffer · \(entry.textSourceLabel)")
+                    Text("\(entry.findings.count) Treffer · \(entry.diagnostics.count) Diagnosezeilen · \(entry.previewDiagnostics.count) Preview-Zeilen · \(entry.textSourceLabel)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -448,6 +448,36 @@ private struct DiagnosticsSheet: View {
                             }
                         }
 
+                        if !selectedEntry.diagnostics.isEmpty {
+                            debugCard(title: "Custom-Rule-Diagnose") {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(selectedEntry.diagnostics.enumerated()), id: \.offset) { _, line in
+                                        Text(line)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(10)
+                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
+
+                        if !selectedEntry.previewDiagnostics.isEmpty {
+                            debugCard(title: "Preview-Debugliste") {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(selectedEntry.previewDiagnostics.enumerated()), id: \.offset) { _, line in
+                                        Text(line)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(10)
+                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
+
                         debugCard(title: "Gelesener Text") {
                             Text(selectedEntry.rawText.isEmpty ? "Kein Text vorhanden." : selectedEntry.rawText)
                                 .font(.system(size: 12, design: .monospaced))
@@ -518,6 +548,10 @@ private struct DiagnosticsSheet: View {
             matches.append(contentsOf: snippetMatches(in: selectedEntry.normalizedText, section: "Normalisierter Text", query: trimmedQuery))
         }
 
+        for line in selectedEntry.diagnostics where line.localizedCaseInsensitiveContains(trimmedQuery) {
+            matches.append(("Custom-Rule-Diagnose", line))
+        }
+
         for finding in selectedEntry.findings {
             if finding.text.localizedCaseInsensitiveContains(trimmedQuery) || finding.category.localizedCaseInsensitiveContains(trimmedQuery) {
                 matches.append((
@@ -572,6 +606,12 @@ private struct DiagnosticsSheet: View {
             "",
             "Treffer:",
             findingsText.isEmpty ? "Keine Treffer" : findingsText,
+            "",
+            "Custom-Rule-Diagnose:",
+            entry.diagnostics.isEmpty ? "Keine Diagnose" : entry.diagnostics.joined(separator: "\n"),
+            "",
+            "Preview-Debugliste:",
+            entry.previewDiagnostics.isEmpty ? "Keine Preview-Diagnose" : entry.previewDiagnostics.joined(separator: "\n"),
             "",
             "Gelesener Text:",
             entry.rawText,
@@ -1185,6 +1225,9 @@ private struct CustomPatternsSheet: View {
                 Button("Bestand modernisieren", action: migratePatterns)
                     .buttonStyle(.glass)
                     .controlSize(.small)
+                Button("Schwache Regeln bereinigen", action: cleanupWeakPatterns)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
                 Button("Duplikate entfernen", action: deduplicatePatterns)
                     .buttonStyle(.glass)
                     .controlSize(.small)
@@ -1370,6 +1413,13 @@ private struct CustomPatternsSheet: View {
         importExportMessage = removedCount > 0
             ? "\(removedCount) Duplikate entfernt."
             : "Keine Duplikate gefunden."
+    }
+
+    private func cleanupWeakPatterns() {
+        let removedCount = store.cleanupWeakPatterns()
+        importExportMessage = removedCount > 0
+            ? "\(removedCount) schwache Regelbausteine entfernt."
+            : "Keine schwachen Regelbausteine gefunden."
     }
 
     private func migratePatterns() {

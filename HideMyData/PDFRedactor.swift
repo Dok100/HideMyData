@@ -46,6 +46,11 @@ enum EditingMode: String, CaseIterable, Identifiable {
 @Observable
 @MainActor
 final class PDFRedactor {
+    struct ExportResult {
+        let url: URL
+        let report: ExportValidationReport
+    }
+
     struct FocusTarget: Equatable {
         let pageIndex: Int
         let rect: CGRect
@@ -82,6 +87,7 @@ final class PDFRedactor {
     var pageNavigationRequest = UUID()
     var requestedPageIndex: Int?
     var debugEntries: [DetectionDebugEntry] = []
+    var lastExportReport: ExportValidationReport?
 
     private var redactionAnnotations: [RedactionEntry] = []
     private var previewAnnotations: [RedactionEntry] = []
@@ -140,6 +146,7 @@ final class PDFRedactor {
         clearAllVisuals(silently: true)
         blurCache.removeAllObjects()
         clearReviewState()
+        lastExportReport = nil
         self.document = doc
         self.sourceURL = url
         self.pageCount = doc.pageCount
@@ -162,6 +169,7 @@ final class PDFRedactor {
         clearAllVisuals(silently: true)
         blurCache.removeAllObjects()
         clearReviewState()
+        lastExportReport = nil
         self.document = doc
         self.sourceURL = originalURL
         self.pageCount = doc.pageCount
@@ -181,8 +189,9 @@ final class PDFRedactor {
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        if let outURL = saveSecurely(to: url, options: exportAccessory.options) {
-            phase = .saved(outURL)
+        if let exportResult = saveSecurely(to: url, options: exportAccessory.options) {
+            lastExportReport = exportResult.report
+            phase = .saved(exportResult.url)
         } else {
             phase = .failed("Geschwärzte PDF konnte nicht gespeichert werden")
         }
@@ -1711,10 +1720,11 @@ final class PDFRedactor {
 
     // MARK: - True (rasterized) save
 
-    private func saveSecurely(to url: URL, options: ExportOptions) -> URL? {
+    private func saveSecurely(to url: URL, options: ExportOptions) -> ExportResult? {
         guard let doc = document else { return nil }
         let newDoc = PDFDocument()
         newDoc.documentAttributes = options.removeMetadata ? [:] : doc.documentAttributes
+        var redactedPageCount = 0
 
         for pageIndex in 0..<doc.pageCount {
             guard let page = doc.page(at: pageIndex) else { continue }
@@ -1731,10 +1741,23 @@ final class PDFRedactor {
                     return nil
                 }
                 newDoc.insert(baked, at: newDoc.pageCount)
+                redactedPageCount += 1
             }
         }
 
-        return newDoc.write(to: url) ? url : nil
+        guard newDoc.write(to: url) else { return nil }
+
+        let report = ExportValidationReport(
+            format: .pdf,
+            redactionCount: redactionAnnotations.count,
+            redactedPageCount: redactedPageCount,
+            totalPageCount: newDoc.pageCount,
+            removedMetadata: options.removeMetadata,
+            annotationsRemoved: exportedPDFLooksAnnotationFree(newDoc),
+            bakedIntoPixels: redactedPageCount > 0
+        )
+
+        return ExportResult(url: url, report: report)
     }
 
     private func bakedPage(_ page: PDFPage, rects: [CGRect], style: RedactionStyle) -> PDFPage? {
@@ -1797,5 +1820,15 @@ final class PDFRedactor {
     private func suggestedSaveName() -> String {
         let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "dokument"
         return "\(base)-geschwaerzt.pdf"
+    }
+
+    private func exportedPDFLooksAnnotationFree(_ document: PDFDocument) -> Bool {
+        for index in 0..<document.pageCount {
+            guard let page = document.page(at: index) else { continue }
+            if !page.annotations.isEmpty {
+                return false
+            }
+        }
+        return true
     }
 }

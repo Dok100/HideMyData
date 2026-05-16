@@ -16,13 +16,13 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
   Modellintegration, Regex-Matching, Span-Nachbearbeitung und Textwiederherstellung fuer den Clipboard-Flow.
 
 - `HideMyData/PDFRedactor.swift`
-  PDF-Textgewinnung, OCR-Fallback, Finding-Projektion, Review-Kandidaten und finaler Export.
+  PDF-Textgewinnung, OCR-Fallback, Finding-Projektion, Review-Kandidaten, finaler Export und technischer Export-Validierungsreport.
 
 - `HideMyData/ImageRedactor.swift`
-  Bildbasierte Erkennung und Redaktionslogik.
+  Bildbasierte Erkennung, Redaktionslogik und technischer Export-Validierungsreport.
 
 - `HideMyData/Views/Main/MainView.swift`
-  Review-Workflow, Sidebar, Export, Diagnose und Clipboard-Anonymisierung.
+  Review-Workflow, Sidebar, Export, Diagnose, Clipboard-Anonymisierung und Vertrauensfeedback nach dem Speichern.
 
 ## Erkennungspipeline
 
@@ -33,9 +33,11 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 5. Heuristiken fuer Dokumentrauschen und False Positives anwenden
 6. Review-faehige Treffer aufbereiten
 7. finale Redaktionen exportieren
+8. Export technisch validieren und Vertrauenssignale im UI anzeigen
 
 ## Aktuelle Schwerpunkte
 
 - abgeschlossene Detection-Haertung fuer native PDFs, OCR/Bilder und Clipboard-Text
 - Review-Workflow und Vertrauenssignale
+- Export-Vertrauen durch technische Validierung nach dem Speichern
 - konsistente Terminologie und Dokumentation

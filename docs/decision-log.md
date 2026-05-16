@@ -5,6 +5,10 @@
 - `PROJ-1` wird als abgeschlossen gewertet.
 - Die Detection-Haertung gilt fuer native PDFs, OCR/Bilder und den Clipboard-/Platzhalterpfad als funktional stabil.
 - Nicht-blockierende Restpunkte aus dem Clipboard-Preview werden nicht mehr in `PROJ-1`, sondern spaeter als Produktfeinschliff behandelt.
+- `PROJ-2` startet mit einem technischen Export-Validierungsreport fuer PDF- und Bildexporte.
+- Export-Vertrauen wird nicht nur ueber Text, sondern ueber konkrete technische Aussagen zu eingebrannten Schwärzungen, annotationsfreiem Export und Metadaten-Bereinigung kommuniziert.
+- `PROJ-2` wird als abgeschlossen gewertet.
+- Ein explizites Exportprotokoll oder ein vertiefter Validierungsdialog bleibt optionaler Produktfeinschliff und ist kein Release-Blocker.
 
 ## 2026-05-13
 

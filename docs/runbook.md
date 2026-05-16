@@ -29,6 +29,13 @@ Die aktuell abgesicherten Dokumentklassen und Soll-/Nicht-Soll-Faelle stehen in 
 2. pruefen, ob es schon zentrales Mapping/Farbsystem gibt
 3. Text/Farbe/Status an zentraler Stelle bereinigen
 
+### Export-Vertrauen pruefen
+
+1. PDF oder Bild mit sichtbaren Schwärzungen exportieren
+2. Status-Pill und Vertrauensmodul in der Sidebar auf klare, widerspruchsfreie Aussagen pruefen
+3. kontrollieren, ob Metadaten-Bereinigung und annotationsfreier Export zum gewaehlten Exportmodus passen
+4. bei PDF-Stichproben zusaetzlich pruefen, dass keine Redaktions-Overlays als editierbare Annotationen erhalten bleiben
+
 ### Neue Icons
 
 Das aktive App-Icon liegt in:

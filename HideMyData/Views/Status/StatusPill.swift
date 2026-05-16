@@ -138,7 +138,10 @@ private extension PDFRedactor {
                 autoDismissAfter: .seconds(3)
             )
         case .saved(let url):
-            StatusPillContent(kind: .success("tray.and.arrow.down.fill"), text: "\(url.lastPathComponent)")
+            StatusPillContent(
+                kind: .success("tray.and.arrow.down.fill"),
+                text: "\(lastExportReport?.shortStatusText ?? "Gespeichert → \(url.lastPathComponent)")"
+            )
         case .detecting:
             StatusPillContent(kind: .progress, text: "Erkennung läuft…")
         case .failed(let msg):
@@ -159,7 +162,10 @@ private extension ImageRedactor {
                 autoDismissAfter: .seconds(3)
             )
         case .saved(let url):
-            StatusPillContent(kind: .success("tray.and.arrow.down.fill"), text: "\(url.lastPathComponent)")
+            StatusPillContent(
+                kind: .success("tray.and.arrow.down.fill"),
+                text: "\(lastExportReport?.shortStatusText ?? "Gespeichert → \(url.lastPathComponent)")"
+            )
         case .detecting:
             StatusPillContent(kind: .progress, text: "Erkennung läuft…")
         case .failed(let msg):

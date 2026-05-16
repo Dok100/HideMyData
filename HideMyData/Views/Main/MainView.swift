@@ -102,6 +102,7 @@ struct MainView: View {
                             pendingCount: currentPendingReviewCount,
                             acceptedCount: currentAcceptedReviewCount,
                             rejectedCount: currentRejectedReviewCount,
+                            exportReport: currentExportReport,
                             onAcceptAll: acceptAllFindings,
                             onSelect: selectFinding,
                             onAccept: acceptFinding,
@@ -268,6 +269,13 @@ struct MainView: View {
 
     private var currentRejectedReviewCount: Int {
         currentReviewFindings.filter { $0.status == .rejected }.count
+    }
+
+    private var currentExportReport: ExportValidationReport? {
+        switch inputMode {
+        case .pdf: pdfRedactor.lastExportReport
+        case .image: imageRedactor.lastExportReport
+        }
     }
 
     private var currentWorkflowStep: WorkflowStepStrip.Step {
@@ -1585,6 +1593,7 @@ private struct ReviewSidebar: View {
     let pendingCount: Int
     let acceptedCount: Int
     let rejectedCount: Int
+    let exportReport: ExportValidationReport?
     let onAcceptAll: () -> Void
     let onSelect: (UUID) -> Void
     let onAccept: (UUID) -> Void
@@ -1624,6 +1633,10 @@ private struct ReviewSidebar: View {
 
                 if pendingCount == 0, !findings.isEmpty {
                     successBanner
+                }
+
+                if let exportReport {
+                    exportTrustBanner(report: exportReport)
                 }
 
                 Toggle("Nur offene Treffer", isOn: $showOnlyPending)
@@ -1824,6 +1837,66 @@ private struct ReviewSidebar: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.green.opacity(0.24), lineWidth: 0.9)
+        )
+    }
+
+    private func exportTrustBanner(report: ExportValidationReport) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.12))
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundStyle(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Export technisch geprüft")
+                        .font(.system(size: 12.5, weight: .semibold))
+
+                    Text(report.shortStatusText)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(report.trustChecklist, id: \.self) { item in
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.blue)
+                            .padding(.top, 2)
+
+                        Text(item)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.blue.opacity(colorScheme == .dark ? 0.16 : 0.08),
+                    Color.blue.opacity(colorScheme == .dark ? 0.10 : 0.04)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.blue.opacity(colorScheme == .dark ? 0.28 : 0.16), lineWidth: 0.8)
         )
     }
 

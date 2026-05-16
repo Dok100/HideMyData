@@ -4,6 +4,47 @@ struct ExportOptions {
     var removeMetadata = true
 }
 
+struct ExportValidationReport: Equatable {
+    enum Format: Equatable {
+        case pdf
+        case image
+    }
+
+    let format: Format
+    let redactionCount: Int
+    let redactedPageCount: Int?
+    let totalPageCount: Int?
+    let removedMetadata: Bool
+    let annotationsRemoved: Bool
+    let bakedIntoPixels: Bool
+
+    var shortStatusText: String {
+        switch format {
+        case .pdf:
+            if let redactedPageCount, let totalPageCount {
+                return "PDF gespeichert · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") neu aufgebaut"
+            }
+            return "PDF gespeichert"
+        case .image:
+            return "Bild gespeichert · Schwärzungen fest übernommen"
+        }
+    }
+
+    var trustChecklist: [String] {
+        var items: [String] = []
+        if bakedIntoPixels {
+            items.append("Schwärzungen sind fest im Export enthalten")
+        }
+        if annotationsRemoved {
+            items.append("Anmerkungen und Overlays wurden nicht übernommen")
+        }
+        if removedMetadata {
+            items.append("Metadaten wurden entfernt")
+        }
+        return items
+    }
+}
+
 @MainActor
 final class ExportOptionsAccessoryView: NSStackView {
     private let removeMetadataCheckbox: NSButton

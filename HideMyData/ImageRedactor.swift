@@ -15,6 +15,11 @@ private extension Array {
 @Observable
 @MainActor
 final class ImageRedactor {
+    struct ExportResult {
+        let url: URL
+        let report: ExportValidationReport
+    }
+
     private struct SupplementalOCRCandidate {
         let span: DetectedSpan
         let rects: [CGRect]
@@ -43,6 +48,7 @@ final class ImageRedactor {
     var reviewFindings: [ReviewFinding] = []
     var focusedFindingID: UUID?
     var debugEntries: [DetectionDebugEntry] = []
+    var lastExportReport: ExportValidationReport?
 
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
@@ -143,6 +149,7 @@ final class ImageRedactor {
         self.sourceURL = sourceURL
         self.sourceUTI = uti
         self.sourceImageProperties = properties
+        self.lastExportReport = nil
         self.redactionEntries = []
         self.previewEntries = []
         clearReviewState()
@@ -160,8 +167,9 @@ final class ImageRedactor {
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        if writeRedacted(to: url, uti: outUTI, options: exportAccessory.options) {
-            phase = .saved(url)
+        if let exportResult = writeRedacted(to: url, uti: outUTI, options: exportAccessory.options) {
+            lastExportReport = exportResult.report
+            phase = .saved(exportResult.url)
         } else {
             phase = .failed("Geschwärztes Bild konnte nicht gespeichert werden")
         }
@@ -872,14 +880,25 @@ final class ImageRedactor {
         return adjusted.intersection(imageBounds)
     }
 
-    private func writeRedacted(to url: URL, uti: UTType, options: ExportOptions) -> Bool {
-        guard let cg = image else { return false }
-        guard let baked = bakeRedactions(into: cg) else { return false }
+    private func writeRedacted(to url: URL, uti: UTType, options: ExportOptions) -> ExportResult? {
+        guard let cg = image else { return nil }
+        guard let baked = bakeRedactions(into: cg) else { return nil }
         guard let dest = CGImageDestinationCreateWithURL(url as CFURL, uti.identifier as CFString, 1, nil) else {
-            return false
+            return nil
         }
         CGImageDestinationAddImage(dest, baked, imageProperties(for: uti, options: options))
-        return CGImageDestinationFinalize(dest)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+
+        let report = ExportValidationReport(
+            format: .image,
+            redactionCount: redactionRects.count,
+            redactedPageCount: nil,
+            totalPageCount: nil,
+            removedMetadata: options.removeMetadata,
+            annotationsRemoved: true,
+            bakedIntoPixels: !redactionRects.isEmpty
+        )
+        return ExportResult(url: url, report: report)
     }
 
     private func imageProperties(for uti: UTType, options: ExportOptions) -> CFDictionary? {

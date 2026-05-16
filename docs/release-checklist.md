@@ -9,6 +9,8 @@
   - nativem PDF mit Adressblock
   - Bilddatei
   - Clipboard-Flow inklusive Platzhalter-Rueckfuehrung
+  - PDF-Export mit anschliessender Vertrauenspruefung in der Sidebar
+  - Bild-Export mit anschliessender Vertrauenspruefung in der Sidebar
 
 ## Inhaltlich pruefen
 
@@ -17,6 +19,9 @@
 - Review-Workflow klar
 - keine offensichtlichen Diagnose-/Label-Leaks wie `private_person`
 - keine funktionalen Blindspots in der Platzhalter-Rueckfuehrung
+- Export-Erfolgstext beschreibt klar, dass Schwärzungen eingebrannt wurden
+- Vertrauensmodul zeigt keine falschen technischen Zusicherungen
+- Metadaten-Bereinigung verhaelt sich passend zur Export-Option
 
 ## Release-Artefakte
 

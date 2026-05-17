@@ -546,10 +546,10 @@ func runFixtureCases() throws -> Int {
             documentClass: "Inkasso / OCR",
             fixturePath: "fixtures/detection/inkasso_ocr_text.txt",
             checks: [
-                ("Fixture contains salutation", expectContains("Sehr geehrte Frau Leitz,")),
-                ("Keep recipient postal city", expectContains("74223 Flein")),
+                ("Fixture contains salutation", expectContains("Sehr geehrte Frau Vogt,")),
+                ("Keep recipient postal city", expectContains("74223 Steinbach")),
                 ("Extract salutation honorific name", { text in
-                    try assert(extractSalutationPersonName(text) == "Frau Leitz", "Expected salutation line to expose the honorific surname")
+                    try assert(extractSalutationPersonName(text) == "Frau Vogt", "Expected salutation line to expose the honorific surname")
                 })
             ]
         ),
@@ -557,10 +557,10 @@ func runFixtureCases() throws -> Int {
             documentClass: "Inkasso / OCR Folgebrief",
             fixturePath: "fixtures/detection/inkasso_ocr_text_followup.txt",
             checks: [
-                ("Fixture contains salutation", expectContains("Sehr geehrte Frau Leitz,")),
-                ("Keep recipient postal city", expectContains("74223 Flein")),
+                ("Fixture contains salutation", expectContains("Sehr geehrte Frau Vogt,")),
+                ("Keep recipient postal city", expectContains("74223 Steinbach")),
                 ("Extract salutation honorific name", { text in
-                    try assert(extractSalutationPersonName(text) == "Frau Leitz", "Expected follow-up salutation line to expose the honorific surname")
+                    try assert(extractSalutationPersonName(text) == "Frau Vogt", "Expected follow-up salutation line to expose the honorific surname")
                 })
             ]
         ),
@@ -569,11 +569,11 @@ func runFixtureCases() throws -> Int {
             fixturePath: "fixtures/detection/lieferanschrift_alias_native_pdf_text.txt",
             checks: [
                 ("Fixture contains Lieferanschrift label", expectContains("Lieferanschrift:")),
-                ("Fixture contains duplicated recipient name", expectContains("Oliver Kern")),
+                ("Fixture contains duplicated recipient name", expectContains("Jonas Weber")),
                 ("Fixture contains distinct delivery street", expectContains("Birkenweg 12")),
                 ("Resolve delivery recipient name after Lieferanschrift", { text in
                     let block = deduplicatedLabeledAddressBlock(after: "Lieferanschrift:", in: text)
-                    try assert(block.contains("Oliver Kern"), "Expected Lieferanschrift alias block to preserve the recipient name line")
+                    try assert(block.contains("Jonas Weber"), "Expected Lieferanschrift alias block to preserve the recipient name line")
                 }),
                 ("Resolve delivery street after Lieferanschrift", { text in
                     let block = deduplicatedLabeledAddressBlock(after: "Lieferanschrift:", in: text)
@@ -581,7 +581,7 @@ func runFixtureCases() throws -> Int {
                 }),
                 ("Resolve delivery postal city after Lieferanschrift", { text in
                     let block = deduplicatedLabeledAddressBlock(after: "Lieferanschrift:", in: text)
-                    try assert(block.contains("74229 Oedheim"), "Expected Lieferanschrift alias block to expose its own postal city")
+                    try assert(block.contains("74229 Sommerfeld"), "Expected Lieferanschrift alias block to expose its own postal city")
                 })
             ]
         ),
@@ -669,11 +669,11 @@ func runFixtureCases() throws -> Int {
             documentClass: "Rechnung / E-Commerce",
             fixturePath: "fixtures/detection/elektrowelt24_rechnung_native_pdf_text.txt",
             checks: [
-                ("Fixture contains orderer label", expectContains("Bestellt durch: Oliver Kern")),
-                ("Keep recipient street", expectContains("Friedenstraße 25")),
-                ("Keep recipient postal city", expectContains("74229 Oedheim")),
+                ("Fixture contains orderer label", expectContains("Bestellt durch: Jonas Weber")),
+                ("Keep recipient street", expectContains("Gartenstraße 25")),
+                ("Keep recipient postal city", expectContains("74229 Sommerfeld")),
                 ("Extract ordered-by name", { text in
-                    try assert(extractInlineContextPersonName(text) == "Oliver Kern", "Expected inline 'Bestellt durch' name to be extracted")
+                    try assert(extractInlineContextPersonName(text) == "Jonas Weber", "Expected inline 'Bestellt durch' name to be extracted")
                 })
             ]
         ),
@@ -682,7 +682,7 @@ func runFixtureCases() throws -> Int {
             fixturePath: "fixtures/detection/name_label_varianten_native_pdf_text.txt",
             checks: [
                 ("Fixture contains generic name label", expectContains("Name: Kern Oliver")),
-                ("Fixture contains orderer label", expectContains("Bestellt durch: Oliver Kern")),
+                ("Fixture contains orderer label", expectContains("Bestellt durch: Jonas Weber")),
                 ("Fixture contains account-holder label", expectContains("Kontoinhaber: Winter Paula")),
                 ("Extract reversed name from Name label", { text in
                     try assert(extractInlineContextPersonName(text) == "Kern Oliver", "Expected inline 'Name' label to accept reversed order")
@@ -704,23 +704,23 @@ func runFixtureCases() throws -> Int {
             documentClass: "Bank / Girokonto-Labels",
             fixturePath: "fixtures/detection/girokonto_labels_native_pdf_text.txt",
             checks: [
-                ("Fixture contains girokonto label", expectContains("Girokonto 3506581")),
-                ("Fixture contains girokontonummer label", expectContains("Girokontonummer: 3 506 581")),
-                ("Extract Girokonto without colon", expectRegexMatch(#"(?:(?<=\bGirokonto:\s)|(?<=\bGirokonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "3506581")),
-                ("Extract Girokontonummer with colon", expectRegexMatch(#"(?:(?<=\bGirokontonummer:\s)|(?<=\bGirokontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "3 506 581"))
+                ("Fixture contains girokonto label", expectContains("Girokonto 4287314")),
+                ("Fixture contains girokontonummer label", expectContains("Girokontonummer: 4 287 314")),
+                ("Extract Girokonto without colon", expectRegexMatch(#"(?:(?<=\bGirokonto:\s)|(?<=\bGirokonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "4287314")),
+                ("Extract Girokontonummer with colon", expectRegexMatch(#"(?:(?<=\bGirokontonummer:\s)|(?<=\bGirokontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "4 287 314"))
             ]
         ),
         FixtureCase(
             documentClass: "Bank / Girokonto Screenshot-Variante",
             fixturePath: "fixtures/detection/girokonto_screenshot_variant_native_pdf_text.txt",
             checks: [
-                ("Fixture contains girokonto screenshot label", expectContains("Girokonto 1886182,")),
-                ("Extract Girokonto field before adjacent IBAN", expectRegexMatch(#"\bGirokonto\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Girokonto 1886182")),
-                ("Extract Girokonto before trailing comma", expectRegexMatch(#"(?:(?<=\bGirokonto:\s)|(?<=\bGirokonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "1886182")),
-                ("Extract Girokontonummer field without colon", expectRegexMatch(#"\bGirokontonummer\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Girokontonummer 1 886 182")),
-                ("Extract Girokontonummer without colon", expectRegexMatch(#"(?:(?<=\bGirokontonummer:\s)|(?<=\bGirokontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "1 886 182")),
-                ("Extract Kontonummer field with colon", expectRegexMatch(#"\bKontonummer\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Kontonummer: 1886182")),
-                ("Extract Kontonummer with colon", expectRegexMatch(#"(?:(?<=\bKontonummer:\s)|(?<=\bKontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "1886182"))
+                ("Fixture contains girokonto screenshot label", expectContains("Girokonto 2754096,")),
+                ("Extract Girokonto field before adjacent IBAN", expectRegexMatch(#"\bGirokonto\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Girokonto 2754096")),
+                ("Extract Girokonto before trailing comma", expectRegexMatch(#"(?:(?<=\bGirokonto:\s)|(?<=\bGirokonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "2754096")),
+                ("Extract Girokontonummer field without colon", expectRegexMatch(#"\bGirokontonummer\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Girokontonummer 2 754 096")),
+                ("Extract Girokontonummer without colon", expectRegexMatch(#"(?:(?<=\bGirokontonummer:\s)|(?<=\bGirokontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "2 754 096")),
+                ("Extract Kontonummer field with colon", expectRegexMatch(#"\bKontonummer\s*:?\s*(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "Kontonummer: 2754096")),
+                ("Extract Kontonummer with colon", expectRegexMatch(#"(?:(?<=\bKontonummer:\s)|(?<=\bKontonummer\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "2754096"))
             ]
         ),
         FixtureCase(
@@ -729,7 +729,7 @@ func runFixtureCases() throws -> Int {
             checks: [
                 ("Extract couple name", expectRegexMatch(#"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#, equals: "Milan und Lara Sommer")),
                 ("Extract BLZ", expectRegexMatch(#"(?<=\bBLZ\s)\d{8}\b"#, equals: "62050000")),
-                ("Extract Konto", expectRegexMatch(#"(?:(?<=\bKonto:\s)|(?<=\bKonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "1886182"))
+                ("Extract Konto", expectRegexMatch(#"(?:(?<=\bKonto:\s)|(?<=\bKonto\s))(?:\d{5,}|\d{1,}(?:\s\d{2,})+)\b"#, equals: "2754096"))
             ]
         ),
         FixtureCase(
@@ -756,9 +756,9 @@ func runFixtureCases() throws -> Int {
                 ("Suppress sender postal city", expectSenderSuppressed(snippet: "88400 Biberach", category: "private_address")),
                 ("Avoid footer postal fragment from Steuer-Nr", expectRegexNoMatch(tightenedGermanPostalCityPattern, forbidden: "19122 Steuer-Nr")),
                 ("Avoid footer postal fragment from Aufsichtsratskontext", expectRegexNoMatch(tightenedGermanPostalCityPattern, forbidden: "01075 Vorsitzender")),
-                ("Keep recipient couple name", expectContains("Oliver und Sylvia Kern")),
-                ("Keep billing street", expectContains("Friedenstr. 25")),
-                ("Keep billing postal city", expectContains("74229 Oedheim"))
+                ("Keep recipient couple name", expectContains("Jonas und Nina Weber")),
+                ("Keep billing street", expectContains("Gartenstr. 25")),
+                ("Keep billing postal city", expectContains("74229 Sommerfeld"))
             ]
         ),
         FixtureCase(
@@ -844,8 +844,8 @@ func runFixtureCases() throws -> Int {
             fixturePath: "fixtures/detection/telekom_rechnung_page1_native_pdf_text.txt",
             checks: [
                 ("Fixture contains customer data label", expectContains("Telekom Festnetz-Kundendaten")),
-                ("Keep recipient name", expectContains("Oliver Kern")),
-                ("Keep recipient postal city", expectContains("74229 Oedheim")),
+                ("Keep recipient name", expectContains("Jonas Weber")),
+                ("Keep recipient postal city", expectContains("74229 Sommerfeld")),
                 ("Extract spaced Kundennummer without colon", expectRegexMatch(#"(?:(?<=\bKundennummer:\s)|(?<=\bKundennummer\s))(?:[A-Z0-9][A-Z0-9\-]{5,}|\d{2,}(?:\s\d{2,})+)\b"#, equals: "192 002 0638")),
                 ("Extract Buchungskonto without colon", expectRegexMatch(#"(?:(?<=\bBuchungskonto:\s)|(?<=\bBuchungskonto\s))(?:\d{2,}(?:\s\d{2,})+|[A-Z0-9][A-Z0-9\- ]{5,})\b"#, equals: "192 002 0638"))
             ]
@@ -884,7 +884,7 @@ func runGeneralChecks() throws -> Int {
         "Expected native mode to preserve normal spaced text"
     )
     try assert(
-        normalizeOCRText("Friedenstr. 25", mode: .ocr) == "Friedenstr. 25",
+        normalizeOCRText("Gartenstr. 25", mode: .ocr) == "Gartenstr. 25",
         "Expected OCR mode to preserve street name spacing before house numbers"
     )
     try assert(
@@ -892,7 +892,7 @@ func runGeneralChecks() throws -> Int {
         "Expected street matcher to accept 'Weinbergsteige 2'"
     )
     try assert(
-        preservesStrongCustomIdentifier("Oliver Kern"),
+        preservesStrongCustomIdentifier("Jonas Weber"),
         "Expected multi-token custom identifier to remain preservable"
     )
 
@@ -909,7 +909,7 @@ func runGeneralChecks() throws -> Int {
         "Expected person span with street tail to be rejected"
     )
     try assert(
-        personSpanContainsAddressOrContactTail("Frau Sylvia Kern Weinbergsteige"),
+        personSpanContainsAddressOrContactTail("Frau Nina Weber Lindensteige"),
         "Expected person span with steige-tail to be rejected"
     )
     try assert(
@@ -950,7 +950,7 @@ func runGeneralChecks() throws -> Int {
         "Expected participant slash name to be extracted"
     )
     try assert(
-        extractInlineContextPersonName("Bestellt durch: Oliver Kern") == "Oliver Kern",
+        extractInlineContextPersonName("Bestellt durch: Jonas Weber") == "Jonas Weber",
         "Expected inline 'Bestellt durch' label to expose the customer name"
     )
     try assert(

@@ -2,9 +2,9 @@ EnBW Vertrieb GmbH
 EnBW Vertrieb GmbH· 88398 Biberach
 CS0400-01-2199-05
 Eheleute
-Oliver und Sylvia Kern
-Friedenstr. 25
-74229 Oedheim
+Jonas und Nina Weber
+Gartenstr. 25
+74229 Sommerfeld
 EnBW Online Garant Max24: Ihr guter Fang ist im Netz.
 Adolf-Pirrung-Str. 7
 88400 Biberach
@@ -19,9 +19,9 @@ Ihre Kundennummer
 Ihre Zählernummer
 9721858
 Ihre Lieferadresse
-Oliver und Sylvia Kern
-Friedenstr. 25
-74229 Oedheim
+Jonas und Nina Weber
+Gartenstr. 25
+74229 Sommerfeld
 1. Juli 2013
 Sehr geehrte Damen und Herren,
 Sie haben sich für EnBW Online Garant Max24 entschieden. Damit haben Sie einen
@@ -42,7 +42,7 @@ Online-Kundenzentrum anmelden. Sie haben sich noch nicht registriert? Unter
 www.enbw.com/kundenzentrum können Sie das gleich nachholen.
 Haben Sie noch Fragen? Von uns sind Sie nur einen Klick entfernt: Schreiben Sie uns
 einfach eine E-Mail an kontakt@enbw.com.
-Freundliche Grüße nach Oedheim
+Freundliche Grüße nach Sommerfeld
 i. V. Ralf Koch vom EnBW Kundenservice in Biberach
 Sitz der Gesellschaft: Stuttgart
 Registergericht Stuttgart
@@ -56,9 +56,9 @@ Uli Huener
 Gerhard Kleih
 
 Hier erreichen wir Sie bei Rückfragen:
-Name: Oliver und Sylvia Kern
-Telefon: 07136-22860
-E-Mail-Adresse: bride1@web.de
+Name: Jonas und Nina Weber
+Telefon: 07136-98765
+E-Mail-Adresse: kontakt@example.test
 
 Hier informieren wir Sie über alles Wichtige:
 Alles rund um Ihren Vertrag lassen wir Ihnen immer in Ihrem persönlichen Bereich
@@ -67,10 +67,10 @@ schicken wir Ihnen natürlich sofort eine E-Mail an die Adresse, die Sie uns mit
 haben.
 
 Hier liefern wir Ihren Strom hin:
-Friedenstr. 25
-74229 Oedheim
+Gartenstr. 25
+74229 Sommerfeld
 
 Hierauf stellen wir Ihre Rechnung aus:
-Oliver und Sylvia Kern
-Friedenstr. 25
-74229 Oedheim
+Jonas und Nina Weber
+Gartenstr. 25
+74229 Sommerfeld

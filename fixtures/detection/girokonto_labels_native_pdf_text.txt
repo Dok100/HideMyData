@@ -1,6 +1,6 @@
 Bankverbindung
-Kontoinhaber: Waltraud Leitz
-Girokonto 3506581
-Girokontonummer: 3 506 581
-IBAN: DE57 3605 0105 0003 5065 81
-BIC: SPESDE3EXXX
+Kontoinhaber: Martina Vogt
+Girokonto 4287314
+Girokontonummer: 4 287 314
+IBAN: DE91 5001 0517 5409 6001 23
+BIC: TESTDEFFXXX

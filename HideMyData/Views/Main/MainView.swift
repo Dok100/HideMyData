@@ -1137,7 +1137,7 @@ private struct CustomPatternsSheet: View {
                                     VStack(alignment: .leading, spacing: 8) {
                                         previewInputLine("Max Mustermann")
                                         previewInputLine("Friedensstr. 25")
-                                        previewInputLine("74229 Oedheim")
+                                        previewInputLine("74229 Sommerfeld")
                                         previewInputLine("Deutschland")
                                     }
                                 }

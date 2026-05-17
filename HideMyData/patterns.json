@@ -170,13 +170,13 @@
     },
     {
       "id": "german_honorific_name",
-      "description": "German honorific with a likely full person name, e.g. Frau Sylvia Kern",
+      "description": "German honorific with a likely full person name, e.g. Frau Nina Weber",
       "category": "private_person",
       "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+){1,2}\\b"
     },
     {
       "id": "german_couple_name_shared_surname",
-      "description": "Two likely person names joined by 'und' with a shared surname, e.g. Oliver und Sylvia Kern",
+      "description": "Two likely person names joined by 'und' with a shared surname, e.g. Jonas und Nina Weber",
       "category": "private_person",
       "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
     },

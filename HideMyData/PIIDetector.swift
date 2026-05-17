@@ -1892,9 +1892,9 @@ final class PIIDetector {
             "\(descriptor.label) [\(descriptor.category)] = \(descriptor.value)"
         }.joined(separator: " | ")
 
-        let oliverRules = diagnostics.loadedCustomPatterns.filter {
-            $0.value.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
-            $0.label.localizedCaseInsensitiveContains("Oliver Kern")
+        let jonasRules = diagnostics.loadedCustomPatterns.filter {
+            $0.value.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            $0.label.localizedCaseInsensitiveContains("Jonas Weber")
         }
 
         let rawCustomSpans = diagnostics.rawCustomMatches.map { spanDescription($0) }.joined(separator: " | ")
@@ -1907,22 +1907,22 @@ final class PIIDetector {
         }
         let survivingDescriptions = survivingCustomSpans.map { spanDescription($0) }.joined(separator: " | ")
 
-        let oliverInText = text.range(of: "Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        let oliverRaw = diagnostics.rawCustomMatches.filter {
-            $0.text.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        let jonasInText = text.range(of: "Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) != nil
+        let jonasRaw = diagnostics.rawCustomMatches.filter {
+            $0.text.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
         }
-        let oliverSurviving = survivingCustomSpans.filter {
-            $0.text.compare("Oliver Kern", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        let jonasSurviving = survivingCustomSpans.filter {
+            $0.text.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
         }
 
         return [
             storageLine,
             legacyStorageLine,
             "PatternMatcher custom rules loaded (\(diagnostics.loadedCustomPatterns.count)): \(loadedRules)",
-            "PatternMatcher custom rule contains 'Oliver Kern': \(oliverRules.isEmpty ? "no" : "yes")",
+            "PatternMatcher custom rule contains 'Jonas Weber': \(jonasRules.isEmpty ? "no" : "yes")",
             "PatternMatcher raw custom matches: \(rawCustomSpans.isEmpty ? "<none>" : rawCustomSpans)",
             "PatternMatcher surviving custom matches: \(survivingDescriptions.isEmpty ? "<none>" : survivingDescriptions)",
-            "PatternMatcher Oliver Kern diagnostics: textContains=\(oliverInText) rawCustomSpan=\(!oliverRaw.isEmpty) survivingCustomSpan=\(!oliverSurviving.isEmpty)"
+            "PatternMatcher Jonas Weber diagnostics: textContains=\(jonasInText) rawCustomSpan=\(!jonasRaw.isEmpty) survivingCustomSpan=\(!jonasSurviving.isEmpty)"
         ]
     }
 

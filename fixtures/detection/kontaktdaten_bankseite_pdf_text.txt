@@ -2,7 +2,7 @@ Hier erreichen wir Sie bei Rueckfragen:
 Name:
 Milan und Lara Sommer
 Telefon:
-07136-22860
+07136-98765
 E-Mail-Adresse:
 familie.sommer@example.de
 
@@ -18,4 +18,4 @@ Birkenstr. 12
 Hier koennen Sie meine Rechnungsbetraege einziehen:
 Regionalbank Sued
 BLZ 62050000
-Konto 1886182
+Konto 2754096

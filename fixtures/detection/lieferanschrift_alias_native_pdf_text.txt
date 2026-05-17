@@ -2,19 +2,19 @@ Rechnung
 Rechnungsanschrift:
 Herr
 Herr
-Oliver Kern
-Oliver Kern
-Friedenstr. 25
-Friedenstr. 25
-74229 Oedheim
-74229 Oedheim
+Jonas Weber
+Jonas Weber
+Gartenstr. 25
+Gartenstr. 25
+74229 Sommerfeld
+74229 Sommerfeld
 
 Lieferanschrift:
 Herr
 Herr
-Oliver Kern
-Oliver Kern
+Jonas Weber
+Jonas Weber
 Birkenweg 12
 Birkenweg 12
-74229 Oedheim
-74229 Oedheim
+74229 Sommerfeld
+74229 Sommerfeld

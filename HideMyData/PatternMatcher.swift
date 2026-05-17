@@ -6,7 +6,7 @@ struct CustomPattern: Identifiable, Codable, Equatable {
     var value: String
     var category: String
 
-    init(id: UUID = UUID(), label: String, value: String, category: String = "custom_identifier") {
+    nonisolated init(id: UUID = UUID(), label: String, value: String, category: String = "custom_identifier") {
         self.id = id
         self.label = label
         self.value = value
@@ -66,6 +66,16 @@ final class CustomPatternStore {
         return removedCount
     }
 
+    func cleanupWeakPatterns() -> Int {
+        let originalCount = patterns.count
+        patterns = Self.sanitizedPersistedPatterns(patterns)
+        let removedCount = originalCount - patterns.count
+        if removedCount > 0 {
+            persist()
+        }
+        return removedCount
+    }
+
     func migrateLegacyPatterns() -> Int {
         let originalCount = patterns.count
         var rebuilt: [CustomPattern] = []
@@ -105,7 +115,11 @@ final class CustomPatternStore {
         else {
             return
         }
-        patterns = decoded
+        let sanitized = sanitizedPersistedPatterns(decoded)
+        patterns = sanitized
+        if sanitized != decoded {
+            persist()
+        }
     }
 
     private func persist() {
@@ -121,7 +135,7 @@ final class CustomPatternStore {
         else {
             return []
         }
-        return decoded
+        return sanitizedPersistedPatterns(decoded)
     }
 
     private func normalizedCategory(_ category: String) -> String {
@@ -145,9 +159,12 @@ final class CustomPatternStore {
         var patterns: [CustomPattern] = []
         var seenKeys: Set<String> = []
 
-        func appendPattern(label patternLabel: String, value patternValue: String) {
+        func appendPattern(label patternLabel: String, value patternValue: String, generated: Bool) {
             let trimmedValue = patternValue.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
             guard !trimmedValue.isEmpty else { return }
+            if generated && !Self.isUsefulGeneratedPattern(trimmedValue) {
+                return
+            }
 
             let key = patternKey(label: patternLabel, value: trimmedValue, category: category)
             guard seenKeys.insert(key).inserted else { return }
@@ -155,16 +172,16 @@ final class CustomPatternStore {
             patterns.append(CustomPattern(label: patternLabel, value: trimmedValue, category: category))
         }
 
-        appendPattern(label: label, value: value)
+        appendPattern(label: label, value: value, generated: false)
 
-        let components = splitPatternComponents(value)
+        let components = Self.splitPatternComponents(value)
         if components.count > 1 {
             for component in components {
-                appendPattern(label: "\(label) – Teil", value: component)
+                appendPattern(label: "\(label) – Teil", value: component, generated: true)
             }
 
-            for chunk in adjacentComponentChunks(components) {
-                appendPattern(label: "\(label) – Block", value: chunk)
+            for chunk in Self.adjacentComponentChunks(components) {
+                appendPattern(label: "\(label) – Block", value: chunk, generated: true)
             }
         }
 
@@ -175,50 +192,74 @@ final class CustomPatternStore {
         deduplicated(importedPatterns.compactMap(normalize(_:)))
     }
 
-    private func deduplicated(_ patterns: [CustomPattern]) -> [CustomPattern] {
+    private func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
+        Self.sanitizedPersistedPatterns(persistedPatterns)
+    }
+
+    nonisolated fileprivate static func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
         var bestBySemanticKey: [String: CustomPattern] = [:]
         var order: [String] = []
 
-        for pattern in patterns {
-            let semanticKey = semanticPatternKey(pattern)
+        for pattern in persistedPatterns {
+            guard let normalizedPattern = normalizedPattern(pattern) else { continue }
+            if shouldDropPersistedPattern(normalizedPattern) {
+                continue
+            }
 
+            let semanticKey = semanticPatternKey(normalizedPattern)
             if let existing = bestBySemanticKey[semanticKey] {
-                if preferredPattern(pattern, over: existing) {
-                    bestBySemanticKey[semanticKey] = pattern
+                if preferredPattern(normalizedPattern, over: existing) {
+                    bestBySemanticKey[semanticKey] = normalizedPattern
                 }
                 continue
             }
 
-            bestBySemanticKey[semanticKey] = pattern
+            bestBySemanticKey[semanticKey] = normalizedPattern
             order.append(semanticKey)
         }
 
         return order.compactMap { bestBySemanticKey[$0] }
     }
 
+    private func deduplicated(_ patterns: [CustomPattern]) -> [CustomPattern] {
+        Self.sanitizedPersistedPatterns(patterns)
+    }
+
     private func normalize(_ pattern: CustomPattern) -> CustomPattern? {
+        Self.normalizedPattern(pattern, normalizedCategory: normalizedCategory)
+    }
+
+    nonisolated private static func normalizedPattern(
+        _ pattern: CustomPattern,
+        normalizedCategory: ((String) -> String)? = nil
+    ) -> CustomPattern? {
         let trimmedLabel = pattern.label.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedValue = pattern.value.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedCategory = normalizedCategory(pattern.category)
+        let normalizedCategory = normalizedCategory?(pattern.category)
+            ?? defaultNormalizedCategory(pattern.category)
         guard !trimmedLabel.isEmpty, !trimmedValue.isEmpty else { return nil }
         return CustomPattern(label: trimmedLabel, value: trimmedValue, category: normalizedCategory)
     }
 
     private func isGeneratedPatternLabel(_ label: String) -> Bool {
+        Self.isGeneratedPatternLabel(label)
+    }
+
+    nonisolated fileprivate static func isGeneratedPatternLabel(_ label: String) -> Bool {
         label.contains(" – Teil") || label.contains(" – Block")
     }
 
-    private func splitPatternComponents(_ value: String) -> [String] {
+    nonisolated private static func splitPatternComponents(_ value: String) -> [String] {
         let separators = CharacterSet(charactersIn: ",;\n")
         return value
             .components(separatedBy: separators)
             .map {
                 $0.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
             }
-            .filter(isUsefulComponent)
+            .filter(Self.isUsefulComponent)
     }
 
-    private func adjacentComponentChunks(_ components: [String]) -> [String] {
+    nonisolated private static func adjacentComponentChunks(_ components: [String]) -> [String] {
         guard components.count > 1 else { return [] }
 
         var chunks: [String] = []
@@ -226,7 +267,9 @@ final class CustomPatternStore {
             var chunk = components[startIndex]
             for endIndex in (startIndex + 1)..<components.count {
                 chunk += " " + components[endIndex]
-                if isUsefulComponent(chunk) {
+                let chunkLength = (startIndex...endIndex).count
+                guard chunkLength <= 2 else { continue }
+                if Self.isUsefulGeneratedPattern(chunk) {
                     chunks.append(chunk)
                 }
             }
@@ -234,7 +277,7 @@ final class CustomPatternStore {
         return chunks
     }
 
-    private func isUsefulComponent(_ value: String) -> Bool {
+    nonisolated fileprivate static func isUsefulComponent(_ value: String) -> Bool {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
@@ -246,19 +289,154 @@ final class CustomPatternStore {
         return digits >= 4
     }
 
-    private func patternKey(_ pattern: CustomPattern) -> String {
-        patternKey(label: pattern.label, value: pattern.value, category: pattern.category)
+    nonisolated fileprivate static func isUsefulGeneratedPattern(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard !trimmed.isEmpty else { return false }
+
+        if isPostalCity(trimmed) {
+            return false
+        }
+
+        if Self.looksLikeEmail(trimmed) || Self.looksLikePhoneOrAccount(trimmed) {
+            return true
+        }
+
+        let words = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+        let alphaWordCount = words.filter { word in
+            word.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+        }.count
+        let digitCount = trimmed.filter(\.isNumber).count
+        let letterCount = trimmed.unicodeScalars.filter { CharacterSet.letters.contains($0) }.count
+
+        if digitCount > 0 && letterCount == 0 {
+            return false
+        }
+
+        if words.count == 1 {
+            if digitCount >= 4 {
+                return false
+            }
+            return alphaWordCount >= 2
+        }
+
+        if words.count == 2 {
+            let first = words[0]
+            let second = words[1]
+            if Self.isLikelyPostalCity(first: first, second: second) {
+                return false
+            }
+            if Self.isLikelyPersonName(first: first, second: second) {
+                return true
+            }
+            if Self.containsStreetIndicator(trimmed) {
+                return true
+            }
+        }
+
+        if Self.containsStreetIndicator(trimmed) {
+            return true
+        }
+
+        return alphaWordCount >= 2 && (words.count >= 3 || digitCount > 0)
     }
 
-    private func patternKey(label: String, value: String, category: String) -> String {
-        [
-            label.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
-            value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
-            category.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        ].joined(separator: "::")
+    nonisolated private static func shouldDropPersistedPattern(_ pattern: CustomPattern) -> Bool {
+        if isGeneratedPatternLabel(pattern.label) {
+            return !isUsefulGeneratedPattern(pattern.value)
+        }
+
+        guard pattern.category == "custom_identifier" else { return false }
+        return isWeakOriginalCustomIdentifier(label: pattern.label, value: pattern.value)
     }
 
-    private func semanticPatternKey(_ pattern: CustomPattern) -> String {
+    nonisolated private static func isWeakOriginalCustomIdentifier(label: String, value: String) -> Bool {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard !trimmedLabel.isEmpty, !trimmedValue.isEmpty else { return true }
+
+        let foldedLabel = trimmedLabel.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let genericLabelFragments = [
+            "ort", "stadt", "wohnort", "postleitzahl", "plz", "nachname", "vorname"
+        ]
+
+        if genericLabelFragments.contains(where: { foldedLabel == $0 || foldedLabel.hasPrefix($0 + " ") }) {
+            return true
+        }
+
+        let words = trimmedValue.split(whereSeparator: \.isWhitespace).map(String.init)
+        let digitCount = trimmedValue.filter(\.isNumber).count
+
+        if digitCount > 0 && trimmedValue.unicodeScalars.allSatisfy({ CharacterSet.decimalDigits.contains($0) }) {
+            return true
+        }
+
+        if words.count == 1 {
+            if isPostalCity(trimmedValue) {
+                return true
+            }
+            if looksLikeNameToken(trimmedValue) {
+                return true
+            }
+        }
+
+        if words.count <= 2 && isPostalCity(trimmedValue) {
+            return true
+        }
+
+        return false
+    }
+
+    nonisolated private static func looksLikeEmail(_ value: String) -> Bool {
+        value.contains("@")
+    }
+
+    nonisolated private static func looksLikePhoneOrAccount(_ value: String) -> Bool {
+        let allowed = CharacterSet(charactersIn: "+-/(). ").union(.decimalDigits)
+        let scalars = value.unicodeScalars
+        let hasDigits = scalars.contains { CharacterSet.decimalDigits.contains($0) }
+        let onlyAllowed = scalars.allSatisfy { allowed.contains($0) }
+        return hasDigits && onlyAllowed
+    }
+
+    nonisolated private static func isLikelyPostalCity(first: String, second: String) -> Bool {
+        let firstDigits = first.filter(\.isNumber)
+        guard firstDigits.count >= 4, firstDigits.count == first.count else { return false }
+        return second.unicodeScalars.contains { CharacterSet.letters.contains($0) }
+    }
+
+    nonisolated private static func isPostalCity(_ value: String) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^(?:D\s*-\s*)?\d{4,5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated private static func isLikelyPersonName(first: String, second: String) -> Bool {
+        guard !Self.containsStreetIndicator(first), !Self.containsStreetIndicator(second) else { return false }
+        return Self.looksLikeNameToken(first) && Self.looksLikeNameToken(second)
+    }
+
+    nonisolated private static func looksLikeNameToken(_ token: String) -> Bool {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        guard trimmed.count >= 2 else { return false }
+        guard trimmed.unicodeScalars.contains(where: { CharacterSet.letters.contains($0) }) else { return false }
+        return !trimmed.unicodeScalars.contains(where: { CharacterSet.decimalDigits.contains($0) })
+    }
+
+    nonisolated fileprivate static func containsStreetIndicator(_ value: String) -> Bool {
+        let normalized = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        let indicators = [
+            "strasse", "straße", "str.", "str ", "weg", "allee", "platz", "gasse",
+            "ring", "ufer", "chaussee", "steig", "steige"
+        ]
+        return indicators.contains { normalized.contains($0) }
+    }
+
+    nonisolated private static func defaultNormalizedCategory(_ category: String) -> String {
+        let trimmed = category.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "custom_identifier" : trimmed
+    }
+
+    nonisolated private static func semanticPatternKey(_ pattern: CustomPattern) -> String {
         let normalizedValue = pattern.value
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
@@ -268,7 +446,7 @@ final class CustomPatternStore {
         return "\(normalizedCategory)::\(normalizedValue)"
     }
 
-    private func preferredPattern(_ lhs: CustomPattern, over rhs: CustomPattern) -> Bool {
+    nonisolated private static func preferredPattern(_ lhs: CustomPattern, over rhs: CustomPattern) -> Bool {
         let lhsGenerated = isGeneratedPatternLabel(lhs.label)
         let rhsGenerated = isGeneratedPatternLabel(rhs.label)
 
@@ -285,11 +463,30 @@ final class CustomPatternStore {
         return lhs.label.count < rhs.label.count
     }
 
-    nonisolated private static func storageURL() -> URL {
+    private func patternKey(_ pattern: CustomPattern) -> String {
+        patternKey(label: pattern.label, value: pattern.value, category: pattern.category)
+    }
+
+    private func patternKey(label: String, value: String, category: String) -> String {
+        [
+            label.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+            value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+            category.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        ].joined(separator: "::")
+    }
+
+    nonisolated fileprivate static func storageURL() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         migrateLegacyStorageIfNeeded(base: support)
         return support
             .appendingPathComponent("Inkognito", isDirectory: true)
+            .appendingPathComponent("custom-patterns.json")
+    }
+
+    nonisolated fileprivate static func legacyStorageURL() -> URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support
+            .appendingPathComponent("HideMyData", isDirectory: true)
             .appendingPathComponent("custom-patterns.json")
     }
 
@@ -309,6 +506,21 @@ final class CustomPatternStore {
 }
 
 nonisolated enum PatternMatcher {
+    struct LoadedCustomPattern: Sendable {
+        let label: String
+        let value: String
+        let category: String
+    }
+
+    struct Diagnostics: Sendable {
+        let storagePath: String
+        let storageFileExists: Bool
+        let legacyStoragePath: String
+        let legacyStorageFileExists: Bool
+        let loadedCustomPatterns: [LoadedCustomPattern]
+        let rawCustomMatches: [DetectedSpan]
+    }
+
     private struct Pattern {
         let id: String
         let category: String
@@ -350,24 +562,48 @@ nonisolated enum PatternMatcher {
     }
 
     private static func loadCustomPatterns() -> [Pattern] {
+        loadCustomPatternDescriptors().map {
+            Pattern(id: $0.label, category: $0.category, source: .literal($0.value))
+        }
+    }
+
+    private static func loadCustomPatternDescriptors() -> [LoadedCustomPattern] {
         var seenKeys: Set<String> = []
         return CustomPatternStore.loadPersistedPatterns().compactMap { spec in
             let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
+            let trimmedLabel = spec.label.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isGeneratedPatternLabel(trimmedLabel), !CustomPatternStore.isUsefulGeneratedPattern(trimmed) {
+                return nil
+            }
 
             let key = dedupeKey(value: trimmed, category: spec.category)
             guard seenKeys.insert(key).inserted else { return nil }
 
-            return Pattern(id: spec.id.uuidString, category: spec.category, source: .literal(trimmed))
+            return LoadedCustomPattern(
+                label: trimmedLabel,
+                value: trimmed,
+                category: spec.category
+            )
         }
     }
 
     static func detect(_ text: String) -> [DetectedSpan] {
+        detectWithDiagnostics(text).spans
+    }
+
+    static func detectWithDiagnostics(_ text: String) -> (spans: [DetectedSpan], diagnostics: Diagnostics) {
         var spans: [DetectedSpan] = []
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
+        let storageURL = CustomPatternStore.storageURL()
+        let legacyStorageURL = CustomPatternStore.legacyStorageURL()
+        let customPatternDescriptors = loadCustomPatternDescriptors()
+        let customPatterns = customPatternDescriptors.map {
+            Pattern(id: $0.label, category: $0.category, source: .literal($0.value))
+        }
 
-        for pattern in builtinPatterns + loadCustomPatterns() {
+        for pattern in builtinPatterns + customPatterns {
             switch pattern.source {
             case .regex(let regex):
                 regex.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
@@ -400,7 +636,23 @@ nonisolated enum PatternMatcher {
                 }
             }
         }
-        return spans
+        let rawCustomMatches = spans.filter { span in
+            span.source == .pattern && customPatternDescriptors.contains { descriptor in
+                descriptor.category == span.category &&
+                descriptor.value.compare(span.text, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+            }
+        }
+        return (
+            spans,
+            Diagnostics(
+                storagePath: storageURL.path,
+                storageFileExists: FileManager.default.fileExists(atPath: storageURL.path),
+                legacyStoragePath: legacyStorageURL.path,
+                legacyStorageFileExists: FileManager.default.fileExists(atPath: legacyStorageURL.path),
+                loadedCustomPatterns: customPatternDescriptors,
+                rawCustomMatches: rawCustomMatches
+            )
+        )
     }
 
     private static func literalMatchRanges(in text: String, literal: String) -> [Range<String.Index>] {
@@ -455,6 +707,10 @@ nonisolated enum PatternMatcher {
             compactSearchRange = range.upperBound..<compactText.text.endIndex
         }
         return compactRanges
+    }
+
+    private static func isGeneratedPatternLabel(_ label: String) -> Bool {
+        label.contains(" – Teil") || label.contains(" – Block")
     }
 
     private static func normalizedLiteralSearchText(_ text: String) -> (text: String, map: [Int]) {

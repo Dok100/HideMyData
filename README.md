@@ -142,6 +142,16 @@ Wichtige Dateien und Bereiche:
 - [HideMyData/Views/Main/MainView.swift](HideMyData/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
 - [scripts/run_detection_regressions.swift](scripts/run_detection_regressions.swift): schlanker Regression-Check
 
+## Projekt-Dokumentation
+
+Fuer das generelle Projekt-Framing gibt es zusaetzlich:
+
+- [features/INDEX.md](features/INDEX.md): Feature-Backlog als einzelne Projektbausteine
+- [docs/architecture.md](docs/architecture.md): technische und fachliche Struktur
+- [docs/decision-log.md](docs/decision-log.md): wichtige Richtungsentscheidungen
+- [docs/release-checklist.md](docs/release-checklist.md): Release-Vorbereitung
+- [docs/runbook.md](docs/runbook.md): operative Wartungs- und Debug-Abläufe
+
 ## Aktueller Stand
 
 Inkognito ist funktional nutzbar, aber weiter in aktiver Qualitaetsarbeit.

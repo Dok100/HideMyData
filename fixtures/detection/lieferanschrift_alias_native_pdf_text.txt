@@ -1,0 +1,20 @@
+Rechnung
+Rechnungsanschrift:
+Herr
+Herr
+Jonas Weber
+Jonas Weber
+Gartenstr. 25
+Gartenstr. 25
+74229 Sommerfeld
+74229 Sommerfeld
+
+Lieferanschrift:
+Herr
+Herr
+Jonas Weber
+Jonas Weber
+Birkenweg 12
+Birkenweg 12
+74229 Sommerfeld
+74229 Sommerfeld

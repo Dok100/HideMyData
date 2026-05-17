@@ -5,6 +5,7 @@ import Vision
 struct OCRLine {
     let text: String
     let candidate: RecognizedText
+    let boundingBox: CGRect
 }
 
 struct OCRPage {
@@ -41,9 +42,89 @@ struct OCRPage {
             let e = line.text.index(line.text.startIndex, offsetBy: localEndOffset)
             if let region = line.candidate.boundingBox(for: s..<e) {
                 rects.append(region.boundingBox.cgRect)
+            } else if let fullLineRegion = line.candidate.boundingBox(for: line.text.startIndex..<line.text.endIndex) {
+                rects.append(fullLineRegion.boundingBox.cgRect)
+            } else {
+                rects.append(line.boundingBox)
             }
         }
         return rects
+    }
+
+    func normalizedLineBox(at index: Int) -> CGRect? {
+        guard lines.indices.contains(index) else { return nil }
+        return lines[index].boundingBox
+    }
+
+    func lineSpan(at index: Int, category: String, confidence: Float = 0.98, source: DetectionSource = .pattern) -> DetectedSpan? {
+        guard lines.indices.contains(index) else { return nil }
+        let line = lines[index]
+        let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+
+        let start = lineStartOffsets[index]
+        let end = start + line.text.count
+        return DetectedSpan(
+            category: category,
+            text: line.text,
+            start: start,
+            end: end,
+            confidence: confidence,
+            source: source
+        )
+    }
+
+    func lineMatch(
+        at index: Int,
+        matchedText: String,
+        category: String,
+        confidence: Float = 0.98,
+        source: DetectionSource = .pattern
+    ) -> (span: DetectedSpan, rect: CGRect)? {
+        guard lines.indices.contains(index) else { return nil }
+        let line = lines[index]
+        let trimmedMatch = matchedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMatch.isEmpty,
+              let localRange = line.text.range(of: trimmedMatch, options: [.caseInsensitive, .diacriticInsensitive])
+        else {
+            return nil
+        }
+
+        let start = lineStartOffsets[index] + line.text.distance(from: line.text.startIndex, to: localRange.lowerBound)
+        let end = lineStartOffsets[index] + line.text.distance(from: line.text.startIndex, to: localRange.upperBound)
+        let rect: CGRect
+        if let region = line.candidate.boundingBox(for: localRange) {
+            rect = region.boundingBox.cgRect
+        } else if let fullLineRegion = line.candidate.boundingBox(for: line.text.startIndex..<line.text.endIndex) {
+            rect = fullLineRegion.boundingBox.cgRect
+        } else {
+            rect = line.boundingBox
+        }
+
+        return (
+            DetectedSpan(
+                category: category,
+                text: trimmedMatch,
+                start: start,
+                end: end,
+                confidence: confidence,
+                source: source
+            ),
+            rect
+        )
+    }
+
+    func lineIndex(containing offset: Int) -> Int? {
+        guard offset >= 0, offset < combinedText.count else { return nil }
+
+        for (index, start) in lineStartOffsets.enumerated() {
+            let end = start + lines[index].text.count
+            if offset >= start && offset < end {
+                return index
+            }
+        }
+
+        return nil
     }
 }
 
@@ -57,7 +138,7 @@ enum OCREngine {
         let observations = try await request.perform(on: image)
         let lines: [OCRLine] = observations.compactMap { obs in
             guard let candidate = obs.topCandidates(1).first else { return nil }
-            return OCRLine(text: candidate.string, candidate: candidate)
+            return OCRLine(text: candidate.string, candidate: candidate, boundingBox: obs.boundingBox.cgRect)
         }
         return OCRPage(lines: lines)
     }

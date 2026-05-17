@@ -81,6 +81,16 @@ struct EmptyState: View {
         colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.035)
     }
 
+    private var dropHintFill: Color {
+        colorScheme == .dark ? Color.accentColor.opacity(0.10) : Color.accentColor.opacity(0.06)
+    }
+
+    private var dropHintBorder: Color {
+        isTargeted
+            ? Color.accentColor.opacity(0.80)
+            : Color.accentColor.opacity(colorScheme == .dark ? 0.34 : 0.26)
+    }
+
     private let cardHeaderHeight: CGFloat = 34
     private let cardDescriptionHeight: CGFloat = 74
     private let cardDetailHeight: CGFloat = 128
@@ -183,16 +193,38 @@ struct EmptyState: View {
                     .foregroundStyle(.tertiary)
                     .contentTransition(.opacity)
 
-                HStack(spacing: 8) {
-                    Image(systemName: "tray.and.arrow.down")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text("Oder PDF bzw. Bild direkt hier ablegen")
-                        .font(.system(size: 11.5, weight: .medium))
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(spacing: 10) {
+                        Image(systemName: isTargeted ? "tray.and.arrow.down.fill" : "tray.and.arrow.down")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Datei hier ablegen")
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundStyle(.primary)
+
+                            Text("Ziehe ein PDF oder Bild direkt in diesen Bereich.")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Text(isTargeted ? "Loslassen zum direkten Oeffnen" : "Die gesamte Karte reagiert auf Drag-and-Drop.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
                 }
-                .foregroundStyle(Color.primary.opacity(0.48))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(helperCapsuleFill, in: Capsule())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(dropHintFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(
+                            dropHintBorder,
+                            style: StrokeStyle(lineWidth: isTargeted ? 1.4 : 1, dash: [7, 6])
+                        )
+                )
             }
             .frame(minHeight: cardDetailHeight, alignment: .topLeading)
 
@@ -258,7 +290,7 @@ struct EmptyState: View {
                 Label("Kopierten Text anonymisieren", systemImage: "arrow.left.arrow.right.square")
                     .padding(.horizontal, 6)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .keyboardShortcut("a", modifiers: [.command, .shift])
         }
@@ -287,8 +319,8 @@ struct EmptyState: View {
 
     private var modeSelectionHint: String {
         switch inputMode {
-        case .pdf: "PDF-Dokument ausgewählt"
-        case .image: "Bilddatei ausgewählt"
+        case .pdf: "Format: PDF"
+        case .image: "Format: Bild"
         }
     }
 

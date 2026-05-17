@@ -102,6 +102,7 @@ struct MainView: View {
                             pendingCount: currentPendingReviewCount,
                             acceptedCount: currentAcceptedReviewCount,
                             rejectedCount: currentRejectedReviewCount,
+                            exportReport: currentExportReport,
                             onAcceptAll: acceptAllFindings,
                             onSelect: selectFinding,
                             onAccept: acceptFinding,
@@ -270,6 +271,13 @@ struct MainView: View {
         currentReviewFindings.filter { $0.status == .rejected }.count
     }
 
+    private var currentExportReport: ExportValidationReport? {
+        switch inputMode {
+        case .pdf: pdfRedactor.lastExportReport
+        case .image: imageRedactor.lastExportReport
+        }
+    }
+
     private var currentWorkflowStep: WorkflowStepStrip.Step {
         if hasPendingReview {
             return .review
@@ -361,7 +369,7 @@ private struct DiagnosticsSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.title)
                         .font(.system(size: 13, weight: .semibold))
-                    Text("\(entry.findings.count) Treffer · \(entry.textSourceLabel)")
+                    Text("\(entry.findings.count) Treffer · \(entry.diagnostics.count) Diagnosezeilen · \(entry.previewDiagnostics.count) Preview-Zeilen · \(entry.textSourceLabel)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -448,6 +456,36 @@ private struct DiagnosticsSheet: View {
                             }
                         }
 
+                        if !selectedEntry.diagnostics.isEmpty {
+                            debugCard(title: "Custom-Rule-Diagnose") {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(selectedEntry.diagnostics.enumerated()), id: \.offset) { _, line in
+                                        Text(line)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(10)
+                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
+
+                        if !selectedEntry.previewDiagnostics.isEmpty {
+                            debugCard(title: "Preview-Debugliste") {
+                                LazyVStack(alignment: .leading, spacing: 8) {
+                                    ForEach(Array(selectedEntry.previewDiagnostics.enumerated()), id: \.offset) { _, line in
+                                        Text(line)
+                                            .font(.system(size: 12, design: .monospaced))
+                                            .textSelection(.enabled)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding(10)
+                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    }
+                                }
+                            }
+                        }
+
                         debugCard(title: "Gelesener Text") {
                             Text(selectedEntry.rawText.isEmpty ? "Kein Text vorhanden." : selectedEntry.rawText)
                                 .font(.system(size: 12, design: .monospaced))
@@ -518,6 +556,10 @@ private struct DiagnosticsSheet: View {
             matches.append(contentsOf: snippetMatches(in: selectedEntry.normalizedText, section: "Normalisierter Text", query: trimmedQuery))
         }
 
+        for line in selectedEntry.diagnostics where line.localizedCaseInsensitiveContains(trimmedQuery) {
+            matches.append(("Custom-Rule-Diagnose", line))
+        }
+
         for finding in selectedEntry.findings {
             if finding.text.localizedCaseInsensitiveContains(trimmedQuery) || finding.category.localizedCaseInsensitiveContains(trimmedQuery) {
                 matches.append((
@@ -572,6 +614,12 @@ private struct DiagnosticsSheet: View {
             "",
             "Treffer:",
             findingsText.isEmpty ? "Keine Treffer" : findingsText,
+            "",
+            "Custom-Rule-Diagnose:",
+            entry.diagnostics.isEmpty ? "Keine Diagnose" : entry.diagnostics.joined(separator: "\n"),
+            "",
+            "Preview-Debugliste:",
+            entry.previewDiagnostics.isEmpty ? "Keine Preview-Diagnose" : entry.previewDiagnostics.joined(separator: "\n"),
             "",
             "Gelesener Text:",
             entry.rawText,
@@ -1089,7 +1137,7 @@ private struct CustomPatternsSheet: View {
                                     VStack(alignment: .leading, spacing: 8) {
                                         previewInputLine("Max Mustermann")
                                         previewInputLine("Friedensstr. 25")
-                                        previewInputLine("74229 Oedheim")
+                                        previewInputLine("74229 Sommerfeld")
                                         previewInputLine("Deutschland")
                                     }
                                 }
@@ -1183,6 +1231,9 @@ private struct CustomPatternsSheet: View {
         sectionCard(title: "Aktive Regeln", subtitle: "\(store.patterns.count) gespeicherte Regeln") {
             HStack(spacing: 10) {
                 Button("Bestand modernisieren", action: migratePatterns)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+                Button("Schwache Regeln bereinigen", action: cleanupWeakPatterns)
                     .buttonStyle(.glass)
                     .controlSize(.small)
                 Button("Duplikate entfernen", action: deduplicatePatterns)
@@ -1372,6 +1423,13 @@ private struct CustomPatternsSheet: View {
             : "Keine Duplikate gefunden."
     }
 
+    private func cleanupWeakPatterns() {
+        let removedCount = store.cleanupWeakPatterns()
+        importExportMessage = removedCount > 0
+            ? "\(removedCount) schwache Regelbausteine entfernt."
+            : "Keine schwachen Regelbausteine gefunden."
+    }
+
     private func migratePatterns() {
         let addedCount = store.migrateLegacyPatterns()
         importExportMessage = addedCount > 0
@@ -1535,6 +1593,7 @@ private struct ReviewSidebar: View {
     let pendingCount: Int
     let acceptedCount: Int
     let rejectedCount: Int
+    let exportReport: ExportValidationReport?
     let onAcceptAll: () -> Void
     let onSelect: (UUID) -> Void
     let onAccept: (UUID) -> Void
@@ -1560,15 +1619,24 @@ private struct ReviewSidebar: View {
                         Button("Alle bestätigen") {
                             confirmAcceptAll = true
                         }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
                     }
                 }
 
                 summaryRow
 
+                if !findings.isEmpty {
+                    categoryLegend
+                }
+
                 if pendingCount == 0, !findings.isEmpty {
                     successBanner
+                }
+
+                if let exportReport {
+                    exportTrustBanner(report: exportReport)
                 }
 
                 Toggle("Nur offene Treffer", isOn: $showOnlyPending)
@@ -1681,21 +1749,154 @@ private struct ReviewSidebar: View {
         )
     }
 
+    private var categoryLegend: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Farblegende")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.tertiary)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    legendChip(title: "Person", color: .blue)
+                    legendChip(title: "Adresse", color: .red)
+                    legendChip(title: "Nummer", color: Color(hue: 0.12, saturation: 0.72, brightness: 0.88))
+                }
+                HStack(spacing: 6) {
+                    legendChip(title: "Kontakt", color: .teal)
+                    legendChip(title: "Datum", color: .purple)
+                    legendChip(title: "E-Mail", color: .green)
+                }
+            }
+        }
+    }
+
+    private func legendChip(title: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color.opacity(0.92))
+                .frame(width: 7, height: 7)
+
+            Text(title)
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(summaryFill, in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(summaryBorder, lineWidth: 0.6)
+        )
+    }
+
     private var successBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-            Text("Alles geprüft. Du kannst jetzt speichern.")
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(.green.opacity(0.9))
+        HStack(alignment: .center, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(Color.green.opacity(0.14))
+                    .frame(width: 28, height: 28)
+
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .symbolEffect(.bounce, value: pendingCount)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Prüfung abgeschlossen")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.green.opacity(0.95))
+
+                Text("Alle Treffer wurden bestätigt oder abgelehnt. Du kannst jetzt speichern.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
             Spacer(minLength: 0)
+
+            Text("Bereit")
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.green.opacity(0.92))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.green.opacity(0.12), in: Capsule())
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.green.opacity(0.10), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.green.opacity(colorScheme == .dark ? 0.20 : 0.11),
+                    Color.mint.opacity(colorScheme == .dark ? 0.10 : 0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.green.opacity(0.18), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.green.opacity(0.24), lineWidth: 0.9)
+        )
+    }
+
+    private func exportTrustBanner(report: ExportValidationReport) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.12))
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "lock.shield.fill")
+                        .foregroundStyle(.blue)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Export technisch geprüft")
+                        .font(.system(size: 12.5, weight: .semibold))
+
+                    Text(report.shortStatusText)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(report.trustChecklist, id: \.self) { item in
+                    HStack(alignment: .top, spacing: 7) {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.blue)
+                            .padding(.top, 2)
+
+                        Text(item)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.blue.opacity(colorScheme == .dark ? 0.16 : 0.08),
+                    Color.blue.opacity(colorScheme == .dark ? 0.10 : 0.04)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.blue.opacity(colorScheme == .dark ? 0.28 : 0.16), lineWidth: 0.8)
         )
     }
 

@@ -4,7 +4,7 @@
 |----|-------|--------|
 | [PROJ-1](PROJ-1-detection-haertung.md) | Detection-Härtung | Abgeschlossen |
 | [PROJ-2](PROJ-2-export-vertrauen.md) | Export-Vertrauen | Abgeschlossen |
-| [PROJ-3](PROJ-3-review-workflow.md) | Review-Workflow | Geplant |
+| [PROJ-3](PROJ-3-review-workflow.md) | Review-Workflow | Abgeschlossen |
 | [PROJ-4](PROJ-4-fehlerfuehrung-resilienz.md) | Fehlerführung und Resilienz | Geplant |
 | [PROJ-5](PROJ-5-farbsystem-konsistenz.md) | Farbsystem und visuelle Konsistenz | Geplant |
 | [PROJ-6](PROJ-6-start-und-leerzustaende.md) | Start- und Leerzustände | Teilweise umgesetzt |

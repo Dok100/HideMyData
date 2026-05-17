@@ -55,10 +55,18 @@ struct ImageDocumentSurface: View {
                         }
                 )
                 .onTapGesture(coordinateSpace: .local) { loc in
-                    guard redactor.editingMode == .remove else { return }
                     let p = CGPoint(x: loc.x / scale, y: loc.y / scale)
-                    if let idx = redactor.redactionRects.firstIndex(where: { $0.contains(p) }) {
-                        redactor.removeRedaction(at: idx)
+                    switch redactor.editingMode {
+                    case .view:
+                        if let findingID = redactor.findingID(at: p) {
+                            redactor.selectFinding(findingID)
+                        }
+                    case .remove:
+                        if let idx = redactor.redactionRects.firstIndex(where: { $0.contains(p) }) {
+                            redactor.removeRedaction(at: idx)
+                        }
+                    case .add:
+                        break
                     }
                 }
                 .onContinuousHover(coordinateSpace: .local) { phase in

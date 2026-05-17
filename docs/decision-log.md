@@ -9,6 +9,9 @@
 - Export-Vertrauen wird nicht nur ueber Text, sondern ueber konkrete technische Aussagen zu eingebrannten Schwärzungen, annotationsfreiem Export und Metadaten-Bereinigung kommuniziert.
 - `PROJ-2` wird als abgeschlossen gewertet.
 - Ein explizites Exportprotokoll oder ein vertiefter Validierungsdialog bleibt optionaler Produktfeinschliff und ist kein Release-Blocker.
+- `PROJ-3` wird als abgeschlossen gewertet.
+- Der Review-Workflow gilt mit Statuslogik, Ruecknahme, direktem Fokus-Sprung aus sichtbaren Schwärzungen und exportorientiertem Abschlussmoment als funktional stabil.
+- Bei aktivem Filter `Nur offene Treffer` bleibt ein ueber die Dokumentflaeche fokussierter bestaetigter oder abgelehnter Treffer sichtbar, damit Korrekturen ohne Filterwechsel moeglich bleiben.
 
 ## 2026-05-13
 

@@ -17,6 +17,8 @@
 - Branding ueberall auf `Inkognito`
 - App-Icon aktuell
 - Review-Workflow klar
+- Klick auf sichtbare Schwärzung springt zuverlässig zur passenden Review-Kachel
+- bei aktivem `Nur offene Treffer` bleibt ein fokussierter bestätigter Treffer für Korrekturen sichtbar
 - keine offensichtlichen Diagnose-/Label-Leaks wie `private_person`
 - keine funktionalen Blindspots in der Platzhalter-Rueckfuehrung
 - Export-Erfolgstext beschreibt klar, dass Schwärzungen eingebrannt wurden

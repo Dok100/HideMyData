@@ -76,7 +76,7 @@ struct FloatingToolbar: View {
     @ViewBuilder
     private var saveButton: some View {
         Button(action: saveAction) {
-            Label("Speichern", systemImage: "square.and.arrow.down")
+            Label(saveButtonTitle, systemImage: "square.and.arrow.down")
                 .padding(.horizontal, 4)
         }
         .buttonStyle(.bordered)
@@ -101,35 +101,44 @@ struct FloatingToolbar: View {
 
     @ViewBuilder
     private var utilityMenu: some View {
-        Menu {
-            Button(action: onManagePatterns) {
-                Label(customPatternsCount > 0 ? "Regeln verwalten (\(customPatternsCount))" : "Regeln verwalten",
-                      systemImage: "text.badge.plus")
+        HStack(spacing: 8) {
+            SettingsLink {
+                Label("Einstellungen", systemImage: "gearshape")
+                    .padding(.horizontal, 4)
             }
+            .buttonStyle(.bordered)
+            .help("Einstellungen öffnen  ⌘,")
 
-            Button(action: onAnonymizeClipboard) {
-                Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
+            Menu {
+                Button(action: onManagePatterns) {
+                    Label(customPatternsCount > 0 ? "Regeln verwalten (\(customPatternsCount))" : "Regeln verwalten",
+                          systemImage: "text.badge.plus")
+                }
+
+                Button(action: onAnonymizeClipboard) {
+                    Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
+                }
+                .disabled(!detector.isReady || isDetecting)
+
+                Button(action: onShowDiagnostics) {
+                    Label("Diagnose öffnen", systemImage: "ladybug")
+                }
+                .disabled(!hasDiagnostics)
+
+                Divider()
+
+                Button(role: .destructive, action: clearAction) {
+                    Label("Alle Schwärzungen entfernen", systemImage: "xmark.circle")
+                }
+                .disabled(!hasRedactions || isDetecting)
+            } label: {
+                Label("Werkzeuge", systemImage: "ellipsis.circle")
+                    .padding(.horizontal, 4)
             }
-            .disabled(!detector.isReady || isDetecting)
-
-            Button(action: onShowDiagnostics) {
-                Label("Diagnose öffnen", systemImage: "ladybug")
-            }
-            .disabled(!hasDiagnostics)
-
-            Divider()
-
-            Button(role: .destructive, action: clearAction) {
-                Label("Alle Schwärzungen entfernen", systemImage: "xmark.circle")
-            }
-            .disabled(!hasRedactions || isDetecting)
-        } label: {
-            Label("Werkzeuge", systemImage: "ellipsis.circle")
-                .padding(.horizontal, 4)
+            .menuStyle(.button)
+            .controlSize(.regular)
+            .help("Sekundäre Werkzeuge und Hilfsfunktionen")
         }
-        .menuStyle(.button)
-        .controlSize(.regular)
-        .help("Sekundäre Werkzeuge und Hilfsfunktionen")
     }
 
     @ViewBuilder
@@ -236,7 +245,14 @@ struct FloatingToolbar: View {
         if hasPendingReview {
             return "Vor dem Speichern alle Treffer prüfen"
         }
+        if reviewIsComplete {
+            return "Review fertig: geschwärzte Kopie jetzt sicher speichern  ⌘S"
+        }
         return "Geschwärzte Kopie speichern  ⌘S"
+    }
+
+    private var saveButtonTitle: String {
+        reviewIsComplete ? "Sicher exportieren" : "Speichern"
     }
 
     private var hasPendingReview: Bool {
@@ -244,6 +260,17 @@ struct FloatingToolbar: View {
         case .pdf: pdfRedactor.hasPendingReview
         case .image: imageRedactor.hasPendingReview
         }
+    }
+
+    private var hasReviewFindings: Bool {
+        switch inputMode {
+        case .pdf: pdfRedactor.hasReviewFindings
+        case .image: imageRedactor.hasReviewFindings
+        }
+    }
+
+    private var reviewIsComplete: Bool {
+        hasFile && hasReviewFindings && !hasPendingReview
     }
 
     private var hasDiagnostics: Bool {

@@ -155,13 +155,21 @@ final class InteractivePDFView: PDFView {
 
     override func mouseDown(with event: NSEvent) {
         guard let redactor else { super.mouseDown(with: event); return }
+        let viewLocation = convert(event.locationInWindow, from: nil)
 
         switch editingMode {
         case .view:
+            if let page = page(for: viewLocation, nearest: true) {
+                let pagePoint = convert(viewLocation, to: page)
+                if let findingID = redactor.findingID(at: pagePoint, on: page) {
+                    redactor.selectFinding(findingID)
+                    return
+                }
+            }
+            super.mouseDown(with: event)
             return
 
         case .remove:
-            let viewLocation = convert(event.locationInWindow, from: nil)
             guard let page = page(for: viewLocation, nearest: true) else { return }
             let pagePoint = convert(viewLocation, to: page)
             if let ann = page.annotation(at: pagePoint), redactor.isRedaction(ann) {
@@ -169,7 +177,6 @@ final class InteractivePDFView: PDFView {
             }
 
         case .add:
-            let viewLocation = convert(event.locationInWindow, from: nil)
             guard let page = page(for: viewLocation, nearest: true) else { return }
             let pagePoint = convert(viewLocation, to: page)
             dragStart = pagePoint

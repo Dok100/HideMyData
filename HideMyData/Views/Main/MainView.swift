@@ -19,6 +19,7 @@ struct MainView: View {
     @State private var customPatternsPresented = false
     @State private var diagnosticsPresented = false
     @State private var clipboardAnonymizerPresented = false
+    @State private var reviewUndoNotice: ReviewUndoNotice?
 
     private var activeIsEmpty: Bool {
         switch inputMode {
@@ -102,11 +103,17 @@ struct MainView: View {
                             pendingCount: currentPendingReviewCount,
                             acceptedCount: currentAcceptedReviewCount,
                             rejectedCount: currentRejectedReviewCount,
+                            selectedFindingID: currentFocusedFindingID,
+                            undoNotice: reviewUndoNotice,
                             exportReport: currentExportReport,
                             onAcceptAll: acceptAllFindings,
+                            onSave: requestSave,
+                            onDismissUndoNotice: { reviewUndoNotice = nil },
+                            onUndoLastDecision: undoLastDecision,
                             onSelect: selectFinding,
                             onAccept: acceptFinding,
-                            onReject: rejectFinding
+                            onReject: rejectFinding,
+                            onReopen: reopenFinding
                         )
                         .padding(.trailing, 24)
                         .padding(.top, 20)
@@ -278,6 +285,13 @@ struct MainView: View {
         }
     }
 
+    private var currentFocusedFindingID: UUID? {
+        switch inputMode {
+        case .pdf: pdfRedactor.focusedFindingID
+        case .image: imageRedactor.focusedFindingID
+        }
+    }
+
     private var currentWorkflowStep: WorkflowStepStrip.Step {
         if hasPendingReview {
             return .review
@@ -340,6 +354,7 @@ struct MainView: View {
         case .pdf: pdfRedactor.acceptFinding(id)
         case .image: imageRedactor.acceptFinding(id)
         }
+        showUndoNotice(for: id, verb: "bestätigt")
     }
 
     private func acceptAllFindings() {
@@ -354,7 +369,37 @@ struct MainView: View {
         case .pdf: pdfRedactor.rejectFinding(id)
         case .image: imageRedactor.rejectFinding(id)
         }
+        showUndoNotice(for: id, verb: "abgelehnt")
     }
+
+    private func reopenFinding(_ id: UUID) {
+        switch inputMode {
+        case .pdf: pdfRedactor.reopenFinding(id)
+        case .image: imageRedactor.reopenFinding(id)
+        }
+        reviewUndoNotice = nil
+    }
+
+    private func undoLastDecision() {
+        guard let findingID = reviewUndoNotice?.findingID else { return }
+        reopenFinding(findingID)
+    }
+
+    private func showUndoNotice(for id: UUID, verb: String) {
+        let snippet = currentReviewFindings.first(where: { $0.id == id })?.snippet ?? "Treffer"
+        reviewUndoNotice = ReviewUndoNotice(
+            findingID: id,
+            title: "Treffer \(verb)",
+            detail: snippet
+        )
+    }
+
+}
+
+private struct ReviewUndoNotice: Equatable {
+    let findingID: UUID
+    let title: String
+    let detail: String
 }
 
 private struct DiagnosticsSheet: View {
@@ -1593,11 +1638,17 @@ private struct ReviewSidebar: View {
     let pendingCount: Int
     let acceptedCount: Int
     let rejectedCount: Int
+    let selectedFindingID: UUID?
+    let undoNotice: ReviewUndoNotice?
     let exportReport: ExportValidationReport?
     let onAcceptAll: () -> Void
+    let onSave: () -> Void
+    let onDismissUndoNotice: () -> Void
+    let onUndoLastDecision: () -> Void
     let onSelect: (UUID) -> Void
     let onAccept: (UUID) -> Void
     let onReject: (UUID) -> Void
+    let onReopen: (UUID) -> Void
     @State private var showOnlyPending = true
     @State private var confirmAcceptAll = false
 
@@ -1631,6 +1682,10 @@ private struct ReviewSidebar: View {
                     categoryLegend
                 }
 
+                if let undoNotice {
+                    undoBanner(undoNotice)
+                }
+
                 if pendingCount == 0, !findings.isEmpty {
                     successBanner
                 }
@@ -1643,23 +1698,41 @@ private struct ReviewSidebar: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .disabled(pendingCount == 0)
+
+                if isShowingFocusedNonPendingFinding {
+                    Text("Der fokussierte Treffer bleibt sichtbar, damit du ihn direkt wieder öffnen kannst.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             if findings.isEmpty {
                 emptyInspectorState
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(filteredFindings) { finding in
-                            ReviewFindingRow(
-                                finding: finding,
-                                onSelect: { onSelect(finding.id) },
-                                onAccept: { onAccept(finding.id) },
-                                onReject: { onReject(finding.id) }
-                            )
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(filteredFindings) { finding in
+                                ReviewFindingRow(
+                                    finding: finding,
+                                    isSelected: selectedFindingID == finding.id,
+                                    onSelect: { onSelect(finding.id) },
+                                    onAccept: { onAccept(finding.id) },
+                                    onReject: { onReject(finding.id) },
+                                    onReopen: { onReopen(finding.id) }
+                                )
+                                .id(finding.id)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                    .onChange(of: selectedFindingID) { _, id in
+                        guard let id else { return }
+                        withAnimation(.snappy(duration: 0.28)) {
+                            proxy.scrollTo(id, anchor: .center)
                         }
                     }
-                    .padding(.vertical, 2)
                 }
             }
         }
@@ -1678,7 +1751,7 @@ private struct ReviewSidebar: View {
             }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Damit werden alle aktuell offenen Treffer ohne Einzelprüfung freigegeben.")
+            Text("Damit werden \(pendingCount) aktuell offene Treffer ohne Einzelprüfung bestätigt.")
         }
     }
 
@@ -1689,14 +1762,26 @@ private struct ReviewSidebar: View {
         if pendingCount > 0 {
             return "\(pendingCount) Treffer brauchen vor dem Speichern noch deine Entscheidung."
         }
-        return "Alle Treffer wurden geprüft."
+        return "Review ist fertig. Du kannst jetzt sicher exportieren."
     }
 
     private var filteredFindings: [ReviewFinding] {
         if showOnlyPending && pendingCount > 0 {
-            return findings.filter { $0.status == .pending }
+            return findings.filter { finding in
+                finding.status == .pending || finding.id == selectedFindingID
+            }
         }
         return findings
+    }
+
+    private var isShowingFocusedNonPendingFinding: Bool {
+        guard showOnlyPending,
+              pendingCount > 0,
+              let selectedFindingID,
+              let selectedFinding = findings.first(where: { $0.id == selectedFindingID }) else {
+            return false
+        }
+        return selectedFinding.status != .pending
     }
 
     private var summaryRow: some View {
@@ -1704,6 +1789,7 @@ private struct ReviewSidebar: View {
             summaryBadge(title: "Erkannt", value: findings.count, tint: .secondary)
             summaryBadge(title: "Offen", value: pendingCount, tint: .orange)
             summaryBadge(title: "Bestätigt", value: acceptedCount, tint: .green)
+            summaryBadge(title: "Abgelehnt", value: rejectedCount, tint: .red)
         }
     }
 
@@ -1790,39 +1876,62 @@ private struct ReviewSidebar: View {
     }
 
     private var successBanner: some View {
-        HStack(alignment: .center, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.green.opacity(0.14))
-                    .frame(width: 28, height: 28)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.green.opacity(0.14))
+                        .frame(width: 28, height: 28)
 
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .symbolEffect(.bounce, value: pendingCount)
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .symbolEffect(.bounce, value: pendingCount)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Review abgeschlossen")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(.green.opacity(0.95))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .layoutPriority(1)
+
+                    Text("Alle Treffer sind entschieden. Du kannst die geschwärzte Kopie jetzt sicher speichern.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Prüfung abgeschlossen")
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.green.opacity(0.95))
-
-                Text("Alle Treffer wurden bestätigt oder abgelehnt. Du kannst jetzt speichern.")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-
-            Text("Bereit")
+            Text("Bereit für Export")
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(.green.opacity(0.92))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(Color.green.opacity(0.12), in: Capsule())
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button(action: onSave) {
+                    Label {
+                        Text("Geschwärzte Kopie speichern")
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    } icon: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+                .tint(.green)
+
+                Text("oder ⌘S")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .background(
             LinearGradient(
                 colors: [
@@ -1837,6 +1946,59 @@ private struct ReviewSidebar: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.green.opacity(0.24), lineWidth: 0.9)
+        )
+    }
+
+    private func undoBanner(_ notice: ReviewUndoNotice) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "arrow.uturn.backward.circle.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.orange)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(notice.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+
+                Text(notice.detail.isEmpty ? "Die letzte Entscheidung kann direkt wieder geöffnet werden." : notice.detail)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 6) {
+                Button("Rückgängig", action: onUndoLastDecision)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .tint(.orange)
+
+                Button(action: onDismissUndoNotice) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.orange.opacity(colorScheme == .dark ? 0.18 : 0.10),
+                    Color.yellow.opacity(colorScheme == .dark ? 0.09 : 0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.8)
         )
     }
 
@@ -1912,9 +2074,11 @@ private struct ReviewSidebar: View {
 private struct ReviewFindingRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let finding: ReviewFinding
+    let isSelected: Bool
     let onSelect: () -> Void
     let onAccept: () -> Void
     let onReject: () -> Void
+    let onReopen: () -> Void
     @State private var isExpanded = false
 
     var body: some View {
@@ -1979,6 +2143,9 @@ private struct ReviewFindingRow: View {
                                 .buttonStyle(.borderedProminent)
                             Button("Ablehnen", action: onReject)
                                 .buttonStyle(.bordered)
+                        } else {
+                            Button(finding.status == .accepted ? "Rückgängig" : "Wieder öffnen", action: onReopen)
+                                .buttonStyle(.bordered)
                         }
                     }
                     .controlSize(.small)
@@ -2033,15 +2200,24 @@ private struct ReviewFindingRow: View {
     }
 
     private var cardFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.095) : Color.white.opacity(0.84)
+        if isSelected {
+            return colorScheme == .dark ? Color.accentColor.opacity(0.16) : Color.accentColor.opacity(0.11)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.095) : Color.white.opacity(0.84)
     }
 
     private var cardBorder: Color {
-        colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.09)
+        if isSelected {
+            return Color.accentColor.opacity(colorScheme == .dark ? 0.68 : 0.52)
+        }
+        return colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.09)
     }
 
     private var shadowColor: Color {
-        colorScheme == .dark ? Color.black.opacity(0.16) : Color.black.opacity(0.055)
+        if isSelected {
+            return Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+        }
+        return colorScheme == .dark ? Color.black.opacity(0.16) : Color.black.opacity(0.055)
     }
 
     private var snippetColor: Color {

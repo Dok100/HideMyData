@@ -54,6 +54,7 @@ final class ImageRedactor {
     private var detectionTask: Task<Void, Never>?
     private var redactionEntries: [RedactionEntry] = []
     private var previewEntries: [RedactionEntry] = []
+    private var dismissedPreviewEntries: [RedactionEntry] = []
 
     var statusText: String {
         switch phase {
@@ -825,6 +826,7 @@ final class ImageRedactor {
 
     func acceptFinding(_ id: UUID) {
         promotePreviewToRedaction(for: id)
+        dismissedPreviewEntries.removeAll { $0.findingID == id }
         updateFinding(id) { $0.status = .accepted }
         focusedFindingID = id
     }
@@ -839,7 +841,9 @@ final class ImageRedactor {
     }
 
     func rejectFinding(_ id: UUID) {
+        let matches = previewEntries.filter { $0.findingID == id }
         previewEntries.removeAll { $0.findingID == id }
+        dismissedPreviewEntries.append(contentsOf: matches)
         updateFinding(id) { $0.status = .rejected }
         if focusedFindingID == id { focusedFindingID = nil }
         if redactionRects.isEmpty && previewRects.isEmpty, image != nil {
@@ -849,8 +853,47 @@ final class ImageRedactor {
         }
     }
 
+    func reopenFinding(_ id: UUID) {
+        guard let finding = reviewFindings.first(where: { $0.id == id }) else { return }
+
+        switch finding.status {
+        case .pending:
+            focusedFindingID = id
+        case .accepted:
+            let matches = redactionEntries.filter { $0.findingID == id }
+            guard !matches.isEmpty else { return }
+            redactionEntries.removeAll { $0.findingID == id }
+            previewEntries.append(contentsOf: matches)
+            updateFinding(id) { $0.status = .pending }
+            focusedFindingID = id
+            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
+        case .rejected:
+            let matches = dismissedPreviewEntries.filter { $0.findingID == id }
+            guard !matches.isEmpty else { return }
+            dismissedPreviewEntries.removeAll { $0.findingID == id }
+            previewEntries.append(contentsOf: matches)
+            updateFinding(id) { $0.status = .pending }
+            focusedFindingID = id
+            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
+        }
+    }
+
     func selectFinding(_ id: UUID) {
         focusedFindingID = id
+    }
+
+    func findingID(at point: CGPoint) -> UUID? {
+        let match = (redactionEntries + previewEntries)
+            .filter { $0.rect.contains(point) }
+            .min { lhs, rhs in
+                let lhsArea = lhs.rect.width * lhs.rect.height
+                let rhsArea = rhs.rect.width * rhs.rect.height
+                if lhsArea == rhsArea {
+                    return lhs.rect.midY > rhs.rect.midY
+                }
+                return lhsArea < rhsArea
+            }
+        return match?.findingID
     }
 
     // MARK: - Helpers
@@ -1005,6 +1048,7 @@ final class ImageRedactor {
         reviewFindings.removeAll()
         focusedFindingID = nil
         debugEntries.removeAll()
+        dismissedPreviewEntries.removeAll()
     }
 
     private func promotePreviewToRedaction(for findingID: UUID) {

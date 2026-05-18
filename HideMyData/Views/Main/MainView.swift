@@ -20,6 +20,7 @@ struct MainView: View {
     @State private var diagnosticsPresented = false
     @State private var clipboardAnonymizerPresented = false
     @State private var reviewUndoNotice: ReviewUndoNotice?
+    @State private var presentedIssue: UserFacingIssue?
 
     private var activeIsEmpty: Bool {
         switch inputMode {
@@ -61,6 +62,7 @@ struct MainView: View {
                             onManagePatterns: { customPatternsPresented = true },
                             onShowDiagnostics: { diagnosticsPresented = true },
                             onAnonymizeClipboard: { clipboardAnonymizerPresented = true },
+                            onOpenRequest: openCurrentInputType,
                             onSaveRequest: requestSave
                         )
                     }
@@ -149,6 +151,22 @@ struct MainView: View {
         } message: {
             Text("Bitte bestätige oder lehne zuerst alle offenen Treffer ab, bevor du speicherst.")
         }
+        .alert(item: $presentedIssue) { issue in
+            if let retryAction = issue.retryAction {
+                Alert(
+                    title: Text(issue.title),
+                    message: Text(issue.message),
+                    primaryButton: .default(Text(issue.retryLabel ?? "Erneut versuchen"), action: retryAction),
+                    secondaryButton: .cancel(Text("OK"))
+                )
+            } else {
+                Alert(
+                    title: Text(issue.title),
+                    message: Text(issue.message),
+                    dismissButton: .default(Text("OK"))
+                )
+            }
+        }
         .sheet(isPresented: $customPatternsPresented) {
             CustomPatternsSheet(store: customPatterns)
         }
@@ -199,16 +217,45 @@ struct MainView: View {
 
     // MARK: - Open actions
 
+    private func openCurrentInputType() {
+        switch inputMode {
+        case .pdf: openPDFAndAdd()
+        case .image: openImageAndAdd()
+        }
+    }
+
     private func openPDFAndAdd() {
-        guard pdfRedactor.openPDF(), let url = pdfRedactor.sourceURL else { return }
-        recents.add(url: url, kind: .pdf)
-        showHome = false
+        switch pdfRedactor.presentOpenPanel() {
+        case .cancelled:
+            return
+        case .failed(let message):
+            presentIssue(
+                title: "PDF konnte nicht geöffnet werden",
+                message: message,
+                retryLabel: "Erneut versuchen",
+                retryAction: openPDFAndAdd
+            )
+        case .opened(let url):
+            recents.add(url: url, kind: .pdf)
+            showHome = false
+        }
     }
 
     private func openImageAndAdd() {
-        guard imageRedactor.openImage(), let url = imageRedactor.sourceURL else { return }
-        recents.add(url: url, kind: .image)
-        showHome = false
+        switch imageRedactor.presentOpenPanel() {
+        case .cancelled:
+            return
+        case .failed(let message):
+            presentIssue(
+                title: "Bild konnte nicht geöffnet werden",
+                message: message,
+                retryLabel: "Erneut versuchen",
+                retryAction: openImageAndAdd
+            )
+        case .opened(let url):
+            recents.add(url: url, kind: .image)
+            showHome = false
+        }
     }
 
     private func handleDrop(_ url: URL) {
@@ -218,13 +265,28 @@ struct MainView: View {
             if pdfRedactor.loadPDF(from: url) {
                 recents.add(url: url, kind: .pdf)
                 showHome = false
+            } else {
+                presentIssue(
+                    title: "PDF konnte nicht geladen werden",
+                    message: "Die abgelegte Datei „\(url.lastPathComponent)“ konnte nicht gelesen werden. Bitte prüfe, ob sie vollständig ist und wirklich ein PDF enthält."
+                )
             }
         } else if type.conforms(to: .image) {
             inputMode = .image
             if imageRedactor.loadImage(from: url) {
                 recents.add(url: url, kind: .image)
                 showHome = false
+            } else {
+                presentIssue(
+                    title: "Bild konnte nicht geladen werden",
+                    message: "Die abgelegte Datei „\(url.lastPathComponent)“ konnte nicht gelesen werden. Bitte prüfe, ob sie vollständig ist und ein unterstütztes Bildformat hat."
+                )
             }
+        } else {
+            presentIssue(
+                title: "Datei wird nicht unterstützt",
+                message: "Bitte lege ein PDF oder ein Bild ab. Andere Dateitypen kann Inkognito hier noch nicht öffnen."
+            )
         }
     }
 
@@ -237,6 +299,10 @@ struct MainView: View {
 
         guard let data = try? Data(contentsOf: resolved.url) else {
             recents.remove(item)
+            presentIssue(
+                title: "Zuletzt verwendete Datei nicht lesbar",
+                message: "„\(item.title)“ konnte nicht erneut geladen werden. Der Eintrag wurde aus den zuletzt verwendeten Dateien entfernt."
+            )
             return
         }
 
@@ -246,12 +312,22 @@ struct MainView: View {
             if pdfRedactor.loadPDF(data: data, originalURL: resolved.url) {
                 recents.add(url: resolved.url, kind: .pdf)
                 showHome = false
+            } else {
+                presentIssue(
+                    title: "Zuletzt verwendetes PDF konnte nicht geöffnet werden",
+                    message: "„\(item.title)“ konnte nicht gelesen werden. Bitte öffne die Datei erneut oder wähle eine andere Version."
+                )
             }
         case .image:
             inputMode = .image
             if imageRedactor.loadImage(data: data, originalURL: resolved.url) {
                 recents.add(url: resolved.url, kind: .image)
                 showHome = false
+            } else {
+                presentIssue(
+                    title: "Zuletzt verwendetes Bild konnte nicht geöffnet werden",
+                    message: "„\(item.title)“ konnte nicht gelesen werden. Bitte öffne die Datei erneut oder wähle eine andere Version."
+                )
             }
         }
     }
@@ -337,9 +413,45 @@ struct MainView: View {
             return
         }
         switch inputMode {
-        case .pdf: pdfRedactor.save()
-        case .image: imageRedactor.save()
+        case .pdf:
+            switch pdfRedactor.save() {
+            case .cancelled, .saved:
+                return
+            case .failed(let message):
+                presentIssue(
+                    title: "PDF konnte nicht gespeichert werden",
+                    message: message,
+                    retryLabel: "Erneut versuchen",
+                    retryAction: requestSave
+                )
+            }
+        case .image:
+            switch imageRedactor.save() {
+            case .cancelled, .saved:
+                return
+            case .failed(let message):
+                presentIssue(
+                    title: "Bild konnte nicht gespeichert werden",
+                    message: message,
+                    retryLabel: "Erneut versuchen",
+                    retryAction: requestSave
+                )
+            }
         }
+    }
+
+    private func presentIssue(
+        title: String,
+        message: String,
+        retryLabel: String? = nil,
+        retryAction: (() -> Void)? = nil
+    ) {
+        presentedIssue = UserFacingIssue(
+            title: title,
+            message: message,
+            retryLabel: retryLabel,
+            retryAction: retryAction
+        )
     }
 
     private func selectFinding(_ id: UUID) {
@@ -400,6 +512,14 @@ private struct ReviewUndoNotice: Equatable {
     let findingID: UUID
     let title: String
     let detail: String
+}
+
+private struct UserFacingIssue: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+    let retryLabel: String?
+    let retryAction: (() -> Void)?
 }
 
 private struct DiagnosticsSheet: View {
@@ -695,6 +815,16 @@ private struct ClipboardAnonymizerSheet: View {
     @State private var statusMessage = "Kopiere einen Text in die Zwischenablage und prüfe hier die anonymisierte Vorschau."
     @State private var restoreStatusMessage = "Füge danach die KI-Antwort ein oder lade sie aus der Zwischenablage, um die Platzhalter wieder zurückzuführen."
 
+    private var statusTone: ClipboardStatusTone {
+        if statusMessage.contains("fehlgeschlagen") {
+            return .warning
+        }
+        if originalText.isEmpty {
+            return .info
+        }
+        return .success
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -736,9 +866,7 @@ private struct ClipboardAnonymizerSheet: View {
                     }
                 }
 
-                Text(statusMessage)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                statusBanner(message: statusMessage, tone: statusTone)
 
                 HStack(alignment: .top, spacing: 20) {
                     comparisonCard(title: "Original", minHeight: 360) {
@@ -933,7 +1061,7 @@ private struct ClipboardAnonymizerSheet: View {
             anonymizedText = ""
             placeholders = []
             replacementCount = 0
-            statusMessage = "Bitte kopiere zuerst einen Text in die Zwischenablage."
+            statusMessage = "Bitte kopiere zuerst einen Text in die Zwischenablage und versuche es dann erneut."
             return
         }
 
@@ -946,11 +1074,11 @@ private struct ClipboardAnonymizerSheet: View {
             anonymizedText = ""
             placeholders = []
             replacementCount = 0
-            statusMessage = "Anonymisierung fehlgeschlagen: \(error.localizedDescription)"
+            statusMessage = "Die Anonymisierung hat diesmal nicht geklappt. Prüfe bitte, ob das lokale Modell bereit ist, und versuche es dann erneut. Details: \(error.localizedDescription)"
         case .success(let result):
             hydrate(from: result)
             statusMessage = result.placeholders.isEmpty
-                ? "Es wurden keine ersetzbaren Inhalte gefunden."
+                ? "Es wurden keine ersetzbaren Inhalte gefunden. Du kannst den Text trotzdem prüfen oder einen anderen Ausschnitt versuchen."
                 : "Ersetzungen: \(result.replacementCount), Platzhalter: \(result.placeholders.count)."
         }
     }
@@ -975,7 +1103,7 @@ private struct ClipboardAnonymizerSheet: View {
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !clipboardText.isEmpty
         else {
-            restoreStatusMessage = "Bitte kopiere zuerst die KI-Antwort in die Zwischenablage."
+            restoreStatusMessage = "Bitte kopiere zuerst die KI-Antwort in die Zwischenablage und lade sie dann erneut."
             return
         }
         aiResponseText = clipboardText
@@ -1019,6 +1147,55 @@ private struct ClipboardAnonymizerSheet: View {
             return "Zurückgeführt: \(result.replacementCount) Platzhalter. Einige erwartete Tokens fehlen noch."
         }
         return "Zurückgeführt: \(result.replacementCount) Platzhalter."
+    }
+
+    private func statusBanner(message: String, tone: ClipboardStatusTone) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: tone.symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tone.tint)
+                .padding(.top, 1)
+
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(tone.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+private enum ClipboardStatusTone {
+    case info
+    case success
+    case warning
+
+    var symbol: String {
+        switch self {
+        case .info: "info.circle.fill"
+        case .success: "checkmark.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .info: .blue
+        case .success: .green
+        case .warning: .orange
+        }
+    }
+
+    var fill: Color {
+        switch self {
+        case .info: .blue.opacity(0.08)
+        case .success: .green.opacity(0.08)
+        case .warning: .orange.opacity(0.10)
+        }
     }
 }
 
@@ -1537,7 +1714,22 @@ private struct CustomPatternsTransferDocument: FileDocument {
     }
 }
 
+private extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        guard size > 0 else { return [self] }
+        var result: [[Element]] = []
+        var index = startIndex
+        while index < endIndex {
+            let next = self.index(index, offsetBy: size, limitedBy: endIndex) ?? endIndex
+            result.append(Array(self[index..<next]))
+            index = next
+        }
+        return result
+    }
+}
+
 private struct WorkflowStepStrip: View {
+    @Environment(\.colorScheme) private var colorScheme
     enum Step: Int {
         case detect = 1
         case review = 2
@@ -1556,10 +1748,10 @@ private struct WorkflowStepStrip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.88), in: Capsule())
+        .background(SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme), in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.6)
+                .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.6)
         )
     }
 
@@ -1594,6 +1786,7 @@ private struct WorkflowStepStrip: View {
 }
 
 private struct PDFPageNavigationBar: View {
+    @Environment(\.colorScheme) private var colorScheme
     let currentPageIndex: Int
     let pageCount: Int
     let canGoPrevious: Bool
@@ -1624,10 +1817,10 @@ private struct PDFPageNavigationBar: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.88), in: Capsule())
+        .background(SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme), in: Capsule())
         .overlay(
             Capsule()
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.6)
+                .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.6)
         )
     }
 }
@@ -1662,6 +1855,9 @@ private struct ReviewSidebar: View {
                         Text(headerText)
                             .font(.system(size: 12))
                             .foregroundStyle(pendingCount > 0 ? .orange : .secondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .layoutPriority(1)
                     }
 
                     Spacer(minLength: 0)
@@ -1739,10 +1935,10 @@ private struct ReviewSidebar: View {
         .padding(18)
         .frame(width: 320, alignment: .topLeading)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.985), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.7)
+                .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.7)
         )
         .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
         .confirmationDialog("Alle offenen Treffer bestätigen?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
@@ -1785,11 +1981,17 @@ private struct ReviewSidebar: View {
     }
 
     private var summaryRow: some View {
-        HStack(spacing: 8) {
-            summaryBadge(title: "Erkannt", value: findings.count, tint: .secondary)
-            summaryBadge(title: "Offen", value: pendingCount, tint: .orange)
-            summaryBadge(title: "Bestätigt", value: acceptedCount, tint: .green)
-            summaryBadge(title: "Abgelehnt", value: rejectedCount, tint: .red)
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(minimum: 0), spacing: 8),
+                GridItem(.flexible(minimum: 0), spacing: 8)
+            ],
+            spacing: 8
+        ) {
+            summaryBadge(title: "Erkannt", value: findings.count, tint: StatusVisualSemantics.neutral)
+            summaryBadge(title: "Offen", value: pendingCount, tint: StatusVisualSemantics.attention)
+            summaryBadge(title: "Bestätigt", value: acceptedCount, tint: StatusVisualSemantics.reviewComplete)
+            summaryBadge(title: "Abgelehnt", value: rejectedCount, tint: StatusVisualSemantics.danger)
         }
     }
 
@@ -1798,6 +2000,8 @@ private struct ReviewSidebar: View {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Text("\(value)")
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(value > 0 ? tint : .secondary)
@@ -1842,15 +2046,12 @@ private struct ReviewSidebar: View {
                 .foregroundStyle(.tertiary)
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    legendChip(title: "Person", color: .blue)
-                    legendChip(title: "Adresse", color: .red)
-                    legendChip(title: "Nummer", color: Color(hue: 0.12, saturation: 0.72, brightness: 0.88))
-                }
-                HStack(spacing: 6) {
-                    legendChip(title: "Kontakt", color: .teal)
-                    legendChip(title: "Datum", color: .purple)
-                    legendChip(title: "E-Mail", color: .green)
+                ForEach(Array(FindingVisualSemantics.legendItems.chunked(into: 3).enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 6) {
+                        ForEach(row, id: \.category) { item in
+                            legendChip(title: item.title, color: FindingVisualSemantics.color(for: item.category))
+                        }
+                    }
                 }
             }
         }
@@ -1880,18 +2081,18 @@ private struct ReviewSidebar: View {
             HStack(alignment: .top, spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color.green.opacity(0.14))
+                        .fill(StatusVisualSemantics.softFill(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme, strong: true))
                         .frame(width: 28, height: 28)
 
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(StatusVisualSemantics.reviewComplete)
                         .symbolEffect(.bounce, value: pendingCount)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Review abgeschlossen")
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.green.opacity(0.95))
+                        .foregroundStyle(StatusVisualSemantics.reviewComplete.opacity(0.95))
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
 
@@ -1904,10 +2105,10 @@ private struct ReviewSidebar: View {
 
             Text("Bereit für Export")
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(.green.opacity(0.92))
+                .foregroundStyle(StatusVisualSemantics.reviewComplete.opacity(0.92))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
-                .background(Color.green.opacity(0.12), in: Capsule())
+                .background(StatusVisualSemantics.softFill(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme, strong: true), in: Capsule())
 
             VStack(alignment: .leading, spacing: 8) {
                 Button(action: onSave) {
@@ -1923,7 +2124,7 @@ private struct ReviewSidebar: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
-                .tint(.green)
+                .tint(StatusVisualSemantics.reviewComplete)
 
                 Text("oder ⌘S")
                     .font(.system(size: 11.5, weight: .medium))
@@ -1935,8 +2136,8 @@ private struct ReviewSidebar: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.green.opacity(colorScheme == .dark ? 0.20 : 0.11),
-                    Color.mint.opacity(colorScheme == .dark ? 0.10 : 0.05)
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme, strong: true),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1945,7 +2146,7 @@ private struct ReviewSidebar: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.green.opacity(0.24), lineWidth: 0.9)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme), lineWidth: 0.9)
         )
     }
 
@@ -1953,7 +2154,7 @@ private struct ReviewSidebar: View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: "arrow.uturn.backward.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.orange)
+                .foregroundStyle(StatusVisualSemantics.attention)
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -1973,7 +2174,7 @@ private struct ReviewSidebar: View {
                 Button("Rückgängig", action: onUndoLastDecision)
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
-                    .tint(.orange)
+                    .tint(StatusVisualSemantics.attention)
 
                 Button(action: onDismissUndoNotice) {
                     Image(systemName: "xmark")
@@ -1988,8 +2189,8 @@ private struct ReviewSidebar: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.orange.opacity(colorScheme == .dark ? 0.18 : 0.10),
-                    Color.yellow.opacity(colorScheme == .dark ? 0.09 : 0.05)
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.attention, colorScheme: colorScheme, strong: true),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -1998,7 +2199,7 @@ private struct ReviewSidebar: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.8)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.attention, colorScheme: colorScheme), lineWidth: 0.8)
         )
     }
 
@@ -2007,11 +2208,11 @@ private struct ReviewSidebar: View {
             HStack(alignment: .center, spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(Color.blue.opacity(0.12))
+                        .fill(StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme, strong: true))
                         .frame(width: 28, height: 28)
 
                     Image(systemName: "lock.shield.fill")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(StatusVisualSemantics.trust)
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
@@ -2032,7 +2233,7 @@ private struct ReviewSidebar: View {
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.blue)
+                            .foregroundStyle(StatusVisualSemantics.trust)
                             .padding(.top, 2)
 
                         Text(item)
@@ -2048,8 +2249,8 @@ private struct ReviewSidebar: View {
         .background(
             LinearGradient(
                 colors: [
-                    Color.blue.opacity(colorScheme == .dark ? 0.16 : 0.08),
-                    Color.blue.opacity(colorScheme == .dark ? 0.10 : 0.04)
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme, strong: true),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -2058,16 +2259,16 @@ private struct ReviewSidebar: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.blue.opacity(colorScheme == .dark ? 0.28 : 0.16), lineWidth: 0.8)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.trust, colorScheme: colorScheme), lineWidth: 0.8)
         )
     }
 
     private var summaryFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.70)
+        SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
     }
 
     private var summaryBorder: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.07)
+        SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
     }
 }
 
@@ -2164,30 +2365,7 @@ private struct ReviewFindingRow: View {
     }
 
     private var displayCategory: String {
-        switch finding.category.lowercased() {
-        case "private_person":
-            return "Person"
-        case "private_phone":
-            return "Telefon"
-        case "private_email":
-            return "E-Mail"
-        case "private_date":
-            return "Datum"
-        case "private_address", "adresse":
-            return "Adresse"
-        case "adressblock":
-            return "Adressblock"
-        case "kontakt":
-            return "Kontakt"
-        case "account_number":
-            return "Kontonummer"
-        case "custom_identifier":
-            return "Eigene Regel"
-        case "secret":
-            return "Vertraulich"
-        default:
-            return finding.category.replacingOccurrences(of: "_", with: " ").capitalized
-        }
+        FindingVisualSemantics.displayName(for: finding.category)
     }
 
     private var sourceBadge: some View {
@@ -2195,27 +2373,27 @@ private struct ReviewFindingRow: View {
             .font(.system(size: 10, weight: .semibold, design: .rounded))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(sourceColor.opacity(0.18), in: Capsule())
-            .foregroundStyle(sourceColor)
+            .background(StatusVisualSemantics.softFill(sourceTone, colorScheme: colorScheme, strong: true), in: Capsule())
+            .foregroundStyle(sourceTone)
     }
 
     private var cardFill: Color {
         if isSelected {
-            return colorScheme == .dark ? Color.accentColor.opacity(0.16) : Color.accentColor.opacity(0.11)
+            return SurfaceVisualSemantics.selectionAccentFill(colorScheme: colorScheme)
         }
-        return colorScheme == .dark ? Color.white.opacity(0.095) : Color.white.opacity(0.84)
+        return SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
     }
 
     private var cardBorder: Color {
         if isSelected {
-            return Color.accentColor.opacity(colorScheme == .dark ? 0.68 : 0.52)
+            return SurfaceVisualSemantics.selectionAccentBorder(colorScheme: colorScheme)
         }
-        return colorScheme == .dark ? Color.white.opacity(0.14) : Color.black.opacity(0.09)
+        return SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
     }
 
     private var shadowColor: Color {
         if isSelected {
-            return Color.accentColor.opacity(colorScheme == .dark ? 0.18 : 0.12)
+            return SurfaceVisualSemantics.selectionShadow(colorScheme: colorScheme)
         }
         return colorScheme == .dark ? Color.black.opacity(0.16) : Color.black.opacity(0.055)
     }
@@ -2246,71 +2424,29 @@ private struct ReviewFindingRow: View {
             .font(.system(size: 10, weight: .semibold, design: .rounded))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(statusColor.opacity(0.18), in: Capsule())
-            .foregroundStyle(statusColor)
+            .background(StatusVisualSemantics.softFill(statusTone, colorScheme: colorScheme, strong: true), in: Capsule())
+            .foregroundStyle(statusTone)
     }
 
-    private var sourceColor: Color {
-        switch finding.source {
-        case .model: .blue
-        case .pattern: .mint
-        case .mixed: .orange
-        }
+    private var sourceTone: Color {
+        StatusVisualSemantics.detectionSourceTone(for: finding.source)
     }
 
     private var categoryColor: Color {
-        switch finding.category.lowercased() {
-        case "private_email", "kontakt":
-            return .green
-        case "private_address", "adressblock", "adresse":
-            return .red
-        case "account_number":
-            return Color(hue: 0.12, saturation: 0.72, brightness: 0.88)
-        case "private_phone":
-            return .teal
-        case "private_person":
-            return .blue
-        case "private_date":
-            return .purple
-        default:
-            return .orange
-        }
+        FindingVisualSemantics.color(for: finding.category)
     }
 
     private var categoryTextColor: Color {
         let alpha: Double = colorScheme == .dark ? 0.98 : 0.82
-        switch finding.category.lowercased() {
-        case "private_email", "kontakt":
-            return .green.opacity(alpha)
-        case "private_address", "adressblock", "adresse":
-            return .red.opacity(alpha)
-        case "account_number":
-            return Color(
-                hue: 0.12,
-                saturation: colorScheme == .dark ? 0.48 : 0.72,
-                brightness: colorScheme == .dark ? 0.96 : 0.72
-            )
-        case "private_phone":
-            return .teal.opacity(alpha)
-        case "private_person":
-            return .blue.opacity(alpha)
-        case "private_date":
-            return .purple.opacity(alpha)
-        default:
-            return colorScheme == .dark ? .white.opacity(0.92) : .primary.opacity(0.9)
-        }
+        return categoryColor.opacity(alpha)
     }
 
     private var confidenceTextColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.72) : .secondary
     }
 
-    private var statusColor: Color {
-        switch finding.status {
-        case .pending: .orange
-        case .accepted: .green
-        case .rejected: .red
-        }
+    private var statusTone: Color {
+        StatusVisualSemantics.reviewStatusTone(for: finding.status)
     }
 
     private var confidenceText: String {

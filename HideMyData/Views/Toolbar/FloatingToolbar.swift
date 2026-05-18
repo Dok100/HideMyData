@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FloatingToolbar: View {
+    @Environment(\.colorScheme) private var colorScheme
     let detector: PIIDetector
     @Bindable var pdfRedactor: PDFRedactor
     @Bindable var imageRedactor: ImageRedactor
@@ -9,6 +10,7 @@ struct FloatingToolbar: View {
     let onManagePatterns: () -> Void
     let onShowDiagnostics: () -> Void
     let onAnonymizeClipboard: () -> Void
+    let onOpenRequest: () -> Void
     let onSaveRequest: () -> Void
 
     var body: some View {
@@ -26,10 +28,10 @@ struct FloatingToolbar: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.92), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5)
+                .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
         .controlSize(.large)
@@ -48,7 +50,7 @@ struct FloatingToolbar: View {
 
     @ViewBuilder
     private var openButton: some View {
-        Button(action: openAction) {
+        Button(action: onOpenRequest) {
             Label("Öffnen", systemImage: openIcon)
                 .padding(.horizontal, 4)
         }
@@ -199,13 +201,6 @@ struct FloatingToolbar: View {
         switch inputMode {
         case .pdf: "doc.badge.plus"
         case .image: "photo.badge.plus"
-        }
-    }
-
-    private var openAction: () -> Void {
-        switch inputMode {
-        case .pdf: { _ = pdfRedactor.openPDF() }
-        case .image: { _ = imageRedactor.openImage() }
         }
     }
 

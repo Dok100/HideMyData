@@ -24,6 +24,13 @@
 - Export-Erfolgstext beschreibt klar, dass Schwärzungen eingebrannt wurden
 - Vertrauensmodul zeigt keine falschen technischen Zusicherungen
 - Metadaten-Bereinigung verhaelt sich passend zur Export-Option
+- fehlgeschlagene Öffnen-Aktionen laufen nicht still ins Leere
+- ungeeignete Drag-and-drop-Dateien geben einen verständlichen Hinweis
+- schwache OCR- oder bildlose PDF-Fälle zeigen einen erklärenden Produktzustand statt leerer Oberfläche
+- Clipboard-Anonymisierung reagiert ruhig und verständlich auf leere Zwischenablage oder fehlende Treffer
+- fehlgeschlagene Exporte geben eine klare Folgeaktion wie Wiederholen oder Speicherort wechseln
+- Legende, Dokument-Highlights und Review-Karten verwenden dieselbe Farblogik für Kategorien
+- Source- und Status-Badges in den Review-Karten wirken konsistent zu Status-Pill, Undo-Banner und Export-Vertrauenskarte
 
 ## Release-Artefakte
 

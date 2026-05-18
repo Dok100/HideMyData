@@ -849,7 +849,7 @@ final class PIIDetector {
         case .warmingUp: "Modell wird vorbereitet…"
         case .ready: "Bereit"
         case .running: "Wird ausgeführt…"
-        case .failed(let message): "Fehler: \(message)"
+        case .failed(let message): message
         }
     }
 
@@ -903,7 +903,7 @@ final class PIIDetector {
             _ = try await downloader.download()
             await loadCachedModel()
         } catch {
-            phase = .failed("Download fehlgeschlagen: \(error.localizedDescription)")
+            phase = .failed("Der Modelldownload konnte nicht abgeschlossen werden. Prüfe bitte deine Verbindung und versuche es erneut. Details: \(error.localizedDescription)")
         }
     }
 
@@ -917,7 +917,7 @@ final class PIIDetector {
             openmed = try OpenMed(backend: .mlx(modelDirectoryURL: modelDirectory))
             await warmUp()
         } catch {
-            phase = .failed("Laden fehlgeschlagen: \(error.localizedDescription)")
+            phase = .failed("Das lokale Modell konnte nicht geladen werden. Bitte versuche den Download erneut oder starte die App noch einmal. Details: \(error.localizedDescription)")
         }
     }
 

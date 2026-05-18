@@ -12,6 +12,8 @@
 - `PROJ-3` wird als abgeschlossen gewertet.
 - Der Review-Workflow gilt mit Statuslogik, Ruecknahme, direktem Fokus-Sprung aus sichtbaren Schwärzungen und exportorientiertem Abschlussmoment als funktional stabil.
 - Bei aktivem Filter `Nur offene Treffer` bleibt ein ueber die Dokumentflaeche fokussierter bestaetigter oder abgelehnter Treffer sichtbar, damit Korrekturen ohne Filterwechsel moeglich bleiben.
+- `PROJ-5` wird als abgeschlossen gewertet.
+- Das Farbsystem gilt fuer Kategorien, Statusflächen, Review-Karten und neutrale Hauptflächen als zentralisiert und konsistent genug fuer den aktiven Produktstand.
 
 ## 2026-05-13
 

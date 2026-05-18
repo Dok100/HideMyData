@@ -6,7 +6,7 @@
 | [PROJ-2](PROJ-2-export-vertrauen.md) | Export-Vertrauen | Abgeschlossen |
 | [PROJ-3](PROJ-3-review-workflow.md) | Review-Workflow | Abgeschlossen |
 | [PROJ-4](PROJ-4-fehlerfuehrung-resilienz.md) | Fehlerführung und Resilienz | Geplant |
-| [PROJ-5](PROJ-5-farbsystem-konsistenz.md) | Farbsystem und visuelle Konsistenz | Geplant |
+| [PROJ-5](PROJ-5-farbsystem-konsistenz.md) | Farbsystem und visuelle Konsistenz | Abgeschlossen |
 | [PROJ-6](PROJ-6-start-und-leerzustaende.md) | Start- und Leerzustände | Teilweise umgesetzt |
 | [PROJ-7](PROJ-7-produktkommunikation.md) | Produktkommunikation | Geplant |
 | [PROJ-8](PROJ-8-dokumentklassen.md) | Dokumentklassen und Spezialisierung | Geplant |

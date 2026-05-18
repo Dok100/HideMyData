@@ -46,9 +46,31 @@ enum EditingMode: String, CaseIterable, Identifiable {
 @Observable
 @MainActor
 final class PDFRedactor {
+    struct DetectionNotice: Equatable {
+        let title: String
+        let message: String
+    }
+
+    enum OpenDocumentResult {
+        case cancelled
+        case opened(URL)
+        case failed(String)
+    }
+
+    enum SaveDocumentResult {
+        case cancelled
+        case saved(URL)
+        case failed(String)
+    }
+
     struct ExportResult {
         let url: URL
         let report: ExportValidationReport
+    }
+
+    private enum SaveAttemptResult {
+        case success(ExportResult)
+        case failure(String)
     }
 
     struct FocusTarget: Equatable {
@@ -88,6 +110,7 @@ final class PDFRedactor {
     var requestedPageIndex: Int?
     var debugEntries: [DetectionDebugEntry] = []
     var lastExportReport: ExportValidationReport?
+    var detectionNotice: DetectionNotice?
 
     private var redactionAnnotations: [RedactionEntry] = []
     private var previewAnnotations: [RedactionEntry] = []
@@ -127,14 +150,16 @@ final class PDFRedactor {
 
     // MARK: - Open / Save
 
-    @discardableResult
-    func openPDF() -> Bool {
+    func presentOpenPanel() -> OpenDocumentResult {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
-        return loadPDF(from: url)
+        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
+        guard loadPDF(from: url) else {
+            return .failed("Das PDF „\(url.lastPathComponent)“ konnte nicht geöffnet werden. Prüfe bitte, ob die Datei vollständig ist und wirklich ein lesbares PDF enthält.")
+        }
+        return .opened(url)
     }
 
     @discardableResult
@@ -148,6 +173,7 @@ final class PDFRedactor {
         blurCache.removeAllObjects()
         clearReviewState()
         lastExportReport = nil
+        detectionNotice = nil
         self.document = doc
         self.sourceURL = url
         self.pageCount = doc.pageCount
@@ -171,6 +197,7 @@ final class PDFRedactor {
         blurCache.removeAllObjects()
         clearReviewState()
         lastExportReport = nil
+        detectionNotice = nil
         self.document = doc
         self.sourceURL = originalURL
         self.pageCount = doc.pageCount
@@ -180,21 +207,26 @@ final class PDFRedactor {
         return true
     }
 
-    func save() {
-        guard document != nil else { return }
+    func save() -> SaveDocumentResult {
+        guard document != nil else {
+            return .failed("Es ist gerade kein PDF geladen, das gespeichert werden kann.")
+        }
         let panel = NSSavePanel()
         let exportAccessory = ExportOptionsAccessoryView()
         panel.allowedContentTypes = [.pdf]
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = suggestedSaveName()
         panel.accessoryView = exportAccessory
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
 
-        if let exportResult = saveSecurely(to: url, options: exportAccessory.options) {
+        switch saveSecurely(to: url, options: exportAccessory.options) {
+        case .success(let exportResult):
             lastExportReport = exportResult.report
             phase = .saved(exportResult.url)
-        } else {
-            phase = .failed("Geschwärzte PDF konnte nicht gespeichert werden")
+            return .saved(exportResult.url)
+        case .failure(let message):
+            phase = .failed(message)
+            return .failed(message)
         }
     }
 
@@ -216,11 +248,15 @@ final class PDFRedactor {
         guard let doc = document else { return }
         clearAllVisuals(silently: true)
         clearReviewState()
+        detectionNotice = nil
         phase = .detecting
 
         var totalSpans = 0
         var totalRects = 0
         var reviewCandidates: [ReviewFindingCandidate] = []
+        var usedNativeText = false
+        var usedOCRText = false
+        var pagesWithoutUsableText = 0
 
         for pageIndex in 0..<doc.pageCount {
             if Task.isCancelled { return }
@@ -234,15 +270,18 @@ final class PDFRedactor {
             let shouldPreferOCR = trimmedPageText.isEmpty || nativeTextLikelyNeedsOCR(trimmedPageText)
             if shouldPreferOCR, let ocrPage = await ocrText(for: page), !ocrPage.combinedText.isEmpty {
                 source = .ocr(ocrPage)
+                usedOCRText = true
                 let n = OCRNormalizer.normalize(ocrPage.combinedText, mode: .ocr)
                 modelInput = n.text
                 offsetMap = n.offsetMap
             } else if !trimmedPageText.isEmpty {
                 source = .nativeText(pageText)
+                usedNativeText = true
                 let n = OCRNormalizer.normalize(pageText, mode: .native)
                 modelInput = n.text
                 offsetMap = n.offsetMap
             } else {
+                pagesWithoutUsableText += 1
                 continue
             }
             let result = await detector.detect(modelInput)
@@ -403,6 +442,19 @@ final class PDFRedactor {
 
         if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
             selectFinding(firstPending.id)
+        }
+        if reviewFindings.isEmpty && totalSpans == 0 {
+            if !usedNativeText && !usedOCRText {
+                detectionNotice = DetectionNotice(
+                    title: "Kaum lesbarer Text im PDF",
+                    message: "Inkognito konnte in diesem PDF keinen ausreichend lesbaren Text finden. Häufig ist das bei gescannten Seiten, sehr schwachen Exporten oder rein bildbasierten PDFs der Fall."
+                )
+            } else if usedOCRText && pagesWithoutUsableText > 0 {
+                detectionNotice = DetectionNotice(
+                    title: "OCR nur teilweise brauchbar",
+                    message: "Ein Teil der Seiten lieferte kaum verwertbaren Text. Wenn etwas sichtbar fehlt, versuche bitte eine klarere Scan-Version oder prüfe die Seite manuell."
+                )
+            }
         }
         phase = .redacted(spanCount: totalSpans, rectCount: totalRects)
     }
@@ -1550,22 +1602,7 @@ final class PDFRedactor {
     }
 
     private func previewColor(for category: String) -> NSColor {
-        switch category.lowercased() {
-        case "private_email", "kontakt":
-            return .systemGreen
-        case "private_address", "adressblock", "adresse":
-            return .systemRed
-        case "account_number":
-            return NSColor.systemYellow.blended(withFraction: 0.28, of: .systemOrange) ?? .systemYellow
-        case "private_phone":
-            return .systemTeal
-        case "private_person":
-            return .systemBlue
-        case "private_date":
-            return .systemPurple
-        default:
-            return .systemOrange
-        }
+        FindingVisualSemantics.nsColor(for: category)
     }
 
     // MARK: - Bounding rects via character offsets (with text-search fallback)
@@ -1784,8 +1821,10 @@ final class PDFRedactor {
 
     // MARK: - True (rasterized) save
 
-    private func saveSecurely(to url: URL, options: ExportOptions) -> ExportResult? {
-        guard let doc = document else { return nil }
+    private func saveSecurely(to url: URL, options: ExportOptions) -> SaveAttemptResult {
+        guard let doc = document else {
+            return .failure("Es ist gerade kein PDF geladen, das gespeichert werden kann.")
+        }
         let newDoc = PDFDocument()
         newDoc.documentAttributes = options.removeMetadata ? [:] : doc.documentAttributes
         var redactedPageCount = 0
@@ -1802,14 +1841,16 @@ final class PDFRedactor {
                 }
             } else {
                 guard let baked = bakedPage(page, rects: rectsForPage, style: redactionStyle) else {
-                    return nil
+                    return .failure("Das PDF konnte nicht exportiert werden, weil mindestens eine Seite nicht sauber neu aufgebaut werden konnte. Bitte versuche es erneut oder speichere an einen anderen Ort.")
                 }
                 newDoc.insert(baked, at: newDoc.pageCount)
                 redactedPageCount += 1
             }
         }
 
-        guard newDoc.write(to: url) else { return nil }
+        guard newDoc.write(to: url) else {
+            return .failure("Die geschwärzte PDF konnte nicht am gewählten Ort gespeichert werden. Bitte prüfe Schreibrechte, freien Speicherplatz oder wähle einen anderen Speicherort.")
+        }
 
         let report = ExportValidationReport(
             format: .pdf,
@@ -1821,7 +1862,7 @@ final class PDFRedactor {
             bakedIntoPixels: redactedPageCount > 0
         )
 
-        return ExportResult(url: url, report: report)
+        return .success(ExportResult(url: url, report: report))
     }
 
     private func bakedPage(_ page: PDFPage, rects: [CGRect], style: RedactionStyle) -> PDFPage? {

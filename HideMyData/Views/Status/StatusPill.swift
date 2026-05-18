@@ -61,28 +61,22 @@ struct StatusPillContent: Equatable {
                 ProgressView().controlSize(.small)
             case .info(let symbol):
                 Image(systemName: symbol)
+                    .foregroundStyle(StatusVisualSemantics.pillIconStyle(for: self))
             case .success(let symbol):
-                Image(systemName: symbol).foregroundStyle(.green)
+                Image(systemName: symbol)
+                    .foregroundStyle(StatusVisualSemantics.pillIconStyle(for: self))
             case .warning(let symbol):
-                Image(systemName: symbol).foregroundStyle(.red)
+                Image(systemName: symbol)
+                    .foregroundStyle(StatusVisualSemantics.pillIconStyle(for: self))
             }
         }
 
         var foreground: AnyShapeStyle {
-            switch self {
-            case .progress, .info: AnyShapeStyle(.secondary)
-            case .success: AnyShapeStyle(.primary)
-            case .warning: AnyShapeStyle(.red)
-            }
+            StatusVisualSemantics.pillForeground(for: self)
         }
 
         var tint: Color {
-            switch self {
-            case .progress: .accentColor.opacity(0.20)
-            case .info: .clear
-            case .success: .green.opacity(0.15)
-            case .warning: .red.opacity(0.18)
-            }
+            StatusVisualSemantics.pillTint(for: self)
         }
     }
 

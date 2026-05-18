@@ -49,9 +49,7 @@ struct GlassSegmented<T: Hashable>: View {
     private var backgroundColor: Color {
         switch style {
         case .standard:
-            colorScheme == .dark
-                ? Color.white.opacity(0.08)
-                : Color(nsColor: .controlBackgroundColor).opacity(0.92)
+            SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
         case .emphasized:
             colorScheme == .dark
                 ? Color.white.opacity(0.05)
@@ -62,7 +60,7 @@ struct GlassSegmented<T: Hashable>: View {
     private var borderColor: Color {
         switch style {
         case .standard:
-            colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.08)
+            SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
         case .emphasized:
             colorScheme == .dark ? Color.accentColor.opacity(0.28) : Color.accentColor.opacity(0.18)
         }
@@ -120,7 +118,7 @@ private struct Segment<T: Hashable>: View {
     private var selectedFill: Color {
         switch style {
         case .standard:
-            colorScheme == .dark ? Color.white.opacity(0.14) : Color.white.opacity(0.94)
+            colorScheme == .dark ? Color.white.opacity(0.13) : Color.white.opacity(0.92)
         case .emphasized:
             colorScheme == .dark ? Color.white.opacity(0.10) : Color.white
         }
@@ -129,7 +127,7 @@ private struct Segment<T: Hashable>: View {
     private var selectedBorder: Color {
         switch style {
         case .standard:
-            colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.07)
+            SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
         case .emphasized:
             Color.accentColor.opacity(0.35)
         }

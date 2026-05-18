@@ -56,25 +56,23 @@ struct EmptyState: View {
     }
 
     private var panelFill: Color {
-        colorScheme == .dark
-            ? Color(nsColor: .controlBackgroundColor).opacity(0.84)
-            : Color(nsColor: .controlBackgroundColor).opacity(0.94)
+        SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme)
     }
 
     private var cardFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.055) : Color.white.opacity(0.78)
+        SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
     }
 
     private var cardBorder: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+        SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
     }
 
     private var badgeFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.white.opacity(0.82)
+        SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
     }
 
     private var badgeBorder: Color {
-        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+        SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
     }
 
     private var helperCapsuleFill: Color {

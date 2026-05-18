@@ -29,6 +29,11 @@ struct ImageDocumentSurface: View {
                     if redactor.editingMode == .add, let s = dragStart, let c = dragCurrent {
                         DragPreview(start: s, end: c)
                     }
+
+                    if let notice = redactor.detectionNotice {
+                        detectionNoticeCard(title: notice.title, message: notice.message)
+                            .padding(18)
+                    }
                 }
                 .frame(width: displaySize.width, height: displaySize.height)
                 .contentShape(Rectangle())

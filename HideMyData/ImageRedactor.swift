@@ -15,9 +15,31 @@ private extension Array {
 @Observable
 @MainActor
 final class ImageRedactor {
+    struct DetectionNotice: Equatable {
+        let title: String
+        let message: String
+    }
+
+    enum OpenDocumentResult {
+        case cancelled
+        case opened(URL)
+        case failed(String)
+    }
+
+    enum SaveDocumentResult {
+        case cancelled
+        case saved(URL)
+        case failed(String)
+    }
+
     struct ExportResult {
         let url: URL
         let report: ExportValidationReport
+    }
+
+    private enum SaveAttemptResult {
+        case success(ExportResult)
+        case failure(String)
     }
 
     private struct SupplementalOCRCandidate {
@@ -49,6 +71,7 @@ final class ImageRedactor {
     var focusedFindingID: UUID?
     var debugEntries: [DetectionDebugEntry] = []
     var lastExportReport: ExportValidationReport?
+    var detectionNotice: DetectionNotice?
 
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
@@ -96,14 +119,16 @@ final class ImageRedactor {
 
     // MARK: - Open / Save
 
-    @discardableResult
-    func openImage() -> Bool {
+    func presentOpenPanel() -> OpenDocumentResult {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else { return false }
-        return loadImage(from: url)
+        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
+        guard loadImage(from: url) else {
+            return .failed("Das Bild „\(url.lastPathComponent)“ konnte nicht geöffnet werden. Prüfe bitte, ob die Datei vollständig ist und ein unterstütztes Bildformat hat.")
+        }
+        return .opened(url)
     }
 
     @discardableResult
@@ -151,14 +176,17 @@ final class ImageRedactor {
         self.sourceUTI = uti
         self.sourceImageProperties = properties
         self.lastExportReport = nil
+        self.detectionNotice = nil
         self.redactionEntries = []
         self.previewEntries = []
         clearReviewState()
         self.phase = .loaded
     }
 
-    func save() {
-        guard image != nil else { return }
+    func save() -> SaveDocumentResult {
+        guard image != nil else {
+            return .failed("Es ist gerade kein Bild geladen, das gespeichert werden kann.")
+        }
         let outUTI = sourceUTI ?? .png
         let panel = NSSavePanel()
         let exportAccessory = ExportOptionsAccessoryView()
@@ -166,13 +194,16 @@ final class ImageRedactor {
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = suggestedSaveName(uti: outUTI)
         panel.accessoryView = exportAccessory
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
 
-        if let exportResult = writeRedacted(to: url, uti: outUTI, options: exportAccessory.options) {
+        switch writeRedacted(to: url, uti: outUTI, options: exportAccessory.options) {
+        case .success(let exportResult):
             lastExportReport = exportResult.report
             phase = .saved(exportResult.url)
-        } else {
-            phase = .failed("Geschwärztes Bild konnte nicht gespeichert werden")
+            return .saved(exportResult.url)
+        case .failure(let message):
+            phase = .failed(message)
+            return .failed(message)
         }
     }
 
@@ -195,6 +226,7 @@ final class ImageRedactor {
         redactionEntries.removeAll()
         previewEntries.removeAll()
         clearReviewState()
+        detectionNotice = nil
         phase = .detecting
 
         guard let ocr = try? await OCREngine.recognize(cg) else {
@@ -203,6 +235,10 @@ final class ImageRedactor {
         }
         if Task.isCancelled { return }
         if ocr.combinedText.isEmpty {
+            detectionNotice = DetectionNotice(
+                title: "Kaum lesbarer Text im Bild",
+                message: "Apple Vision konnte in diesem Bild praktisch keinen lesbaren Text erkennen. Prüfe bitte Schärfe, Kontrast und Ausschnitt oder versuche eine klarere Aufnahme."
+            )
             phase = .redacted(spanCount: 0, rectCount: 0)
             return
         }
@@ -286,8 +322,23 @@ final class ImageRedactor {
             if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
                 selectFinding(firstPending.id)
             }
+            if reviewFindings.isEmpty && spans.isEmpty && lowSignalOCRText(ocr.combinedText) {
+                detectionNotice = DetectionNotice(
+                    title: "OCR-Ergebnis sehr schwach",
+                    message: "Es wurde zwar etwas Text erkannt, aber nur sehr wenig verwertbarer Inhalt. Wenn sensible Daten sichtbar fehlen, versuche bitte ein klareres Bild."
+                )
+            }
             phase = .redacted(spanCount: spans.count, rectCount: previewRects.count)
         }
+    }
+
+    private func lowSignalOCRText(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let words = trimmed
+            .split(whereSeparator: \.isWhitespace)
+            .count
+        let lettersAndNumbers = trimmed.filter { $0.isLetter || $0.isNumber }.count
+        return words < 6 || lettersAndNumbers < 28
     }
 
     private func supplementalOCRContextAnalysis(in page: OCRPage, modelInput: String) -> (candidates: [SupplementalOCRCandidate], diagnostics: [String]) {
@@ -923,14 +974,20 @@ final class ImageRedactor {
         return adjusted.intersection(imageBounds)
     }
 
-    private func writeRedacted(to url: URL, uti: UTType, options: ExportOptions) -> ExportResult? {
-        guard let cg = image else { return nil }
-        guard let baked = bakeRedactions(into: cg) else { return nil }
+    private func writeRedacted(to url: URL, uti: UTType, options: ExportOptions) -> SaveAttemptResult {
+        guard let cg = image else {
+            return .failure("Es ist gerade kein Bild geladen, das exportiert werden kann.")
+        }
+        guard let baked = bakeRedactions(into: cg) else {
+            return .failure("Das Bild konnte nicht exportiert werden, weil die Schwärzungen nicht sauber ins Bild eingebrannt werden konnten. Bitte versuche es erneut oder wähle einen anderen Speicherort.")
+        }
         guard let dest = CGImageDestinationCreateWithURL(url as CFURL, uti.identifier as CFString, 1, nil) else {
-            return nil
+            return .failure("Für dieses Bildformat konnte kein Export-Ziel angelegt werden. Bitte versuche es erneut oder speichere als anderes Bildformat.")
         }
         CGImageDestinationAddImage(dest, baked, imageProperties(for: uti, options: options))
-        guard CGImageDestinationFinalize(dest) else { return nil }
+        guard CGImageDestinationFinalize(dest) else {
+            return .failure("Das geschwärzte Bild konnte nicht am gewählten Ort gespeichert werden. Bitte prüfe Schreibrechte, freien Speicherplatz oder wähle einen anderen Speicherort.")
+        }
 
         let report = ExportValidationReport(
             format: .image,
@@ -941,7 +998,7 @@ final class ImageRedactor {
             annotationsRemoved: true,
             bakedIntoPixels: !redactionRects.isEmpty
         )
-        return ExportResult(url: url, report: report)
+        return .success(ExportResult(url: url, report: report))
     }
 
     private func imageProperties(for uti: UTType, options: ExportOptions) -> CFDictionary? {
@@ -1023,25 +1080,9 @@ final class ImageRedactor {
         guard let findingID,
               let finding = reviewFindings.first(where: { $0.id == findingID })
         else {
-            return .systemOrange
+            return FindingVisualSemantics.nsColor(for: "custom_identifier")
         }
-
-        switch finding.category.lowercased() {
-        case "private_email", "kontakt":
-            return .systemGreen
-        case "private_address", "adressblock", "adresse":
-            return .systemRed
-        case "account_number":
-            return NSColor.systemYellow.blended(withFraction: 0.28, of: .systemOrange) ?? .systemYellow
-        case "private_phone":
-            return .systemTeal
-        case "private_person":
-            return .systemBlue
-        case "private_date":
-            return .systemPurple
-        default:
-            return .systemOrange
-        }
+        return FindingVisualSemantics.nsColor(for: finding.category)
     }
 
     private func clearReviewState() {

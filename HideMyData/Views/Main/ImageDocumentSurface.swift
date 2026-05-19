@@ -193,8 +193,8 @@ private struct DragPreview: View {
             height: abs(end.y - start.y)
         )
         Rectangle()
-            .strokeBorder(.red, lineWidth: 1.5)
-            .background(Color.red.opacity(0.18))
+            .strokeBorder(FindingVisualSemantics.previewStrokeColor(for: FindingVisualSemantics.manualPreviewCategory), lineWidth: 1.5)
+            .background(FindingVisualSemantics.previewFillColor(for: FindingVisualSemantics.manualPreviewCategory))
             .frame(width: r.width, height: r.height)
             .offset(x: r.minX, y: r.minY)
     }

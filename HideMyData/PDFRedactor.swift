@@ -142,6 +142,7 @@ final class PDFRedactor {
     var hasRedactions: Bool { !redactionAnnotations.isEmpty }
     var canDetect: Bool { document != nil && phase != .detecting }
     var redactionCount: Int { redactionAnnotations.count }
+    var manualRedactionCount: Int { redactionAnnotations.filter { $0.findingID == nil }.count }
     var hasReviewFindings: Bool { !reviewFindings.isEmpty }
     var pendingReviewCount: Int { reviewFindings.filter { $0.status == .pending }.count }
     var hasPendingReview: Bool { pendingReviewCount > 0 }
@@ -1860,8 +1861,11 @@ final class PDFRedactor {
         let report = ExportValidationReport(
             format: .pdf,
             redactionCount: redactionAnnotations.count,
+            manualRedactionCount: manualRedactionCount,
             redactedPageCount: redactedPageCount,
             totalPageCount: newDoc.pageCount,
+            lowTextWarning: detectionNotice?.title.localizedCaseInsensitiveContains("lesbarer Text") == true
+                || detectionNotice?.title.localizedCaseInsensitiveContains("OCR") == true,
             removedMetadata: options.removeMetadata,
             annotationsRemoved: exportedPDFLooksAnnotationFree(newDoc),
             bakedIntoPixels: redactedPageCount > 0

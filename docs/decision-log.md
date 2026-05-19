@@ -24,6 +24,39 @@
 - Produktkommunikation gilt jetzt fuer Einstieg, Export, Review, `Eigene Regeln` und `Technische Ansicht` als ausreichend harmonisiert.
 - Eigene Regeln zeigen gruppierte Nutzerregeln statt flachen Maschinen-Output, und Wartungsaktionen erklaeren sich an der Stelle, an der sie ausgefuehrt werden.
 - Die `Technische Ansicht` bleibt technisch nutzbar, spricht aber mit klareren Abschnittstiteln und kontextbezogenen Info-Hinweisen produktnäher.
+- `PROJ-8` wird als abgeschlossen gewertet.
+- Die Erkennung nutzt jetzt leichte Dokumentklassen-Heuristiken fuer Rechnungen, Formulare, Bankseiten, DIN-5008-Briefe und E-Rechnungen, statt alle Seiten moeglichst generisch zu behandeln.
+- Reale Referenzfaelle fuer DIN-5008, ZUGFeRD und E-Rechnungs-Feldsets werden als Regressionen mitgefuehrt.
+- `PROJ-9` wird als abgeschlossen gewertet.
+- Nutzer sollen in Review, Diagnose und Regeln keine rohen internen Kategorien wie `private_person` oder `custom_identifier` sehen.
+- `PROJ-10` wird als abgeschlossen gewertet.
+- Eigene Regeln bleiben flexibel, werden aber im Editor bewusst produktnah ueber Vorlagen, Kategorien und Beispiele erklaert statt ueber interne Musterbegriffe.
+- `PROJ-11` wird als abgeschlossen gewertet.
+- Blindspot-Schutz wird nicht nur ueber staerkere Heuristiken, sondern auch ueber sichtbare Produkttexte zur Sichtpruefung aufgebaut.
+- `PROJ-12` wird als abgeschlossen gewertet.
+- Vorschau, Legende und Trefferkarten teilen sich jetzt eine zentrale Farblogik, statt lokale Sonderfaelle nebeneinander zu pflegen.
+- `PROJ-13` wird als abgeschlossen gewertet.
+- Die Diagnoseansicht bleibt verfuegbar, wird aber klarer zwischen produktnaher Standardansicht und technischem Developer-Modus getrennt.
+- `PROJ-15` wird als abgeschlossen gewertet.
+- Mikrocopy priorisiert jetzt Nutzen, Pruefkontext und Folgeaktion statt UI-Meta-Sprache oder technisch klingende Statuswoerter.
+- `PROJ-14` wird als defensiver Cleanup abgeschlossen, ohne Target-, Source-Ordner- oder Sparkle-Renames zu erzwingen.
+- Aktive Legacy-Migrationspfade fuer Cache, Recents, Clipboard-Session und Bestandsdateien bleiben bewusst erhalten.
+- Der laufende App-Pfad verwendet intern jetzt `InkognitoApp` und `Inkognito.showClipboardAnonymizer`, akzeptiert den alten Notification-Namen aber weiter als Fallback.
+- `PROJ-16` wird als abgeschlossen gewertet.
+- Der Review zeigt jetzt zusaetzlich einen kompakten Seitenstatus, damit Pruefvertrauen nicht nur an einzelnen Treffern haengt.
+- Die erste Version nutzt bewusst einfache Produktregeln: `offen` bei unbeantworteten Treffern, `besonders prüfen` bei Namens-/dichten Seiten, `geprüft` bei entschiedenen Seiten und `wenig lesbarer Text` bei bereits gemeldeten OCR-/Textqualitaetsproblemen.
+- `PROJ-17` wird als abgeschlossen gewertet.
+- Unsicherheiten bleiben im Review sichtbar, werden nach dem UI-Feinschliff aber bevorzugt direkt an betroffenen Review-Karten und kompakten Seitenhinweisen gezeigt, statt eine zweite Meta-Ebene vor der Trefferliste aufzubauen.
+- Die erste Version hebt schwachen Text, offene Treffer mit niedrigerer Sicherheit, Personenseiten und besonders pruefenswerte Seiten als produktnahe Hinweise hervor.
+- `PROJ-18` wird als abgeschlossen gewertet.
+- Die manuelle Nacharbeit wird zuerst ueber konservative Sammelaktionen beschleunigt: identische offene Treffer koennen direkt gemeinsam bestaetigt oder abgelehnt werden.
+- Fuer die erste Version zaehlen gleiche Kategorie und normalisiert gleicher Textausschnitt als ausreichend sichere Aehnlichkeit.
+- `PROJ-19` wird als abgeschlossen gewertet.
+- Der Exportabschluss bekommt jetzt eine menschliche Zusammenfassung vor und nach dem Speichern, statt nur technischer Validierungsbausteine.
+- Manuelle Ergaenzungen und bereits erkannte Textqualitaetsrisiken werden als Teil des Exportvertrauens sichtbar gemacht.
+- `PROJ-20` wird als abgeschlossen gewertet.
+- Eigene Regeln sind jetzt nicht nur editierbar, sondern geben schon vor dem Speichern Rueckmeldung zu Regelqualitaet und moeglichen Treffern im aktuell geoeffneten Dokument.
+- Die erste Dokumentvorschau bleibt bewusst textbasiert und leichtgewichtig, damit der Editor schnell und ohne Eingriff in die eigentliche Erkennungslogik unterstuetzend bleibt.
 
 ## 2026-05-13
 
@@ -35,6 +68,6 @@
 
 ## Offene Architekturentscheidungen
 
-- Soll die Diagnose-View einen expliziten Developer-Modus erhalten?
-- Sollen Dokumentklassen intern frueh klassifiziert werden oder zunaechst nur heuristisch?
-- Soll die Export-Validierung spaeter automatisiert pruefbar werden?
+- Soll Seitenvertrauen spaeter von einfachen Produktregeln auf echte seitenbezogene Unsicherheitswerte umgestellt werden?
+- Soll die Regel-Vorschau kuenftig echte Bounding-Boxen oder nur textbasierte Trefferlisten zeigen?
+- Soll die Export-Validierung spaeter automatisiert pruefbar und als maschinenlesbarer Report exportierbar werden?

@@ -15,6 +15,14 @@ enum OCRMode {
     case native
 }
 
+enum DetectionDocumentClass: String {
+    case general
+    case invoice
+    case taxNotice
+    case contactBankPage
+    case standardizedForm
+}
+
 func normalizeOCRText(_ text: String, mode: OCRMode) -> String {
     let chars = Array(text)
     var normalized = ""
@@ -191,6 +199,49 @@ func looksLikeGermanStreetAddress(_ text: String) -> Bool {
     ) != nil
 }
 
+func looksLikeTermsAndConditionsDocument(_ text: String) -> Bool {
+    let normalizedText = normalizedComparableText(text)
+    let markers = [
+        "allgemeinegeschaftsbedingungen", "geltungsbereich", "vertragsschluss",
+        "eigentumsvorbehalt", "schlussbestimmungen", "streitbeilegung",
+        "vertragsbestandteil", "mitwirkungspflichten", "nacherfullung"
+    ]
+    let hitCount = markers.reduce(into: 0) { count, marker in
+        if normalizedText.contains(marker) {
+            count += 1
+        }
+    }
+    return hitCount >= 3 || normalizedText.contains("allgemeinegeschaftsbedingungen")
+}
+
+func looksLikeLegalBoilerplateHeading(_ text: String) -> Bool {
+    let normalizedText = normalizedComparableText(text)
+    let headings: Set<String> = [
+        "geltungsbereich", "vertragsschluss", "eigentumsvorbehalt",
+        "schlussbestimmungen", "streitbeilegung", "widerrufsrecht",
+        "gewahrleistung", "haftung", "zahlungsbedingungen", "datenschutz"
+    ]
+    return headings.contains(normalizedText)
+}
+
+func looksLikePlausiblePersonName(_ text: String) -> Bool {
+    let cleaned = text
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !cleaned.isEmpty else { return false }
+
+    let patterns = [
+        #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#,
+        #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+        #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+        #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
+    ]
+
+    return patterns.contains { pattern in
+        cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+}
+
 func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
     let cleaned = text
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -211,6 +262,116 @@ func looksLikeCompanyAddressBlock(_ text: String) -> Bool {
     return looksLikeGermanStreetAddress(cleaned) ||
         looksLikePostalCity(cleaned) ||
         cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
+}
+
+func standaloneFieldLabelKey(in text: String) -> String? {
+    let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+    let mappings: [(label: String, key: String)] = [
+        ("Vorname", "vorname"),
+        ("Name", "name"),
+        ("Nachname", "name"),
+        ("Straße", "strasse"),
+        ("Strasse", "strasse"),
+        ("Strae", "strasse"),
+        ("Street", "strasse"),
+        ("Hausnr.", "hausnr"),
+        ("Hausnr", "hausnr"),
+        ("Hausnummer", "hausnr"),
+        ("PLZ", "plz"),
+        ("Postleitzahl", "plz"),
+        ("Ort", "ort"),
+        ("Stadt", "ort")
+    ]
+
+    for mapping in mappings {
+        let pattern = #"(?i)^\#(NSRegularExpression.escapedPattern(for: mapping.label))\s*:\s*$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+        let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+        if regex.firstMatch(in: normalized, options: [], range: nsRange) != nil {
+            return mapping.key
+        }
+    }
+
+    return nil
+}
+
+func looksLikeStandaloneFieldSequence(in text: String) -> Bool {
+    let lines = text.components(separatedBy: .newlines)
+    var consecutiveCount = 0
+
+    for line in lines {
+        if standaloneFieldLabelKey(in: line) != nil {
+            consecutiveCount += 1
+            if consecutiveCount >= 3 {
+                return true
+            }
+        } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            consecutiveCount = 0
+        }
+    }
+
+    return false
+}
+
+func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
+    let normalized = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+    var scores: [DetectionDocumentClass: Int] = [
+        .invoice: 0,
+        .taxNotice: 0,
+        .contactBankPage: 0,
+        .standardizedForm: 0
+    ]
+
+    let invoiceMarkers = [
+        "rechnung", "rechnungsanschrift", "lieferanschrift", "lieferadresse",
+        "bestellt durch", "kundennummer", "vertragsnummer", "zahlernummer",
+        "zaehlernummer", "lieferstelle", "nutzungsadresse", "rechnungs-nr",
+        "rechnungsdatum", "lieferdatum", "gesamtbetrag brutto",
+        "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
+        "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
+        "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
+        "swift-code"
+    ]
+    let taxMarkers = [
+        "finanzamt", "steuerbescheid", "einkommensteuer", "kirchensteuer",
+        "solidaritatszuschlag", "steuernummer", "idnr", "bescheid"
+    ]
+    let contactBankMarkers = [
+        "iban", "bic", "kontoinhaber", "kontonummer", "girokonto",
+        "girokontonummer", "buchungskonto", "bankverbindung", "ansprechpartner",
+        "kontakt", "telefon", "mobil"
+    ]
+
+    for marker in invoiceMarkers where normalized.contains(marker) {
+        scores[.invoice, default: 0] += 2
+    }
+    for marker in taxMarkers where normalized.contains(marker) {
+        scores[.taxNotice, default: 0] += 2
+    }
+    for marker in contactBankMarkers where normalized.contains(marker) {
+        scores[.contactBankPage, default: 0] += 2
+    }
+
+    if normalized.contains("vorname"),
+       normalized.contains("name"),
+       normalized.contains("plz"),
+       normalized.contains("ort") {
+        scores[.standardizedForm, default: 0] += 4
+    }
+
+    if looksLikeStandaloneFieldSequence(in: text) {
+        scores[.standardizedForm, default: 0] += 5
+    }
+
+    let best = scores.max { lhs, rhs in
+        if lhs.value == rhs.value {
+            return lhs.key.rawValue > rhs.key.rawValue
+        }
+        return lhs.value < rhs.value
+    }
+
+    guard let best, best.value > 0 else { return .general }
+    return best.key
 }
 
 func extractInlineContextPersonName(_ text: String) -> String? {
@@ -244,6 +405,37 @@ func extractSalutationPersonName(_ text: String) -> String? {
         return String(normalized[range]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
     }
     return nil
+}
+
+func supplementalInlinePersonMatches(in text: String) -> [String] {
+    let patterns = [
+        #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
+        #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
+        #"\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?)\b"#
+    ]
+
+    var matches: [String] = []
+    var seen: Set<String> = []
+
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+        let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+
+        for match in regex.matches(in: text, options: [], range: nsRange) {
+            guard match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: text) else { continue }
+            let value = String(text[range]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
+            guard !value.isEmpty,
+                  !looksLikeOrganizationSnippet(value),
+                  !personSpanContainsAddressOrContactTail(value)
+            else { continue }
+            let key = normalizedComparableText(value)
+            guard seen.insert(key).inserted else { continue }
+            matches.append(value)
+        }
+    }
+
+    return matches
 }
 
 func deduplicatedLabeledAddressBlock(after label: String, in text: String) -> [String] {
@@ -524,6 +716,15 @@ func expectRegexNoMatch(_ pattern: String, forbidden: String) -> (String) throws
         try assert(
             firstMatch(for: pattern, in: text) != forbidden,
             "Expected regex \(pattern) not to emit '\(forbidden)'"
+        )
+    }
+}
+
+func expectClassifiedAs(_ expected: DetectionDocumentClass) -> (String) throws -> Void {
+    { text in
+        try assert(
+            classifyDocumentText(text) == expected,
+            "Expected fixture to classify as '\(expected.rawValue)'"
         )
     }
 }
@@ -849,6 +1050,43 @@ func runFixtureCases() throws -> Int {
                 ("Extract spaced Kundennummer without colon", expectRegexMatch(#"(?:(?<=\bKundennummer:\s)|(?<=\bKundennummer\s))(?:[A-Z0-9][A-Z0-9\-]{5,}|\d{2,}(?:\s\d{2,})+)\b"#, equals: "192 002 0638")),
                 ("Extract Buchungskonto without colon", expectRegexMatch(#"(?:(?<=\bBuchungskonto:\s)|(?<=\bBuchungskonto\s))(?:\d{2,}(?:\s\d{2,})+|[A-Z0-9][A-Z0-9\- ]{5,})\b"#, equals: "192 002 0638"))
             ]
+        ),
+        FixtureCase(
+            documentClass: "DIN-5008 / Geschaeftsbrief Form B",
+            fixturePath: "fixtures/detection/din5008_geschaeftsbrief_form_b_pdf_text.txt",
+            checks: [
+                ("Fixture contains info block label", expectContains("Unser Zeichen: HM-LS-732265")),
+                ("Fixture contains salutation", expectContains("Sehr geehrte Frau Muster,")),
+                ("Fixture contains footer IBAN", expectContains("IBAN: DE12 3456 7890 1234 56")),
+                ("Fixture contains footer BIC", expectContains("BIC: DUEHSZE65TF")),
+                ("Classify as contact or bank page", expectClassifiedAs(.contactBankPage))
+            ]
+        ),
+        FixtureCase(
+            documentClass: "ZUGFeRD / E-Rechnung",
+            fixturePath: "fixtures/detection/zugferd_erechnung_pdf_text.txt",
+            checks: [
+                ("Fixture contains invoice number label", expectContains("Rechnungs-Nr.")),
+                ("Fixture contains gross total", expectContains("Gesamtbetrag brutto")),
+                ("Keep recipient street", expectContains("Teststraße 1")),
+                ("Keep recipient postal city", expectContains("77652 Offenburg")),
+                ("Fixture contains footer IBAN", expectContains("IBAN: DE02100100100006820101")),
+                ("Extract footer BIC", expectRegexMatch(#"(?<=\bBIC:\s)[A-Z0-9]{8}(?:[A-Z0-9]{3})?\b"#, equals: "PBNKDEFF")),
+                ("Classify as invoice", expectClassifiedAs(.invoice))
+            ]
+        ),
+        FixtureCase(
+            documentClass: "BA / E-Rechnung Feldreferenz",
+            fixturePath: "fixtures/detection/muster_e_rechnung_ba_field_reference.txt",
+            checks: [
+                ("Fixture contains Leitweg-ID", expectContains("Leitweg-ID")),
+                ("Fixture contains Rechnungsempfaenger marker", expectContains("Rechnungsempfänger/-in")),
+                ("Fixture contains Lieferanten-Nr marker", expectContains("Lieferanten-Nr.")),
+                ("Fixture contains Leistungszeitraum marker", expectContains("Leistungszeitraum")),
+                ("Fixture contains faelliger Rechnungsbetrag marker", expectContains("Fälliger Rechnungsbetrag")),
+                ("Fixture contains SWIFT marker", expectContains("SWIFT-Code")),
+                ("Classify as invoice", expectClassifiedAs(.invoice))
+            ]
         )
     ]
 
@@ -962,6 +1200,18 @@ func runGeneralChecks() throws -> Int {
         "Expected account-holder label to accept reversed order"
     )
     try assert(
+        supplementalInlinePersonMatches(in: "Empfänger: Herrn Max Muster").contains("Herrn Max Muster"),
+        "Expected honorific full name to be picked up as supplemental person match"
+    )
+    try assert(
+        supplementalInlinePersonMatches(in: "Bitte prüfen: Muster, Max").contains("Muster, Max"),
+        "Expected surname-first name to be picked up as supplemental person match"
+    )
+    try assert(
+        supplementalInlinePersonMatches(in: "Name: Herrn Max Muster").contains("Herrn Max Muster"),
+        "Expected inline labeled honorific name to be picked up as supplemental person match"
+    )
+    try assert(
         firstMatch(
             for: #"(?:(?<=\bVorgangsnummer:\s)|(?<=\bVorgangsnummer\s))\d{6,}\b"#,
             in: "Vorgangsnummer 501075621"
@@ -987,8 +1237,56 @@ func runGeneralChecks() throws -> Int {
         extractSalutationPersonName("Hallo Frau Leitz,") == "Frau Leitz",
         "Expected Hallo salutation to expose the honorific surname"
     )
+    try assert(
+        classifyDocumentText("Rechnungsanschrift\nBestellt durch: Jonas Weber\nKundennummer: 120034854") == .invoice,
+        "Expected invoice markers to classify the document as invoice"
+    )
+    try assert(
+        classifyDocumentText("E-Rechnung\nRechnungs-Nr. RE-1045\nRechnungsdatum 03.12.2024\nGesamtbetrag brutto 295,42 EUR") == .invoice,
+        "Expected e-invoice markers to classify the document as invoice"
+    )
+    try assert(
+        classifyDocumentText("Leitweg-ID\nRechnungsempfänger/-in\nLieferanten-Nr.\nLeistungszeitraum\nFälliger Rechnungsbetrag\nSWIFT-Code") == .invoice,
+        "Expected EN16931-style field markers to classify the document as invoice"
+    )
+    try assert(
+        classifyDocumentText("Finanzamt Nord\nEinkommensteuerbescheid\nSteuernummer 12/345/67890") == .taxNotice,
+        "Expected tax markers to classify the document as tax notice"
+    )
+    try assert(
+        classifyDocumentText("IBAN: DE30200300000010187201\nBIC: TESTDEFFXXX\nKontoinhaber: Lena Sommer") == .contactBankPage,
+        "Expected bank markers to classify the document as contact or bank page"
+    )
+    try assert(
+        classifyDocumentText("Vorname:\nPaula\nName:\nWinter\nPLZ:\n24589\nOrt:\nLindenried") == .standardizedForm,
+        "Expected stacked field labels to classify the document as standardized form"
+    )
+    try assert(
+        looksLikeLegalBoilerplateHeading("GELTUNGSBEREICH"),
+        "Expected legal boilerplate heading to be recognized"
+    )
+    try assert(
+        !looksLikeLegalBoilerplateHeading("Jonas Weber"),
+        "Expected person names not to be mistaken for legal boilerplate headings"
+    )
+    try assert(
+        looksLikeTermsAndConditionsDocument("Allgemeine Geschäftsbedingungen\nGELTUNGSBEREICH\nVERTRAGSSCHLUSS\nSCHLUSSBESTIMMUNGEN"),
+        "Expected AGB markers to classify the page as legal boilerplate"
+    )
+    try assert(
+        !looksLikePlausiblePersonName("abweichen, GELTUNGSBEREICH AGB"),
+        "Expected legal boilerplate fragment not to look like a plausible person name"
+    )
+    try assert(
+        looksLikePlausiblePersonName("Herr Max Muster"),
+        "Expected honorific person names to remain plausible"
+    )
+    try assert(
+        firstMatch(for: #"\\b(?=[A-Z0-9<]{15,}\\b)(?=[A-Z0-9<]*[0-9<])[A-Z0-9<]{15,}\\b"#, in: "GELTUNGSBEREICH") == nil,
+        "Expected MRZ regex not to match AGB headings"
+    )
 
-    return 23
+    return 38
 }
 
 func run() throws {

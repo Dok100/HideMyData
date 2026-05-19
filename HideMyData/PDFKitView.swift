@@ -198,9 +198,8 @@ final class InteractivePDFView: PDFView {
         }
         let preview = PDFAnnotation(bounds: rect, forType: .square, withProperties: nil)
         preview.border = nil
-        let previewTint = FindingVisualSemantics.nsColor(for: "private_address")
-        preview.color = previewTint.withAlphaComponent(0.7)
-        preview.interiorColor = previewTint.withAlphaComponent(0.25)
+        preview.color = FindingVisualSemantics.previewStrokeNSColor(for: FindingVisualSemantics.manualPreviewCategory)
+        preview.interiorColor = FindingVisualSemantics.previewFillNSColor(for: FindingVisualSemantics.manualPreviewCategory)
         page.addAnnotation(preview)
         previewAnnotation = preview
     }

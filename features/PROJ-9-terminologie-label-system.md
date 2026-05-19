@@ -1,6 +1,6 @@
 # PROJ-9 – Terminologie- und Label-System
 
-**Status**: Geplant
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -18,9 +18,15 @@ Interne Modellbegriffe wie `private_person` oder `custom_identifier` dürfen nir
 - einheitliche Benennung in Diagnose, Sidebar und Editor
 - klare deutsche Nutzerbegriffe
 
+## Umsetzung
+
+- vorhandenes Kategorien-Mapping in `FindingVisualSemantics` zu einem zentralen Nutzerlabel-Layer ausgebaut
+- Kurz- und Langlabels für Haupt-Workflow, Legende, Diagnose und Regel-Editor vereinheitlicht
+- Diagnoseansicht, Suchtreffer und Kopierexport auf Nutzerbegriffe statt Rohkategorien umgestellt
+- Regelkategorien und Filterchips im Custom-Rules-Bereich an dieselbe Benennung angebunden
+
 ## Relevante Dateien
 
 - `HideMyData/Views/Main/MainView.swift`
 - Diagnose-View-Dateien
 - Custom-Rules-UI
-

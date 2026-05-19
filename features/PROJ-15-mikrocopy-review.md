@@ -1,6 +1,6 @@
 # PROJ-15 – Mikrocopy-Review
 
-**Status**: Geplant
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -24,3 +24,10 @@ Alle Texte in Inkognito sollen eindeutig, vertrauenswürdig und handlungsorienti
 - `HideMyData/Views/Main/EmptyState.swift`
 - `HideMyData/Views/Main/MainView.swift`
 - Dialog-/Alert-Texte
+
+## Umsetzung
+
+- missverständliche Review-Begriffe wie `Freigeben` konsequent auf `Prüfen`, `Bestätigen` oder `Entscheidung` umgestellt
+- Diagnoseansicht sprachlich produktnäher benannt, inklusive `Technische Ansicht`, `Originaltext` und `Interner Arbeitstext`
+- Startfläche für Dokumente und Zwischenablage handlungsorientierter formuliert
+- Status-, Hinweis- und Wiederherstellungstexte in der Zwischenablage-Vorschau sprachlich geschärft

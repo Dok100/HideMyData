@@ -1,6 +1,6 @@
 # PROJ-14 – Rename- und Legacy-Cleanup (`HideMyData` -> `Inkognito`)
 
-**Status**: Geplant
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -35,3 +35,30 @@ Historische Namensreste von `HideMyData` sollen kontrolliert aus dem aktiven Pro
 - `release/sparkle/appcast.xml`
 - `release/sparkle/HideMyData-0.2.0.html`
 - Legacy-Migrationslogik in App- und Storage-Dateien
+
+## Bewertung
+
+### Aktiv behalten
+
+- Legacy-Migrationspfade fuer Container, Cache, Recents und Clipboard-Session
+- Sparkle-Historie in `release/sparkle/`, solange alte Artefaktnamen noch fuer Bestandsupdates relevant sein koennen
+- aktiver Source-Ordner `HideMyData/`, solange Xcode-Projekt und Dateipfade nicht in einem eigenen Rename-Schritt migriert werden
+
+### Bereinigt
+
+- aktiver App-Einstieg intern auf `InkognitoApp` umgestellt
+- neue App-Notification fuer die Zwischenablage auf `Inkognito.showClipboardAnonymizer` umgestellt
+- Legacy-Notification `HMD.showClipboardAnonymizer` vorerst als Fallback weiter akzeptiert
+
+### Später umbenennen
+
+- Xcode-Target-Name `HideMyData`
+- Source-Ordner `HideMyData/`
+- Entitlements-Dateiname `HideMyData.entitlements`
+- Scheme-/Projektmetadaten mit internem `HideMyData`-Namen
+
+## Umsetzung
+
+- Riskante Umbenennungen an Target, Source-Ordner, Scheme und Sparkle-Artefakten wurden bewusst nicht angerührt.
+- Aktive Legacy-Reste wurden in `technisch nötig` und `später separat migrieren` getrennt.
+- Nur intern ungefährliche Bezeichner im laufenden App-Pfad wurden auf `Inkognito` gezogen, mit Legacy-Fallback für bestehende Notification-Namen.

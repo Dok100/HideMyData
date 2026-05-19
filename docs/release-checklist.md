@@ -11,6 +11,8 @@
   - Clipboard-Flow inklusive Platzhalter-Rueckfuehrung
   - PDF-Export mit anschliessender Vertrauenspruefung in der Sidebar
   - Bild-Export mit anschliessender Vertrauenspruefung in der Sidebar
+  - Regeln-Editor mit Vorlagen, Regelqualitaet und Dokumentvorschau
+  - Diagnoseansicht inklusive JSON-Export und Developer-Umschalter
 
 ## Inhaltlich pruefen
 
@@ -33,9 +35,16 @@
 - Source- und Status-Badges in den Review-Karten wirken konsistent zu Status-Pill, Undo-Banner und Export-Vertrauenskarte
 - `Eigene Regeln` erklaert sich ohne Technikjargon und zeigt Rueckmeldungen zu Wartungsaktionen in unmittelbarer Naehe der ausloesenden Buttons
 - `Technische Ansicht` bleibt lesbar im Dunkelmodus und erklaert ihre Bereiche ueber kurze Info-Hinweise statt rohe Debug-Begriffe
+- Seitenstatus in der Sidebar erklaert sich ohne Zusatzwissen und draengt die eigentlichen Treffer nicht aus dem sichtbaren Bereich
+- unsichere Treffer sind direkt an der Review-Karte nachvollziehbar markiert, ohne eine zweite Meta-Ebene vor die Trefferliste zu stellen
+- `Alle zur Schwaerzung freigeben` benennt die Konsequenz klar und klingt nicht wie `veroeffentlichen`
+- die Export-Zusammenfassung nennt geschuetzte Stellen, manuelle Eingriffe und Textqualitaetsrisiken verstaendlich
+- der Clipboard-Flow ist in drei Schritten nachvollziehbar und ueberlaedt neue Nutzer nicht mit allen Bereichen gleichzeitig
+- die neuen E-Rechnungs- und DIN-5008-Faelle verhalten sich im manuellen Smoke-Test konsistent zu den Regressionen
 
 ## Release-Artefakte
 
 - `CHANGELOG.md` aktualisieren
+- `README.md`, `docs/architecture.md` und `docs/decision-log.md` gegen den realen Produktstand querlesen
 - Release-Text / Highlights formulieren
 - Sparkle-/DMG-Artefakte pruefen, falls ein Distribution-Release gebaut wird

@@ -22,7 +22,7 @@ Inkognito ist eine native macOS-App fuer das lokale Anonymisieren von:
 - Bildern
 - kopierten Texten aus der Zwischenablage
 
-Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur zur Pruefung und erzeugt erst nach deiner Freigabe die finalen Schwaerzungen. Fuer OCR-lastige Dokumente gibt es einen Fallback ueber Apple Vision. Fuer problematische PDF-Textlayer kombiniert Inkognito eingebetteten Text, OCR, Regexe und nachgelagerte Heuristiken.
+Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur zur Pruefung und erzeugt erst nach deiner Entscheidung die finalen Schwaerzungen. Fuer OCR-lastige Dokumente gibt es einen Fallback ueber Apple Vision. Fuer problematische PDF-Textlayer kombiniert Inkognito eingebetteten Text, OCR, Regexe, Dokumentklassen-Heuristiken und nachgelagerte Filter.
 
 ## Kernfunktionen
 
@@ -31,9 +31,15 @@ Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur z
 - **OCR-Fallback**: gescannte Dokumente und kaputte PDF-Textlayer werden ueber Apple Vision abgefangen.
 - **KI-Erkennung**: OpenMed `privacy-filter` auf MLX erkennt Namen, Adressen, Telefonnummern, Daten und weitere PII im Kontext.
 - **Regex-Ergaenzungen**: zusaetzliche Muster fuer IBANs, Karten, Wallets, typische Identifier und sprachspezifische Adressformen.
+- **Dokumentklassen-Heuristiken**: Rechnungen, Briefe, Formulare, Bankseiten, DIN-5008-Geschaeftsbriefe und E-Rechnungen werden gezielter nachkontextualisiert.
 - **Review vor Finalisierung**: automatische Treffer werden erst bestaetigt oder verworfen, bevor sie dauerhaft geschwaerzt werden.
+- **Seitenstatus und Unsicherheiten**: Review zeigt offene, gepruefte oder besonders pruefenswerte Seiten und markiert unsichere Treffer direkt an der Stelle der Entscheidung.
+- **Schnellere Nacharbeit**: aehnliche offene Treffer lassen sich gesammelt bestaetigen oder ablehnen.
 - **Manuelle Bearbeitung**: Redaktionsrechtecke koennen jederzeit hinzugefuegt oder entfernt werden.
 - **Zwischenablage-Anonymisierung**: sensible Inhalte lokal durch Platzhalter ersetzen, sicher in KI-Tools einfuegen und Antworten spaeter lokal rueckfuehren.
+- **Gefuehrter Clipboard-Flow**: Anonymisieren, mit KI arbeiten und Rueckfuehren sind als dreistufiger Ablauf aufgebaut.
+- **Regel-Assistenz**: eigene Regeln geben vor dem Speichern Rueckmeldung zu Regelqualitaet und moeglichen Treffern im aktuellen Dokument.
+- **Export-Zusammenfassung**: vor und nach dem Speichern erklaert Inkognito menschlich, was geschuetzt wurde und wo Sichtpruefung sinnvoll bleibt.
 - **Persistente Schwaerzung beim Export**: finale PDFs werden aus gerenderten Seiten neu aufgebaut.
 
 ## Typische Workflows
@@ -124,10 +130,16 @@ Der Check verifiziert aktuell unter anderem:
 - echte Empfaenger-Orte wie `74229 Oodheim` bleiben erhalten
 - kurze modellseitige Kontonummern werden verworfen
 - OCR- und Native-Normalisierung regressieren nicht wieder in den frueheren Fehlerzustand
+- DIN-5008-Briefvorlagen ziehen keine falschen Empfaenger aus Layout- oder Absenderkontext
+- ZUGFeRD-, XRechnung- und Leitweg-ID-Marker staerken E-Rechnungs-Kontext statt generischer Brief-Erkennung
+- AGB- und Rechtstext-Ueberschriften wie `GELTUNGSBEREICH` oder `SCHLUSSBESTIMMUNGEN` werden nicht als PII fehlmarkiert
 
-Die zugehoerige Fixture liegt hier:
+Beispielhafte Fixtures liegen hier:
 
 - [fixtures/detection/steuerbescheid_page1_ocr.txt](fixtures/detection/steuerbescheid_page1_ocr.txt)
+- [fixtures/detection/din5008_geschaeftsbrief_form_b_pdf_text.txt](fixtures/detection/din5008_geschaeftsbrief_form_b_pdf_text.txt)
+- [fixtures/detection/zugferd_erechnung_pdf_text.txt](fixtures/detection/zugferd_erechnung_pdf_text.txt)
+- [fixtures/detection/muster_e_rechnung_ba_field_reference.txt](fixtures/detection/muster_e_rechnung_ba_field_reference.txt)
 
 ## Projektstruktur
 
@@ -154,16 +166,15 @@ Fuer das generelle Projekt-Framing gibt es zusaetzlich:
 
 ## Aktueller Stand
 
-Inkognito ist funktional nutzbar, aber weiter in aktiver Qualitaetsarbeit.
+Die erste grosse Produktstufe ist abgeschlossen: `PROJ-1` bis `PROJ-20` sind umgesetzt und in `features/` dokumentiert.
 
-Besonders in letzter Zeit geschaerft wurden:
+Der aktuelle Schwerpunkt liegt jetzt weniger auf fehlenden Grundfunktionen als auf:
 
-- OCR-Fallback fuer defekte PDF-Textlayer
-- deutsche Adress- und Namensmuster
-- Briefkopf-Unterdrueckung bei Steuer- und Behördendokumenten
-- Filter gegen Dokumentrauschen und false positives
+- weiterer Detection-Haertung an echten Problembeispielen
+- Produktfeinschliff in Review, Export und Regeln
+- Release-Vorbereitung fuer breitere Nutzung
 
-Weitere Verbesserungen werden weiterhin an echten Problembeispielen iterativ abgesichert.
+Die naechsten Schritte werden weiterhin ueber echte Dokumentfaelle, Regressionen und kleine produktnahe Iterationen abgesichert.
 
 ## Tech Stack
 

@@ -12,8 +12,10 @@ struct ExportValidationReport: Equatable {
 
     let format: Format
     let redactionCount: Int
+    let manualRedactionCount: Int
     let redactedPageCount: Int?
     let totalPageCount: Int?
+    let lowTextWarning: Bool
     let removedMetadata: Bool
     let annotationsRemoved: Bool
     let bakedIntoPixels: Bool
@@ -22,16 +24,35 @@ struct ExportValidationReport: Equatable {
         switch format {
         case .pdf:
             if let redactedPageCount, let totalPageCount {
-                return "PDF gespeichert · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") geschützt neu aufgebaut"
+                return "PDF gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
+                    + " · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") neu aufgebaut"
             }
-            return "PDF gespeichert"
+            return "PDF gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
         case .image:
-            return "Bild gespeichert · Schwärzungen fest übernommen"
+            return "Bild gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
         }
     }
 
-    var trustChecklist: [String] {
+    var humanSummaryTitle: String {
+        switch format {
+        case .pdf:
+            if let redactedPageCount, let totalPageCount {
+                return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") auf \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n")"
+            }
+            return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") im PDF"
+        case .image:
+            return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") im Bild"
+        }
+    }
+
+    var humanSummaryFacts: [String] {
         var items: [String] = []
+        if manualRedactionCount > 0 {
+            items.append("\(manualRedactionCount) Stelle\(manualRedactionCount == 1 ? "" : "n") wurden manuell ergänzt")
+        }
+        if lowTextWarning {
+            items.append("Mindestens eine Seite hatte schwächere Textqualität und sollte visuell nachgeprüft werden")
+        }
         if bakedIntoPixels {
             items.append("Schwärzungen bleiben im Export fest enthalten")
         }
@@ -42,6 +63,10 @@ struct ExportValidationReport: Equatable {
             items.append("Dokumentmetadaten wurden entfernt")
         }
         return items
+    }
+
+    var trustChecklist: [String] {
+        humanSummaryFacts
     }
 }
 

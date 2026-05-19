@@ -105,7 +105,11 @@ struct MainView: View {
                             pendingCount: currentPendingReviewCount,
                             acceptedCount: currentAcceptedReviewCount,
                             rejectedCount: currentRejectedReviewCount,
+                            pageCount: currentReviewPageCount,
+                            hasLowTextWarning: currentReviewHasLowTextWarning,
                             hasProtectedContent: hasProtectedContent,
+                            redactionCount: currentRedactionCount,
+                            manualRedactionCount: currentManualRedactionCount,
                             selectedFindingID: currentFocusedFindingID,
                             undoNotice: reviewUndoNotice,
                             exportReport: currentExportReport,
@@ -116,7 +120,9 @@ struct MainView: View {
                             onSelect: selectFinding,
                             onAccept: acceptFinding,
                             onReject: rejectFinding,
-                            onReopen: reopenFinding
+                            onReopen: reopenFinding,
+                            onAcceptSimilar: acceptSimilarFindings,
+                            onRejectSimilar: rejectSimilarFindings
                         )
                         .padding(.trailing, 24)
                         .padding(.top, 20)
@@ -147,10 +153,13 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: .showClipboardAnonymizer)) { _ in
             clipboardAnonymizerPresented = true
         }
-        .alert("Prüfung erforderlich", isPresented: $saveWarningPresented) {
+        .onReceive(NotificationCenter.default.publisher(for: .legacyShowClipboardAnonymizer)) { _ in
+            clipboardAnonymizerPresented = true
+        }
+        .alert("Vor dem Export bitte prüfen", isPresented: $saveWarningPresented) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Bitte bestätige oder lehne zuerst alle offenen Treffer ab, bevor du speicherst.")
+            Text("Bitte bestätige oder lehne zuerst alle offenen Treffer ab, bevor du speicherst. Prüfe dabei auch visuell, ob Namen, Anreden oder freie Textstellen vollständig abgedeckt sind.")
         }
         .alert(item: $presentedIssue) { issue in
             if let retryAction = issue.retryAction {
@@ -169,7 +178,7 @@ struct MainView: View {
             }
         }
         .sheet(isPresented: $customPatternsPresented) {
-            CustomPatternsSheet(store: customPatterns)
+            CustomPatternsSheet(store: customPatterns, debugEntries: currentDebugEntries)
         }
         .sheet(isPresented: $diagnosticsPresented) {
             DiagnosticsSheet(entries: currentDebugEntries)
@@ -362,6 +371,46 @@ struct MainView: View {
         }
     }
 
+    private var currentReviewPageCount: Int {
+        switch inputMode {
+        case .pdf:
+            pdfRedactor.pageCount
+        case .image:
+            imageRedactor.image == nil ? 0 : 1
+        }
+    }
+
+    private var currentReviewHasLowTextWarning: Bool {
+        let noticeTitle: String?
+        switch inputMode {
+        case .pdf:
+            noticeTitle = pdfRedactor.detectionNotice?.title
+        case .image:
+            noticeTitle = imageRedactor.detectionNotice?.title
+        }
+        guard let noticeTitle else { return false }
+        return noticeTitle.localizedCaseInsensitiveContains("lesbarer Text")
+            || noticeTitle.localizedCaseInsensitiveContains("OCR")
+    }
+
+    private var currentRedactionCount: Int {
+        switch inputMode {
+        case .pdf:
+            pdfRedactor.redactionCount
+        case .image:
+            imageRedactor.redactionCount
+        }
+    }
+
+    private var currentManualRedactionCount: Int {
+        switch inputMode {
+        case .pdf:
+            pdfRedactor.manualRedactionCount
+        case .image:
+            imageRedactor.manualRedactionCount
+        }
+    }
+
     private var currentFocusedFindingID: UUID? {
         switch inputMode {
         case .pdf: pdfRedactor.focusedFindingID
@@ -502,6 +551,53 @@ struct MainView: View {
         showUndoNotice(for: id, verb: "abgelehnt")
     }
 
+    private func acceptSimilarFindings(_ id: UUID) {
+        let similarIDs = similarPendingFindingIDs(for: id)
+        guard !similarIDs.isEmpty else { return }
+        for similarID in similarIDs {
+            switch inputMode {
+            case .pdf: pdfRedactor.acceptFinding(similarID)
+            case .image: imageRedactor.acceptFinding(similarID)
+            }
+        }
+        let total = similarIDs.count + 1
+        showUndoNotice(for: id, verb: total > 1 ? "mehrfach bestätigt" : "bestätigt")
+    }
+
+    private func rejectSimilarFindings(_ id: UUID) {
+        let similarIDs = similarPendingFindingIDs(for: id)
+        guard !similarIDs.isEmpty else { return }
+        for similarID in similarIDs {
+            switch inputMode {
+            case .pdf: pdfRedactor.rejectFinding(similarID)
+            case .image: imageRedactor.rejectFinding(similarID)
+            }
+        }
+        let total = similarIDs.count + 1
+        showUndoNotice(for: id, verb: total > 1 ? "mehrfach abgelehnt" : "abgelehnt")
+    }
+
+    private func similarPendingFindingIDs(for id: UUID) -> [UUID] {
+        guard let reference = currentReviewFindings.first(where: { $0.id == id }) else { return [] }
+        let referenceKey = normalizedSimilarityKey(for: reference)
+        return currentReviewFindings
+            .filter { candidate in
+                candidate.id != id &&
+                candidate.status == .pending &&
+                normalizedSimilarityKey(for: candidate) == referenceKey
+            }
+            .map(\.id)
+    }
+
+    private func normalizedSimilarityKey(for finding: ReviewFinding) -> String {
+        let normalizedSnippet = finding.snippet
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(finding.category)|\(normalizedSnippet)"
+    }
+
     private func reopenFinding(_ id: UUID) {
         switch inputMode {
         case .pdf: pdfRedactor.reopenFinding(id)
@@ -570,17 +666,55 @@ private struct DiagnosticsSheet: View {
     let entries: [DetectionDebugEntry]
     @State private var selectedEntryID: DetectionDebugEntry.ID?
     @State private var query = ""
+    @State private var developerModeEnabled = false
+
+    private struct SearchMatch: Identifiable {
+        let id = UUID()
+        let section: String
+        let snippet: String
+        let tint: Color?
+    }
+
+    private enum DiagnosticsDisplayMode: String, CaseIterable, Identifiable {
+        case product
+        case developer
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .product: return "Produktansicht"
+            case .developer: return "Technische Ansicht"
+            }
+        }
+    }
 
     var body: some View {
         NavigationSplitView {
             List(entries, selection: $selectedEntryID) { entry in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(entry.title)
-                        .font(.system(size: 13, weight: .semibold))
-                    Text("\(entry.findings.count) Treffer · \(entry.diagnostics.count) Hinweise · \(entry.previewDiagnostics.count) Vorschauzeilen · \(entry.textSourceLabel)")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
+                HStack(alignment: .top, spacing: 12) {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(entryAccentColor(for: entry))
+                        .frame(width: 6, height: 44)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(entry.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(2)
+
+                        HStack(spacing: 6) {
+                            diagnosticsCounterPill(title: "\(entry.findings.count) Treffer", tint: .accentColor)
+                            if !entry.diagnostics.isEmpty {
+                                diagnosticsCounterPill(title: "\(entry.diagnostics.count) Hinweise", tint: StatusVisualSemantics.attention)
+                            }
+                        }
+
+                        Text(entry.textSourceLabel)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .padding(.vertical, 6)
                 .tag(entry.id)
             }
             .navigationSplitViewColumnWidth(min: 220, ideal: 260)
@@ -593,6 +727,18 @@ private struct DiagnosticsSheet: View {
                                 .font(.title3.weight(.semibold))
                             Text(selectedEntry.textSourceLabel)
                                 .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+
+                            Picker("Ansicht", selection: diagnosticsDisplayModeBinding) {
+                                ForEach(DiagnosticsDisplayMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 280)
+
+                            Text(developerModeEnabled ? "Die technische Ansicht zeigt Konfidenz und Zeichenpositionen." : "Die Produktansicht blendet Zeichenpositionen aus.")
+                                .font(.system(size: 11))
                                 .foregroundStyle(.secondary)
                         }
 
@@ -616,14 +762,20 @@ private struct DiagnosticsSheet: View {
 
                                 if !searchMatches.isEmpty {
                                     LazyVStack(alignment: .leading, spacing: 8) {
-                                        ForEach(Array(searchMatches.enumerated()), id: \.offset) { index, match in
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            Text(match.section)
-                                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
-                                            Text(match.snippet)
-                                                .font(.system(size: 12, design: .monospaced))
-                                                .textSelection(.enabled)
+                                        ForEach(Array(searchMatches.enumerated()), id: \.element.id) { index, match in
+                                            HStack(alignment: .top, spacing: 10) {
+                                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                                    .fill((match.tint ?? .yellow).opacity(index == 0 ? 0.92 : 0.68))
+                                                    .frame(width: 5)
+
+                                                VStack(alignment: .leading, spacing: 3) {
+                                                    Text(match.section)
+                                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                        .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
+                                                    Text(match.snippet)
+                                                        .font(.system(size: 12, design: .monospaced))
+                                                        .textSelection(.enabled)
+                                                }
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .padding(10)
@@ -636,7 +788,9 @@ private struct DiagnosticsSheet: View {
 
                         debugCard(
                             title: "Erkannte Stellen",
-                            helpText: "Zeigt alle Stellen, die Inkognito auf dieser Seite erkannt hat, inklusive Quelle, Kategorie und Konfidenz."
+                            helpText: developerModeEnabled
+                                ? "Zeigt alle Stellen mit Quelle, Kategorie, Konfidenz und technischen Zeichenpositionen."
+                                : "Zeigt alle Stellen, die Inkognito auf dieser Seite erkannt hat, mit produktnahen Labels und Quellenhinweisen."
                         ) {
                             if selectedEntry.findings.isEmpty {
                                 Text("Keine Stellen erkannt.")
@@ -644,23 +798,35 @@ private struct DiagnosticsSheet: View {
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 10) {
                                     ForEach(selectedEntry.findings) { finding in
-                                        VStack(alignment: .leading, spacing: 3) {
-                                            HStack(spacing: 8) {
-                                                Text(finding.source.label)
-                                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 4)
-                                                    .background(sourceColor(for: finding.source).opacity(0.12), in: Capsule())
-                                                    .foregroundStyle(sourceColor(for: finding.source))
-                                                Text(finding.category)
-                                                    .font(.system(size: 12, weight: .semibold))
+                                        HStack(alignment: .top, spacing: 10) {
+                                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                                .fill(FindingVisualSemantics.color(for: finding.category))
+                                                .frame(width: 7)
+
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                HStack(spacing: 8) {
+                                                    Text(FindingVisualSemantics.displayName(for: finding.category))
+                                                        .font(.system(size: 12, weight: .semibold))
+                                                    Text(finding.source.label)
+                                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                        .padding(.horizontal, 8)
+                                                        .padding(.vertical, 4)
+                                                        .background(StatusVisualSemantics.softFill(StatusVisualSemantics.detectionSourceTone(for: finding.source), colorScheme: colorScheme, strong: true), in: Capsule())
+                                                        .foregroundStyle(StatusVisualSemantics.detectionSourceTone(for: finding.source))
+                                                }
+                                                Text(finding.text)
+                                                    .font(.system(size: 12))
+                                                    .textSelection(.enabled)
+                                                if developerModeEnabled {
+                                                    Text("Konfidenz \(Int(finding.confidence * 100))% · Zeichen \(finding.start)-\(finding.end)")
+                                                        .font(.system(size: 11))
+                                                        .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
+                                                } else {
+                                                    Text(confidenceSummary(for: finding))
+                                                        .font(.system(size: 11))
+                                                        .foregroundStyle(.secondary)
+                                                }
                                             }
-                                            Text(finding.text)
-                                                .font(.system(size: 12))
-                                                .textSelection(.enabled)
-                                            Text("Konfidenz \(Int(finding.confidence * 100))% · Zeichen \(finding.start)-\(finding.end)")
-                                                .font(.system(size: 11))
-                                                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(10)
@@ -696,30 +862,8 @@ private struct DiagnosticsSheet: View {
                             }
                         }
 
-                        if !selectedEntry.previewDiagnostics.isEmpty {
-                            debugCard(
-                                title: "Abgleich mit der Vorschau",
-                                helpText: "Hilft nachzuvollziehen, welche Textstellen in der Vorschau markiert wurden und wie sie zugeordnet sind."
-                            ) {
-                                LazyVStack(alignment: .leading, spacing: 8) {
-                                    ForEach(Array(selectedEntry.previewDiagnostics.enumerated()), id: \.offset) { _, line in
-                                        Text(line)
-                                            .font(.system(size: 12, design: .monospaced))
-                                            .textSelection(.enabled)
-                                            .frame(maxWidth: .infinity, alignment: .leading)
-                                            .padding(10)
-                                            .background(debugItemFillColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                                    .stroke(debugItemBorderColor, lineWidth: 0.8)
-                                            )
-                                    }
-                                }
-                            }
-                        }
-
                         debugCard(
-                            title: "Gelesener Ausgangstext",
+                            title: "Originaltext",
                             helpText: "Das ist der Text, den Inkognito direkt aus PDF oder OCR übernommen hat."
                         ) {
                             Text(selectedEntry.rawText.isEmpty ? "Kein Text vorhanden." : selectedEntry.rawText)
@@ -730,7 +874,7 @@ private struct DiagnosticsSheet: View {
 
                         if selectedEntry.normalizedText != selectedEntry.rawText {
                             debugCard(
-                                title: "Aufbereiteter Text",
+                                title: "Interner Arbeitstext",
                                 helpText: "Das ist die interne, bereinigte Fassung für Erkennung und Abgleich. Layoutreste oder OCR-Artefakte können hier vereinfacht sein."
                             ) {
                                 Text(selectedEntry.normalizedText)
@@ -742,7 +886,12 @@ private struct DiagnosticsSheet: View {
 
                         HStack {
                             Spacer()
-                            Button("Ansicht kopieren") {
+                            Button("Diagnose als JSON speichern") {
+                                exportDiagnosticsAsJSON(selectedEntry)
+                            }
+                            .buttonStyle(.glass)
+
+                            Button("Texte kopieren") {
                                 copyDiagnostics(selectedEntry)
                             }
                             .buttonStyle(.glass)
@@ -769,6 +918,13 @@ private struct DiagnosticsSheet: View {
     private var selectedEntry: DetectionDebugEntry? {
         guard let selectedEntryID else { return entries.first }
         return entries.first(where: { $0.id == selectedEntryID }) ?? entries.first
+    }
+
+    private var diagnosticsDisplayModeBinding: Binding<DiagnosticsDisplayMode> {
+        Binding(
+            get: { developerModeEnabled ? .developer : .product },
+            set: { developerModeEnabled = ($0 == .developer) }
+        )
     }
 
     private func debugCard<Content: View>(title: String, helpText: String? = nil, @ViewBuilder content: () -> Content) -> some View {
@@ -806,6 +962,25 @@ private struct DiagnosticsSheet: View {
         colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
     }
 
+    private func diagnosticsCounterPill(title: String, tint: Color) -> some View {
+        Text(title)
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(StatusVisualSemantics.softFill(tint, colorScheme: colorScheme, strong: true), in: Capsule())
+            .foregroundStyle(tint)
+    }
+
+    private func entryAccentColor(for entry: DetectionDebugEntry) -> Color {
+        if let firstFinding = entry.findings.first {
+            return FindingVisualSemantics.color(for: firstFinding.category)
+        }
+        if !entry.diagnostics.isEmpty {
+            return StatusVisualSemantics.attention
+        }
+        return .secondary.opacity(0.55)
+    }
+
     private func searchMatchFill(isPrimary: Bool) -> Color {
         if colorScheme == .dark {
             return Color.yellow.opacity(isPrimary ? 0.22 : 0.14)
@@ -813,12 +988,29 @@ private struct DiagnosticsSheet: View {
         return Color.yellow.opacity(isPrimary ? 0.18 : 0.10)
     }
 
-    private var searchMatches: [(section: String, snippet: String)] {
+    private func confidenceSummary(for finding: DetectedSpan) -> String {
+        switch finding.source {
+        case .pattern:
+            return "Regelbasiert erkannt"
+        case .mixed:
+            return "Mehrfach bestätigt"
+        case .model:
+            if finding.confidence >= 0.9 {
+                return "Sehr sichere Erkennung"
+            }
+            if finding.confidence >= 0.75 {
+                return "Gute Erkennung"
+            }
+            return "Zur Sichtprüfung empfohlen"
+        }
+    }
+
+    private var searchMatches: [SearchMatch] {
         guard let selectedEntry else { return [] }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedQuery.isEmpty else { return [] }
 
-        var matches: [(String, String)] = []
+        var matches: [SearchMatch] = []
 
         matches.append(contentsOf: snippetMatches(in: selectedEntry.rawText, section: "Gelesener Text", query: trimmedQuery))
 
@@ -827,22 +1019,28 @@ private struct DiagnosticsSheet: View {
         }
 
         for line in selectedEntry.diagnostics where line.localizedCaseInsensitiveContains(trimmedQuery) {
-            matches.append(("Eigene Regeln im Kontext", line))
+            matches.append(SearchMatch(section: "Eigene Regeln im Kontext", snippet: line, tint: StatusVisualSemantics.attention))
         }
 
         for finding in selectedEntry.findings {
-            if finding.text.localizedCaseInsensitiveContains(trimmedQuery) || finding.category.localizedCaseInsensitiveContains(trimmedQuery) {
-                matches.append((
-                    "Erkannte Stellen · \(finding.source.label)",
-                    "\(finding.category): \(finding.text)"
-                ))
+            let displayCategory = FindingVisualSemantics.displayName(for: finding.category)
+            if finding.text.localizedCaseInsensitiveContains(trimmedQuery) ||
+                finding.category.localizedCaseInsensitiveContains(trimmedQuery) ||
+                displayCategory.localizedCaseInsensitiveContains(trimmedQuery) {
+                matches.append(
+                    SearchMatch(
+                        section: "Erkannte Stellen · \(finding.source.label)",
+                        snippet: "\(displayCategory): \(finding.text)",
+                        tint: FindingVisualSemantics.color(for: finding.category)
+                    )
+                )
             }
         }
 
         return Array(matches.prefix(12))
     }
 
-    private func snippetMatches(in text: String, section: String, query: String) -> [(section: String, snippet: String)] {
+    private func snippetMatches(in text: String, section: String, query: String) -> [SearchMatch] {
         guard !text.isEmpty else { return [] }
 
         let nsText = text as NSString
@@ -862,21 +1060,16 @@ private struct DiagnosticsSheet: View {
             let snippet = nsText.substring(with: NSRange(location: start, length: end - start))
             let prefix = start > 0 ? "…" : ""
             let suffix = end < nsText.length ? "…" : ""
-            return (section, prefix + snippet + suffix)
-        }
-    }
-
-    private func sourceColor(for source: DetectionSource) -> Color {
-        switch source {
-        case .model: return .blue
-        case .pattern: return .mint
-        case .mixed: return .orange
+            return SearchMatch(section: section, snippet: prefix + snippet + suffix, tint: nil)
         }
     }
 
     private func copyDiagnostics(_ entry: DetectionDebugEntry) {
         let findingsText = entry.findings.map {
-            "[\($0.source.label)] \($0.category) · \($0.text) · \($0.start)-\($0.end) · \(Int($0.confidence * 100))%"
+            if developerModeEnabled {
+                return "[\($0.source.label)] \(FindingVisualSemantics.displayName(for: $0.category)) · \($0.text) · \($0.start)-\($0.end) · \(Int($0.confidence * 100))%"
+            }
+            return "[\($0.source.label)] \(FindingVisualSemantics.displayName(for: $0.category)) · \($0.text) · \(confidenceSummary(for: $0))"
         }.joined(separator: "\n")
         let payload = [
             entry.title,
@@ -888,25 +1081,105 @@ private struct DiagnosticsSheet: View {
             "Eigene Regeln im Kontext:",
             entry.diagnostics.isEmpty ? "Keine Hinweise" : entry.diagnostics.joined(separator: "\n"),
             "",
-            "Abgleich mit der Vorschau:",
-            entry.previewDiagnostics.isEmpty ? "Keine Vorschauhinweise" : entry.previewDiagnostics.joined(separator: "\n"),
-            "",
-            "Gelesener Ausgangstext:",
+            "Originaltext:",
             entry.rawText,
             "",
-            "Aufbereiteter Text:",
+            "Interner Arbeitstext:",
             entry.normalizedText
         ].joined(separator: "\n")
 
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(payload, forType: .string)
     }
+
+    private func exportDiagnosticsAsJSON(_ entry: DetectionDebugEntry) {
+        let payload: [String: Any] = [
+            "title": entry.title,
+            "textSourceLabel": entry.textSourceLabel,
+            "rawText": entry.rawText,
+            "normalizedText": entry.normalizedText,
+            "findings": entry.findings.map { finding in
+                [
+                    "category": FindingVisualSemantics.canonicalCategory(for: finding.category),
+                    "displayName": FindingVisualSemantics.displayName(for: finding.category),
+                    "text": finding.text,
+                    "start": finding.start,
+                    "end": finding.end,
+                    "confidence": finding.confidence,
+                    "source": finding.source.rawValue,
+                    "sourceLabel": finding.source.label
+                ]
+            },
+            "diagnostics": entry.diagnostics
+        ]
+
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = diagnosticsJSONFileName(for: entry)
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        try? data.write(to: url, options: .atomic)
+    }
+
+    private func diagnosticsJSONFileName(for entry: DetectionDebugEntry) -> String {
+        let sanitizedTitle = entry.title
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "[^a-z0-9\\-_]+", with: "", options: .regularExpression)
+        let fallback = sanitizedTitle.isEmpty ? "diagnose" : sanitizedTitle
+        return "\(fallback).json"
+    }
 }
 
 private struct ClipboardAnonymizerSheet: View {
+    private enum WorkflowStep: String, CaseIterable, Identifiable {
+        case anonymize
+        case share
+        case restore
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .anonymize: "1. Anonymisieren"
+            case .share: "2. Mit KI arbeiten"
+            case .restore: "3. Rückführen"
+            }
+        }
+
+        var shortTitle: String {
+            switch self {
+            case .anonymize: "Anonymisieren"
+            case .share: "Mit KI arbeiten"
+            case .restore: "Rückführen"
+            }
+        }
+
+        var description: String {
+            switch self {
+            case .anonymize:
+                "Original laden, geschützte Version prüfen und Platzhalter vorbereiten."
+            case .share:
+                "Die anonymisierte Fassung kopieren und die KI-Antwort mit Platzhaltern zurückholen."
+            case .restore:
+                "Personalisierte Vorschau prüfen und den zurückgeführten Text übernehmen."
+            }
+        }
+    }
+
     @Environment(\.dismiss) private var dismiss
     let detector: PIIDetector
 
+    @State private var currentStep: WorkflowStep = .anonymize
     @State private var originalText = ""
     @State private var anonymizedText = ""
     @State private var placeholders: [(placeholder: String, original: String)] = []
@@ -930,6 +1203,16 @@ private struct ClipboardAnonymizerSheet: View {
         return .success
     }
 
+    private var restoreStatusTone: ClipboardStatusTone {
+        if restoreStatusMessage.contains("kein") || restoreStatusMessage.contains("zuerst") {
+            return .info
+        }
+        if restoreStatusMessage.contains("prüfe") || restoreStatusMessage.contains("fehlen") {
+            return .warning
+        }
+        return .success
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
@@ -937,7 +1220,7 @@ private struct ClipboardAnonymizerSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Zwischenablage anonymisieren")
                             .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        Text("Kopierten Text lokal anonymisieren, prüfen und später wieder zurückführen.")
+                        Text("Kopierten Text lokal schützen, mit Platzhaltern an KI-Tools geben und die Antwort später wieder zurückführen.")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                     }
@@ -947,71 +1230,131 @@ private struct ClipboardAnonymizerSheet: View {
                         .controlSize(.large)
                 }
 
-                HStack(spacing: 12) {
-                    Button("Aus Zwischenablage laden") {
-                        Task { await refreshFromClipboard() }
-                    }
-                    .buttonStyle(.glass)
-                    .controlSize(.large)
+                workflowHeader
+                stepContent
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 960, idealWidth: 1120, minHeight: 860, idealHeight: 940)
+        .background(AmbientBackdrop())
+        .task {
+            hydrateFromLastSession()
+            await refreshFromClipboard()
+        }
+    }
 
-                    Button("Anonymisierte Version kopieren") {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(anonymizedText, forType: .string)
-                        statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
-                    }
-                    .buttonStyle(.glassProminent)
-                    .controlSize(.large)
-                    .disabled(anonymizedText.isEmpty)
+    @ViewBuilder
+    private var workflowHeader: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("Workflow", selection: $currentStep) {
+                ForEach(WorkflowStep.allCases) { step in
+                    Text(step.title).tag(step)
+                }
+            }
+            .pickerStyle(.segmented)
 
-                    Spacer(minLength: 0)
+            HStack(alignment: .top, spacing: 14) {
+                Text(currentStep.shortTitle)
+                    .font(.system(size: 20, weight: .semibold, design: .rounded))
 
-                    if isProcessing {
-                        ProgressView()
-                            .controlSize(.small)
+                Text(currentStep.description)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer(minLength: 0)
+
+                if isProcessing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch currentStep {
+        case .anonymize:
+            anonymizeStep
+        case .share:
+            shareStep
+        case .restore:
+            restoreStep
+        }
+    }
+
+    private var anonymizeStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Button("Aus Zwischenablage laden") {
+                    Task { await refreshFromClipboard() }
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+
+                Button("Anonymisierte Version kopieren") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(anonymizedText, forType: .string)
+                    statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
+                    currentStep = .share
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(anonymizedText.isEmpty)
+            }
+
+            statusBanner(message: statusMessage, tone: statusTone)
+
+            HStack(alignment: .top, spacing: 20) {
+                comparisonCard(title: "Original", minHeight: 420) {
+                    if originalText.isEmpty {
+                        clipboardEmptyState(
+                            title: "Noch nichts geladen",
+                            message: "Lade einen kopierten Text aus der Zwischenablage, um hier die Originalfassung zu sehen.",
+                            symbol: "doc.text"
+                        )
+                    } else {
+                        ScrollView {
+                            Text(originalText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
                 }
 
-                statusBanner(message: statusMessage, tone: statusTone)
-
-                HStack(alignment: .top, spacing: 20) {
-                    comparisonCard(title: "Original", minHeight: 360) {
-                        if originalText.isEmpty {
-                            clipboardEmptyState(
-                                title: "Noch nichts geladen",
-                                message: "Lade einen kopierten Text aus der Zwischenablage, um hier die Originalfassung zu sehen.",
-                                symbol: "doc.text"
-                            )
-                        } else {
-                            ScrollView {
-                                Text(originalText)
-                                    .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                    }
-
-                    comparisonCard(title: "Anonymisiert", minHeight: 360) {
-                        if anonymizedText.isEmpty {
-                            clipboardEmptyState(
-                                title: "Noch keine Vorschau",
-                                message: "Sobald ein Text anonymisiert wurde, erscheint hier die geschützte Version mit Platzhaltern.",
-                                symbol: "lock.doc"
-                            )
-                        } else {
-                            ScrollView {
-                                Text(anonymizedText)
-                                    .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(.primary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
+                comparisonCard(title: "Anonymisiert", minHeight: 420) {
+                    if anonymizedText.isEmpty {
+                        clipboardEmptyState(
+                            title: "Noch keine Vorschau",
+                            message: "Sobald ein Text anonymisiert wurde, erscheint hier die geschützte Version mit Platzhaltern.",
+                            symbol: "lock.doc"
+                        )
+                    } else {
+                        ScrollView {
+                            Text(anonymizedText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
+            }
+        }
+    }
 
-                comparisonCard(title: "Platzhalter", minHeight: 220) {
+    private var shareStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            comparisonCard(title: "Platzhalter und Weitergabe", minHeight: 320) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Kopiere die anonymisierte Fassung und nutze nur diese Version im KI-Tool. Die Platzhalter darunter zeigen, was Inkognito später wieder zurückführen kann.")
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
                     if placeholders.isEmpty {
                         clipboardEmptyState(
                             title: "Noch keine Platzhalter",
@@ -1041,139 +1384,162 @@ private struct ClipboardAnonymizerSheet: View {
                         }
                     }
                 }
+            }
 
-                Divider()
-                    .padding(.vertical, 2)
-
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .firstTextBaseline, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Antwort zurückführen")
-                                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                            Text("Nutze die zuletzt erzeugten Platzhalter, um den von der KI überarbeiteten Text wieder zu personalisieren.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 12)
-                        if let session = detector.lastClipboardSession {
-                            Text("Mapping von \(session.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(.orange.opacity(0.12), in: Capsule())
-                                .foregroundStyle(.orange)
-                        }
+            HStack(spacing: 12) {
+                Button("Antwort aus Zwischenablage laden") {
+                    loadResponseFromClipboard()
+                    if !aiResponseText.isEmpty {
+                        currentStep = .restore
                     }
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
 
-                    HStack(spacing: 12) {
-                        Button("Antwort aus Zwischenablage laden") {
-                            loadResponseFromClipboard()
-                        }
-                        .buttonStyle(.glass)
-                        .controlSize(.large)
+                Button("Anonymisierte Version kopieren") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(anonymizedText, forType: .string)
+                    statusMessage = "Die anonymisierte Version liegt jetzt in der Zwischenablage."
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(anonymizedText.isEmpty)
+            }
 
-                        Button("Zurückgeführten Text kopieren") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(restoredText, forType: .string)
-                            restoreStatusMessage = "Die personalisierte Antwort liegt jetzt in der Zwischenablage."
-                        }
-                        .buttonStyle(.glassProminent)
-                        .controlSize(.large)
-                        .disabled(restoredText.isEmpty)
+            statusBanner(message: restoreStatusMessage, tone: restoreStatusTone)
+
+            comparisonCard(title: "KI-Antwort mit Platzhaltern", minHeight: 340) {
+                TextEditor(text: $aiResponseText)
+                    .font(.system(size: 12.5, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(8)
+                    .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .onChange(of: aiResponseText) { _, newValue in
+                        restorePreview(from: newValue)
                     }
+            }
+        }
+    }
 
-                    Text(restoreStatusMessage)
-                        .font(.system(size: 12))
+    private var restoreStep: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Rückführung prüfen")
+                        .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    Text("Inkognito ersetzt die Platzhalter wieder mit den Originalwerten. Prüfe die Vorschau, bevor du den Text weiterverwendest.")
+                        .font(.system(size: 13))
                         .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 12)
+                if let session = detector.lastClipboardSession {
+                    Text("Mapping von \(session.createdAt.formatted(date: .abbreviated, time: .shortened))")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.orange.opacity(0.12), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+            }
 
-                    HStack(alignment: .top, spacing: 20) {
-                        comparisonCard(title: "KI-Antwort mit Platzhaltern", minHeight: 320) {
-                            TextEditor(text: $aiResponseText)
-                                .font(.system(size: 12.5, design: .monospaced))
-                                .scrollContentBackground(.hidden)
-                                .padding(8)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                .onChange(of: aiResponseText) { _, newValue in
-                                    restorePreview(from: newValue)
-                                }
+            HStack(spacing: 12) {
+                Button("Antwort aus Zwischenablage laden") {
+                    loadResponseFromClipboard()
+                }
+                .buttonStyle(.glass)
+                .controlSize(.large)
+
+                Button("Zurückgeführten Text kopieren") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(restoredText, forType: .string)
+                    restoreStatusMessage = "Die personalisierte Antwort liegt jetzt in der Zwischenablage."
+                }
+                .buttonStyle(.glassProminent)
+                .controlSize(.large)
+                .disabled(restoredText.isEmpty)
+            }
+
+            statusBanner(message: restoreStatusMessage, tone: restoreStatusTone)
+
+            HStack(alignment: .top, spacing: 20) {
+                comparisonCard(title: "KI-Antwort mit Platzhaltern", minHeight: 340) {
+                    TextEditor(text: $aiResponseText)
+                        .font(.system(size: 12.5, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .onChange(of: aiResponseText) { _, newValue in
+                            restorePreview(from: newValue)
                         }
+                }
 
-                        comparisonCard(title: "Zurückgeführt", minHeight: 320) {
-                            if restoredText.isEmpty {
-                                clipboardEmptyState(
-                                    title: "Noch keine Rückführung",
-                                    message: "Lade eine KI-Antwort mit Platzhaltern, um hier die personalisierte Vorschau zu sehen.",
-                                    symbol: "arrow.uturn.backward.circle"
-                                )
-                            } else {
-                                ScrollView {
-                                    Text(restoredText)
-                                        .font(.system(size: 12.5, design: .monospaced))
-                                        .foregroundStyle(.primary)
-                                        .textSelection(.enabled)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                }
+                comparisonCard(title: "Zurückgeführt", minHeight: 340) {
+                    if restoredText.isEmpty {
+                        clipboardEmptyState(
+                            title: "Noch keine Rückführung",
+                            message: "Lade eine KI-Antwort mit Platzhaltern, um hier die personalisierte Vorschau zu sehen.",
+                            symbol: "arrow.uturn.backward.circle"
+                        )
+                    } else {
+                        ScrollView {
+                            Text(restoredText)
+                                .font(.system(size: 12.5, design: .monospaced))
+                                .foregroundStyle(.primary)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
+            comparisonCard(title: "Rückführungsstatus", minHeight: 150) {
+                VStack(alignment: .leading, spacing: 10) {
+                    if detector.lastClipboardSession == nil {
+                        clipboardEmptyState(
+                            title: "Noch kein Mapping",
+                            message: "Starte zuerst Schritt 1. Danach kann Inkognito Platzhalter wieder zuverlässig zurückführen.",
+                            symbol: "link.badge.plus"
+                        )
+                    } else {
+                        Text("Ersetzte Platzhalter: \(restoreCount)")
+                            .font(.system(size: 12.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if !unresolvedPlaceholders.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Noch unverändert im Antworttext:")
+                                .font(.system(size: 12, weight: .semibold))
+                            ForEach(unresolvedPlaceholders, id: \.self) { placeholder in
+                                Text(placeholder)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(.orange.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.orange)
                             }
                         }
                     }
 
-                    comparisonCard(title: "Rückführungsstatus", minHeight: 120) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            if detector.lastClipboardSession == nil {
-                                clipboardEmptyState(
-                                    title: "Noch kein Mapping",
-                                    message: "Starte oben zuerst eine Anonymisierung. Danach kann Inkognito Platzhalter wieder zuverlässig zurückführen.",
-                                    symbol: "link.badge.plus"
-                                )
-                            } else {
-                                Text("Ersetzte Platzhalter: \(restoreCount)")
-                                    .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if !unresolvedPlaceholders.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Noch unverändert im Antworttext:")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    ForEach(unresolvedPlaceholders, id: \.self) { placeholder in
-                                        Text(placeholder)
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 5)
-                                            .background(.orange.opacity(0.12), in: Capsule())
-                                            .foregroundStyle(.orange)
-                                    }
-                                }
-                            }
-
-                            if !suspiciousPlaceholderTokens.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Verdächtige Platzhalter-Varianten erkannt:")
-                                        .font(.system(size: 12, weight: .semibold))
-                                    Text("Diese Tokens sehen nach veränderten Platzhaltern aus und sollten geprüft werden.")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                    ForEach(suspiciousPlaceholderTokens, id: \.self) { token in
-                                        Text(token)
-                                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 5)
-                                            .background(.red.opacity(0.12), in: Capsule())
-                                            .foregroundStyle(.red)
-                                    }
-                                }
+                    if !suspiciousPlaceholderTokens.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Verdächtige Platzhalter-Varianten erkannt:")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Diese Tokens sehen nach veränderten Platzhaltern aus und sollten geprüft werden.")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                            ForEach(suspiciousPlaceholderTokens, id: \.self) { token in
+                                Text(token)
+                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(.red.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.red)
                             }
                         }
                     }
                 }
             }
-        }
-        .padding(24)
-        .frame(minWidth: 960, idealWidth: 1120, minHeight: 860, idealHeight: 940)
-        .background(AmbientBackdrop())
-        .task {
-            hydrateFromLastSession()
-            await refreshFromClipboard()
         }
     }
 
@@ -1224,7 +1590,7 @@ private struct ClipboardAnonymizerSheet: View {
             anonymizedText = ""
             placeholders = []
             replacementCount = 0
-            statusMessage = "Kopiere zuerst einen Text in die Zwischenablage und lade ihn dann erneut."
+            statusMessage = "In der Zwischenablage ist gerade kein Text. Kopiere zuerst einen Text und lade ihn dann erneut."
             return
         }
 
@@ -1240,9 +1606,10 @@ private struct ClipboardAnonymizerSheet: View {
             statusMessage = "Die Anonymisierung hat diesmal nicht geklappt. Prüfe bitte, ob das lokale Modell bereit ist, und versuche es dann erneut. Details: \(error.localizedDescription)"
         case .success(let result):
             hydrate(from: result)
+            currentStep = .anonymize
             statusMessage = result.placeholders.isEmpty
-                ? "Keine passenden Inhalte gefunden. Prüfe den Text oder versuche einen anderen Ausschnitt."
-                : "Bereit: \(result.placeholders.count) Platzhalter für \(result.replacementCount) Ersetzungen."
+                ? "Keine schutzwürdigen Inhalte gefunden. Prüfe den Text oder versuche einen anderen Ausschnitt."
+                : "Bereit: \(result.placeholders.count) Platzhalter für \(result.replacementCount) ersetzte Stellen."
         }
     }
 
@@ -1266,10 +1633,11 @@ private struct ClipboardAnonymizerSheet: View {
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !clipboardText.isEmpty
         else {
-            restoreStatusMessage = "Kopiere zuerst die KI-Antwort in die Zwischenablage und lade sie dann erneut."
+            restoreStatusMessage = "In der Zwischenablage ist gerade kein Antworttext. Kopiere zuerst die KI-Antwort und lade sie dann erneut."
             return
         }
         aiResponseText = clipboardText
+        currentStep = .restore
         restorePreview(from: clipboardText)
     }
 
@@ -1279,7 +1647,7 @@ private struct ClipboardAnonymizerSheet: View {
             restoreCount = 0
             unresolvedPlaceholders = detector.lastClipboardSession?.placeholders.keys.sorted() ?? []
             suspiciousPlaceholderTokens = []
-            restoreStatusMessage = "Lade jetzt die KI-Antwort, um die Platzhalter wieder zurückzuführen."
+            restoreStatusMessage = "Lade jetzt die KI-Antwort, damit Inkognito die Platzhalter wieder zurückführen kann."
             return
         }
 
@@ -1288,7 +1656,7 @@ private struct ClipboardAnonymizerSheet: View {
             restoreCount = 0
             unresolvedPlaceholders = []
             suspiciousPlaceholderTokens = []
-            restoreStatusMessage = "Noch kein Mapping vorhanden. Bitte anonymisiere zuerst oben einen Text."
+            restoreStatusMessage = "Noch keine Zuordnung vorhanden. Anonymisiere zuerst oben einen Text."
             return
         }
 
@@ -1304,10 +1672,10 @@ private struct ClipboardAnonymizerSheet: View {
             return "Im Antworttext wurden noch keine passenden Platzhalter gefunden."
         }
         if !result.suspiciousTokens.isEmpty {
-            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Bitte prüfe die verdächtigen Rest-Tokens."
+            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Bitte prüfe die auffälligen Rest-Tokens."
         }
         if !result.unresolvedPlaceholders.isEmpty {
-            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Einige erwartete Tokens fehlen noch."
+            return "Zurückgeführt: \(result.replacementCount) Platzhalter. Einige erwartete Platzhalter fehlen noch."
         }
         return "Zurückgeführt: \(result.replacementCount) Platzhalter."
     }
@@ -1391,12 +1759,7 @@ private struct CustomPatternsSheet: View {
         var id: String { rawValue }
 
         var title: String {
-            switch self {
-            case .customIdentifier: "Eigener Begriff"
-            case .privatePerson: "Person"
-            case .privateAddress: "Adresse"
-            case .accountNumber: "Kennung"
-            }
+            FindingVisualSemantics.shortDisplayName(for: rawValue)
         }
 
         var helpText: String {
@@ -1415,31 +1778,102 @@ private struct CustomPatternsSheet: View {
 
     private enum RuleCategorySelection: String, CaseIterable, Identifiable {
         case automatic
-        case customIdentifier = "custom_identifier"
         case privatePerson = "private_person"
         case privateAddress = "private_address"
         case accountNumber = "account_number"
+        case custom
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
             case .automatic: "Automatisch"
-            case .customIdentifier: "Eigener Begriff"
-            case .privatePerson: "Person"
-            case .privateAddress: "Adresse"
-            case .accountNumber: "Kennung"
+            case .privatePerson,
+                 .privateAddress,
+                 .accountNumber:
+                FindingVisualSemantics.shortDisplayName(for: rawValue)
+            case .custom:
+                "Eigener Begriff"
             }
         }
 
         var resolvedCategory: String? {
             switch self {
             case .automatic: nil
-            case .customIdentifier,
-                 .privatePerson,
+            case .privatePerson,
                  .privateAddress,
                  .accountNumber:
                 rawValue
+            case .custom:
+                RuleCategoryOption.customIdentifier.rawValue
+            }
+        }
+
+        var helpText: String {
+            switch self {
+            case .automatic:
+                "Inkognito entscheidet anhand deiner Eingaben selbst, ob es eher eine Person, Adresse oder Kennung ist."
+            case .privatePerson:
+                "Sinnvoll für Namen oder klar personbezogene Einträge."
+            case .privateAddress:
+                "Passt für Adressen, Zustellorte und mehrzeilige Adressblöcke."
+            case .accountNumber:
+                "Geeignet für Konten, Vertragsnummern, IDs oder ähnliche Kennungen."
+            case .custom:
+                "Nutze diese Option für freie Begriffe, interne Codes oder spezielle Formulierungen."
+            }
+        }
+    }
+
+    private enum RuleTemplate: String, CaseIterable, Identifiable {
+        case address
+        case person
+        case identifier
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .address: "Adressblock"
+            case .person: "Person"
+            case .identifier: "Kennung"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .address: "Name, Straße, PLZ/Ort"
+            case .person: "Mehrere Namensvarianten"
+            case .identifier: "Konto, Vertrag, Referenz"
+            }
+        }
+
+        var suggestedSelection: RuleCategorySelection {
+            switch self {
+            case .address: .privateAddress
+            case .person: .privatePerson
+            case .identifier: .accountNumber
+            }
+        }
+
+        var lines: [String] {
+            switch self {
+            case .address:
+                [
+                    "Max Mustermann",
+                    "Friedenstraße 25",
+                    "74223 Sommerfeld",
+                    "Deutschland"
+                ]
+            case .person:
+                [
+                    "Herrn Max Muster",
+                    "Muster, Max"
+                ]
+            case .identifier:
+                [
+                    "DE12 5001 0517 5407 3249 31"
+                ]
             }
         }
     }
@@ -1464,17 +1898,32 @@ private struct CustomPatternsSheet: View {
         var title: String {
             switch self {
             case .all: "Alle"
-            case .address: "Adresse"
-            case .person: "Person"
-            case .account: "Kennung"
-            case .custom: "Begriff"
+            case .address: FindingVisualSemantics.shortDisplayName(for: "private_address")
+            case .person: FindingVisualSemantics.shortDisplayName(for: "private_person")
+            case .account: FindingVisualSemantics.shortDisplayName(for: "account_number")
+            case .custom: FindingVisualSemantics.shortDisplayName(for: "custom_identifier")
             }
         }
+    }
+
+    private struct RuleQualityHint: Identifiable {
+        let id = UUID()
+        let tone: ClipboardStatusTone
+        let title: String
+        let message: String
+    }
+
+    private struct DocumentRuleHitPreview: Identifiable {
+        let id = UUID()
+        let pageTitle: String
+        let patternLabel: String
+        let snippet: String
     }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: CustomPatternStore
+    let debugEntries: [DetectionDebugEntry]
     @State private var label = ""
     @State private var valueLines = ["", "", ""]
     @State private var selectedCategory: RuleCategorySelection = .automatic
@@ -1639,6 +2088,8 @@ private struct CustomPatternsSheet: View {
                             }
                         }
                         .pickerStyle(.menu)
+
+                        compactHintCard(categorySummary)
                     }
                 }
             }
@@ -1681,6 +2132,47 @@ private struct CustomPatternsSheet: View {
                     }
                     .frame(minHeight: 140, maxHeight: 240)
                 }
+            }
+
+            if !ruleQualityHints.isEmpty {
+                sectionCard(title: "Regelqualität", subtitle: "Hinweise, bevor du die Regel speicherst:") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(ruleQualityHints) { hint in
+                            ruleQualityHintCard(hint)
+                        }
+                    }
+                }
+            }
+
+            if !documentRuleHitPreviews.isEmpty {
+                sectionCard(title: "Treffer im aktuellen Dokument", subtitle: "So würde die aktuelle Eingabe hier gerade anschlagen:") {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Diese Vorschau ist bewusst einfach und prüft nur, ob deine aktuellen Regelbausteine im geladenen Dokumenttext vorkommen.")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.primary.opacity(0.72))
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        ForEach(documentRuleHitPreviews) { hit in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(hit.pageTitle) · \(hit.patternLabel)")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(hit.snippet)
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(secondaryCardFillColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(secondaryCardBorderColor, lineWidth: 0.8)
+                            )
+                        }
+                    }
+                }
+            } else if !previewPatterns.isEmpty && !debugEntries.isEmpty {
+                compactHintCard("Die aktuelle Regel würde im geöffneten Dokument derzeit keine klare Textstelle treffen. Wenn sie hier greifen soll, prüfe Schreibweise, Zeilenaufteilung oder die Einordnung.")
             }
 
             HStack(spacing: 12) {
@@ -1833,6 +2325,140 @@ private struct CustomPatternsSheet: View {
         store.previewPatterns(label: label, value: composedValue, category: effectiveCategory.rawValue)
     }
 
+    private var ruleQualityHints: [RuleQualityHint] {
+        var hints: [RuleQualityHint] = []
+
+        if normalizedLines.isEmpty {
+            return hints
+        }
+
+        let shortestLineCount = normalizedLines.map(\.count).min() ?? 0
+        if shortestLineCount > 0 && shortestLineCount < 4 {
+            hints.append(
+                RuleQualityHint(
+                    tone: .warning,
+                    title: "Sehr kurzer Baustein",
+                    message: "Mindestens eine Zeile ist sehr kurz. Sehr kurze Regeln erzeugen oft unklare oder zu breite Treffer."
+                )
+            )
+        }
+
+        let suspiciousSingles = normalizedLines.filter { line in
+            let words = line.split(whereSeparator: \.isWhitespace)
+            return words.count == 1 && !line.contains("@") && line.filter(\.isNumber).count < 4 && line.count <= 6
+        }
+        if !suspiciousSingles.isEmpty {
+            hints.append(
+                RuleQualityHint(
+                    tone: .warning,
+                    title: "Wenig trennscharf",
+                    message: "Einzelne kurze Wörter wie „\(suspiciousSingles.prefix(2).joined(separator: "“, „"))“ können im Dokument leicht zu allgemein sein."
+                )
+            )
+        }
+
+        if previewPatterns.count >= 8 {
+            hints.append(
+                RuleQualityHint(
+                    tone: .info,
+                    title: "Viele Ableitungen",
+                    message: "Aus dieser Eingabe entstehen \(previewPatterns.count) Regeln. Prüfe kurz, ob wirklich alle Teil- und Blockregeln gewünscht sind."
+                )
+            )
+        }
+
+        if let previewCount = documentRuleHitPreviews.isEmpty ? nil : documentRuleHitPreviews.count, previewCount >= 6 {
+            hints.append(
+                RuleQualityHint(
+                    tone: .info,
+                    title: "Trifft im Dokument mehrfach",
+                    message: "Die aktuelle Eingabe würde im geöffneten Dokument bereits \(previewCount) Stellen treffen. Das ist gut für Wiederholungen, aber ein Signal zum Gegenprüfen."
+                )
+            )
+        }
+
+        if documentRuleHitPreviews.isEmpty && !debugEntries.isEmpty {
+            hints.append(
+                RuleQualityHint(
+                    tone: .warning,
+                    title: "Noch kein klarer Dokumenttreffer",
+                    message: "Im aktuell geöffneten Dokument wurde für diese Eingabe noch keine klare Textstelle gefunden."
+                )
+            )
+        }
+
+        return hints
+    }
+
+    private var documentRuleHitPreviews: [DocumentRuleHitPreview] {
+        guard !previewPatterns.isEmpty else { return [] }
+
+        var previews: [DocumentRuleHitPreview] = []
+        var seenKeys: Set<String> = []
+
+        for entry in debugEntries {
+            let text = entry.rawText
+            let foldedText = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+
+            for pattern in previewPatterns.prefix(10) {
+                let needle = pattern.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard needle.count >= 3 else { continue }
+                let foldedNeedle = needle.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                guard let range = foldedText.range(of: foldedNeedle) else { continue }
+
+                let key = entry.title + "::" + pattern.label + "::" + foldedNeedle
+                guard seenKeys.insert(key).inserted else { continue }
+
+                let lowerDistance = foldedText.distance(from: foldedText.startIndex, to: range.lowerBound)
+                let upperDistance = foldedText.distance(from: foldedText.startIndex, to: range.upperBound)
+                let lower = max(0, lowerDistance - 36)
+                let upper = min(text.count, upperDistance + 36)
+                let snippetStart = text.index(text.startIndex, offsetBy: lower)
+                let snippetEnd = text.index(text.startIndex, offsetBy: upper)
+                let rawSnippet = String(text[snippetStart..<snippetEnd])
+                    .replacingOccurrences(of: "\n", with: " ")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                previews.append(
+                    DocumentRuleHitPreview(
+                        pageTitle: entry.title,
+                        patternLabel: pattern.label,
+                        snippet: rawSnippet
+                    )
+                )
+
+                if previews.count >= 6 {
+                    return previews
+                }
+            }
+        }
+
+        return previews
+    }
+
+    private func ruleQualityHintCard(_ hint: RuleQualityHint) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: hint.tone.symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(hint.tone.tint)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(hint.title)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(hint.message)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(hint.tone.fill, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
     private var patternGroups: [CustomPatternStore.PatternGroup] {
         store.groupedPatterns()
     }
@@ -1900,7 +2526,14 @@ private struct CustomPatternsSheet: View {
             }
             return "Inkognito ordnet die Eingabe derzeit als „\(effectiveCategory.title)“ ein. Du kannst die Einordnung bei Bedarf überschreiben."
         }
-        return effectiveCategory.helpText
+        return selectedCategory.helpText
+    }
+
+    private var categorySummary: String {
+        if selectedCategory == .automatic {
+            return "Aktuell verwendet Inkognito automatisch „\(effectiveCategory.title)“ für diese Regel."
+        }
+        return "Diese Regel wird beim Speichern ausdrücklich als „\(effectiveCategory.title)“ behandelt."
     }
 
     private var migrateConfirmationMessage: String {
@@ -2019,6 +2652,7 @@ private struct CustomPatternsSheet: View {
                 explanationLine("Zusätzlich entstehen Teilregeln pro Zeile oder pro Komma-getrenntem Baustein.")
                 explanationLine("Nur benachbarte Bausteine werden zu Blockregeln kombiniert, zum Beispiel Name + Straße oder Straße + PLZ/Ort.")
                 explanationLine("Es gibt keine automatische Umstellung wie „Mustermann Max“.")
+                explanationLine("Wenn mehrere Schreibweisen geschützt werden sollen, zum Beispiel „Herrn Max Muster“ und „Muster, Max“, trage beide Varianten in eigenen Zeilen ein.")
             }
         }
         .padding(14)
@@ -2174,12 +2808,38 @@ private struct CustomPatternsSheet: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Vorlagen")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.78))
+
+                HStack(spacing: 10) {
+                    ForEach(RuleTemplate.allCases) { template in
+                        Button {
+                            applyTemplate(template)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(template.title)
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                Text(template.subtitle)
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.primary.opacity(0.64))
+                                    .lineLimit(2)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(chipFillColor.opacity(colorScheme == .dark ? 0.96 : 0.82), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                compactHintCard(lineEditorHint)
+            }
+
             HStack(spacing: 10) {
                 Button("Zeile hinzufügen", action: addLine)
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-
-                Button("Beispiel einsetzen", action: insertExampleBlock)
                     .buttonStyle(.glass)
                     .controlSize(.small)
 
@@ -2189,6 +2849,26 @@ private struct CustomPatternsSheet: View {
                     .disabled(normalizedLines.isEmpty)
             }
         }
+    }
+
+    private var lineEditorHint: String {
+        if normalizedLines.isEmpty {
+            return "Lege pro Zeile genau einen Baustein an, zum Beispiel Name, Straße und PLZ/Ort getrennt."
+        }
+
+        if inferredCategory == .privateAddress {
+            return "Die Eingabe sieht bereits wie ein Adressblock aus. Getrennte Zeilen helfen Inkognito dabei, daraus zusätzlich sinnvolle Teil- und Blockregeln abzuleiten."
+        }
+
+        if inferredCategory == .accountNumber {
+            return "Die Eingabe wirkt wie eine Kennung. Wenn mehrere zusammengehörige Kennungen geschützt werden sollen, lege sie am besten in getrennten Zeilen an."
+        }
+
+        if inferredCategory == .privatePerson {
+            return "Die Eingabe wirkt wie eine Person. Wenn du mehrere Schreibweisen schützen willst, zum Beispiel „Herrn Max Muster“ und „Muster, Max“, lege jede Variante in eine eigene Zeile."
+        }
+
+        return "Für freie Begriffe oder Formulierungen reicht oft schon eine einzelne Zeile. Mehrere Zeilen lohnen sich, wenn verschiedene Bausteine gemeinsam geschützt werden sollen."
     }
 
     private func explanationLine(_ text: String) -> some View {
@@ -2338,13 +3018,9 @@ private struct CustomPatternsSheet: View {
         valueLines.remove(at: index)
     }
 
-    private func insertExampleBlock() {
-        valueLines = [
-            "Max Mustermann",
-            "Friedenstraße 25",
-            "74223 Sommerfeld",
-            "Deutschland"
-        ]
+    private func applyTemplate(_ template: RuleTemplate) {
+        valueLines = template.lines
+        selectedCategory = template.suggestedSelection
     }
 
     private func clearLines() {
@@ -2433,7 +3109,7 @@ private struct CustomPatternsSheet: View {
     }
 
     private func selectionForEditor(category: String, value: String) -> RuleCategorySelection {
-        if let explicit = RuleCategorySelection(rawValue: category), explicit != .customIdentifier {
+        if let explicit = RuleCategorySelection(rawValue: category) {
             return explicit
         }
 
@@ -2451,7 +3127,10 @@ private struct CustomPatternsSheet: View {
         if looksLikePersonName(value) {
             return .privatePerson
         }
-        return RuleCategorySelection(rawValue: category) ?? .automatic
+        if category == RuleCategoryOption.customIdentifier.rawValue {
+            return .custom
+        }
+        return .automatic
     }
 
     private func displayCategoryTitle(_ rawValue: String, sampleValue: String? = nil) -> String {
@@ -2470,7 +3149,8 @@ private struct CustomPatternsSheet: View {
                 return RuleCategoryOption.privatePerson.title
             }
         }
-        return RuleCategoryOption(rawValue: rawValue)?.title ?? rawValue
+        return RuleCategoryOption(rawValue: rawValue)?.title
+            ?? FindingVisualSemantics.displayName(for: rawValue)
     }
 
     private func resolvedFilterCategory(for group: CustomPatternStore.PatternGroup) -> RuleCategoryOption {
@@ -2614,7 +3294,7 @@ private struct WorkflowStepStrip: View {
         HStack(spacing: 10) {
             stepBadge(number: 1, title: "Erkennen", isActive: currentStep == .detect, isCompleted: currentStep.rawValue > 1)
             connector
-            stepBadge(number: 2, title: "Freigeben", isActive: currentStep == .review, isCompleted: currentStep.rawValue > 2)
+            stepBadge(number: 2, title: "Prüfen", isActive: currentStep == .review, isCompleted: currentStep.rawValue > 2)
             connector
             stepBadge(number: 3, title: "Exportieren", isActive: currentStep == .save, isCompleted: false)
         }
@@ -2698,12 +3378,68 @@ private struct PDFPageNavigationBar: View {
 }
 
 private struct ReviewSidebar: View {
+    private enum PageStatus: String {
+        case open
+        case reviewed
+        case attention
+        case lowText
+        case clear
+
+        var title: String {
+            switch self {
+            case .open: "Offen"
+            case .reviewed: "Geprüft"
+            case .attention: "Besonders prüfen"
+            case .lowText: "Wenig lesbarer Text"
+            case .clear: "Keine Treffer"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .open:
+                StatusVisualSemantics.attention
+            case .reviewed:
+                StatusVisualSemantics.reviewComplete
+            case .attention:
+                StatusVisualSemantics.danger
+            case .lowText:
+                StatusVisualSemantics.neutral
+            case .clear:
+                StatusVisualSemantics.neutral
+            }
+        }
+
+        var symbol: String {
+            switch self {
+            case .open: "clock.fill"
+            case .reviewed: "checkmark.circle.fill"
+            case .attention: "eye.trianglebadge.exclamationmark"
+            case .lowText: "text.magnifyingglass"
+            case .clear: "doc.text"
+            }
+        }
+    }
+
+    private struct PageSummary: Identifiable {
+        let id: Int
+        let pageNumber: Int
+        let status: PageStatus
+        let detail: String
+        let explanation: String
+    }
+
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage("reviewSidebarShowVisualReminder") private var showVisualReminder = true
     let findings: [ReviewFinding]
     let pendingCount: Int
     let acceptedCount: Int
     let rejectedCount: Int
+    let pageCount: Int
+    let hasLowTextWarning: Bool
     let hasProtectedContent: Bool
+    let redactionCount: Int
+    let manualRedactionCount: Int
     let selectedFindingID: UUID?
     let undoNotice: ReviewUndoNotice?
     let exportReport: ExportValidationReport?
@@ -2715,20 +3451,38 @@ private struct ReviewSidebar: View {
     let onAccept: (UUID) -> Void
     let onReject: (UUID) -> Void
     let onReopen: (UUID) -> Void
+    let onAcceptSimilar: (UUID) -> Void
+    let onRejectSimilar: (UUID) -> Void
     @State private var showOnlyPending = true
     @State private var confirmAcceptAll = false
+    @State private var showLegendPopover = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 9) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Schutz prüfen")
-                            .font(.system(size: 15, weight: .semibold))
+                        HStack(spacing: 8) {
+                            Text("Schutz prüfen")
+                                .font(.system(size: 15, weight: .semibold))
+
+                            Button {
+                                showLegendPopover = true
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 12.5, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .popover(isPresented: $showLegendPopover, arrowEdge: .top) {
+                                legendPopover
+                            }
+                        }
+
                         Text(headerText)
-                            .font(.system(size: 12))
+                            .font(.system(size: 11.5))
                             .foregroundStyle(pendingCount > 0 ? .orange : .secondary)
-                            .lineLimit(3)
+                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                             .layoutPriority(1)
                     }
@@ -2736,7 +3490,7 @@ private struct ReviewSidebar: View {
                     Spacer(minLength: 0)
 
                     if pendingCount > 0 {
-                        Button("Alle freigeben") {
+                        Button("Alle zur Schwärzung freigeben") {
                             confirmAcceptAll = true
                         }
                         .buttonStyle(.borderedProminent)
@@ -2747,12 +3501,20 @@ private struct ReviewSidebar: View {
 
                 summaryRow
 
-                if !findings.isEmpty {
-                    categoryLegend
+                if !pageSummaries.isEmpty {
+                    pageStatusStrip
                 }
 
                 if let undoNotice {
                     undoBanner(undoNotice)
+                }
+
+                if showVisualReminder, !findings.isEmpty || hasProtectedContent {
+                    visualReviewReminderBanner
+                }
+
+                if pendingCount == 0, hasProtectedContent {
+                    preExportSummaryBanner
                 }
 
                 if pendingCount == 0, !findings.isEmpty, hasProtectedContent {
@@ -2766,11 +3528,6 @@ private struct ReviewSidebar: View {
                 if let exportReport {
                     exportTrustBanner(report: exportReport)
                 }
-
-                Toggle("Nur offene Stellen", isOn: $showOnlyPending)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(pendingCount == 0)
 
                 if isShowingFocusedNonPendingFinding {
                     Text("Der fokussierte Treffer bleibt sichtbar, damit du ihn direkt wieder öffnen kannst.")
@@ -2789,11 +3546,14 @@ private struct ReviewSidebar: View {
                             ForEach(filteredFindings) { finding in
                                 ReviewFindingRow(
                                     finding: finding,
+                                    similarPendingCount: similarPendingCount(for: finding),
                                     isSelected: selectedFindingID == finding.id,
                                     onSelect: { onSelect(finding.id) },
                                     onAccept: { onAccept(finding.id) },
                                     onReject: { onReject(finding.id) },
-                                    onReopen: { onReopen(finding.id) }
+                                    onReopen: { onReopen(finding.id) },
+                                    onAcceptSimilar: { onAcceptSimilar(finding.id) },
+                                    onRejectSimilar: { onRejectSimilar(finding.id) }
                                 )
                                 .id(finding.id)
                             }
@@ -2818,25 +3578,25 @@ private struct ReviewSidebar: View {
                 .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.7)
         )
         .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
-        .confirmationDialog("Alle offenen Stellen freigeben?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
-            Button("Alle freigeben") {
+        .confirmationDialog("Alle offenen Stellen zur Schwärzung freigeben?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
+            Button("Alle zur Schwärzung freigeben") {
                 onAcceptAll()
             }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Damit werden \(pendingCount) aktuell offene Stellen ohne Einzelprüfung freigegeben.")
+            Text("Damit werden \(pendingCount) aktuell offene Stellen ohne Einzelprüfung zur Schwärzung freigegeben.")
         }
     }
 
     private var headerText: String {
         if findings.isEmpty {
-            return "Nach der Erkennung erscheinen hier die vorgeschlagenen Schutzstellen zur Prüfung."
+            return "Nach der Erkennung erscheinen hier die Schutzstellen zur Prüfung."
         }
         if pendingCount > 0 {
-            return "\(pendingCount) Stellen warten vor dem Export noch auf deine Freigabe."
+            return "Entscheide die offenen Stellen vor dem Export."
         }
         if !hasProtectedContent {
-            return "Alles geprüft. Aktuell ist noch keine geschützte Stelle aktiv."
+            return "Alles geprüft. Aktuell ist keine Schwärzung mehr aktiv."
         }
         return "Alles geprüft. Du kannst jetzt geschützt exportieren."
     }
@@ -2850,6 +3610,92 @@ private struct ReviewSidebar: View {
         return findings
     }
 
+    private func similarPendingCount(for finding: ReviewFinding) -> Int {
+        guard finding.status == .pending else { return 0 }
+        let referenceKey = normalizedSimilarityKey(for: finding)
+        return findings.filter { candidate in
+            candidate.id != finding.id &&
+            candidate.status == .pending &&
+            normalizedSimilarityKey(for: candidate) == referenceKey
+        }.count
+    }
+
+    private func normalizedSimilarityKey(for finding: ReviewFinding) -> String {
+        let normalizedSnippet = finding.snippet
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(finding.category)|\(normalizedSnippet)"
+    }
+
+    private var pageSummaries: [PageSummary] {
+        let knownPageCount = max(pageCount, (findings.compactMap(\.pageIndex).max() ?? -1) + 1)
+        guard knownPageCount > 0 else { return [] }
+
+        return (0..<knownPageCount).map { pageIndex in
+            let pageFindings = findings.filter { ($0.pageIndex ?? 0) == pageIndex }
+            let status = resolvedStatus(for: pageFindings)
+            return PageSummary(
+                id: pageIndex,
+                pageNumber: pageIndex + 1,
+                status: status,
+                detail: pageDetailText(for: status, findings: pageFindings),
+                explanation: pageExplanationText(for: status)
+            )
+        }
+    }
+
+    private func resolvedStatus(for pageFindings: [ReviewFinding]) -> PageStatus {
+        if pageFindings.contains(where: { $0.status == .pending }) {
+            return .open
+        }
+        if hasLowTextWarning && pageFindings.isEmpty {
+            return .lowText
+        }
+        if pageFindings.contains(where: { $0.category == "private_person" }) || pageFindings.count >= 5 {
+            return .attention
+        }
+        if pageFindings.contains(where: { $0.status == .accepted || $0.status == .rejected }) {
+            return .reviewed
+        }
+        return .clear
+    }
+
+    private func pageDetailText(for status: PageStatus, findings: [ReviewFinding]) -> String {
+        switch status {
+        case .open:
+            let pending = findings.filter { $0.status == .pending }.count
+            return "\(pending) offen"
+        case .reviewed:
+            return findings.isEmpty ? "geprüft" : "\(findings.count) entschieden"
+        case .attention:
+            if findings.contains(where: { $0.category == "private_person" }) {
+                return "Namen prüfen"
+            }
+            return "\(findings.count) Treffer"
+        case .lowText:
+            return "OCR prüfen"
+        case .clear:
+            return "keine Treffer"
+        }
+    }
+
+    private func pageExplanationText(for status: PageStatus) -> String {
+        switch status {
+        case .open:
+            return "Hier warten noch Entscheidungen."
+        case .reviewed:
+            return "Alle Treffer sind entschieden."
+        case .attention:
+            return "Bitte visuell besonders sorgfältig prüfen."
+        case .lowText:
+            return "Textqualität schwach, daher bitte Sichtprüfung."
+        case .clear:
+            return "Aktuell wurde hier nichts erkannt."
+        }
+    }
+
     private var isShowingFocusedNonPendingFinding: Bool {
         guard showOnlyPending,
               pendingCount > 0,
@@ -2860,40 +3706,106 @@ private struct ReviewSidebar: View {
         return selectedFinding.status != .pending
     }
 
-    private var summaryRow: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(minimum: 0), spacing: 8),
-                GridItem(.flexible(minimum: 0), spacing: 8)
-            ],
-            spacing: 8
-        ) {
-            summaryBadge(title: "Erkannt", value: findings.count, tint: StatusVisualSemantics.neutral)
-            summaryBadge(title: "Offen", value: pendingCount, tint: StatusVisualSemantics.attention)
-            summaryBadge(title: "Bestätigt", value: acceptedCount, tint: StatusVisualSemantics.reviewComplete)
-            summaryBadge(title: "Abgelehnt", value: rejectedCount, tint: StatusVisualSemantics.danger)
+    private var visualReviewReminderText: String {
+        if findings.contains(where: { $0.category == "private_person" }) {
+            return "Automatische Erkennung hilft, kann aber Anreden oder alternative Namensschreibweisen übersehen. Prüfe besonders Empfängerfeld, Anreden und freie Textstellen noch einmal mit Blick auf Namen."
         }
+        return "Automatische Erkennung ersetzt keine Sichtprüfung. Prüfe vor dem Export besonders Briefkopf, Empfängerfeld und freie Textstellen noch einmal."
     }
 
-    private func summaryBadge(title: String, value: Int, tint: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+    private var preExportSummaryFacts: [String] {
+        var items: [String] = []
+        if pageCount > 1 {
+            items.append("\(redactionCount) Schutzstelle\(redactionCount == 1 ? "" : "n") auf \(pageCount) Seiten")
+        } else {
+            items.append("\(redactionCount) Schutzstelle\(redactionCount == 1 ? "" : "n") vorbereitet")
+        }
+        if manualRedactionCount > 0 {
+            items.append("\(manualRedactionCount) manuell ergänzt")
+        }
+        if hasLowTextWarning {
+            items.append("schwächere Textqualität erkannt")
+        }
+        return items
+    }
+
+    private var summaryRow: some View {
+        HStack(alignment: .center, spacing: 8) {
+            summaryText
+                .layoutPriority(1)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("\(value)")
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(value > 0 ? tint : .secondary)
+
+            Spacer(minLength: 0)
+
+            Toggle("Nur offene", isOn: $showOnlyPending)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .controlSize(.small)
+                .disabled(pendingCount == 0)
+                .help("Nur offene Stellen anzeigen")
+        }
+        .overlay(alignment: .trailing) {
+            if pendingCount > 0 {
+                Text("Nur offene")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 54)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, 7)
         .background(summaryFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(summaryBorder, lineWidth: 0.6)
         )
+    }
+
+    private var summaryText: Text {
+        Text(summaryAttributedText)
+    }
+
+    private var summaryAttributedText: AttributedString {
+        var result = AttributedString()
+        appendSummarySegment(to: &result, value: findings.count, title: "Erkannt", valueColor: .secondary, needsDivider: false)
+        appendSummarySegment(to: &result, value: pendingCount, title: "Offen", valueColor: StatusVisualSemantics.attention, needsDivider: true)
+
+        if acceptedCount > 0 {
+            appendSummarySegment(to: &result, value: acceptedCount, title: "Bestätigt", valueColor: StatusVisualSemantics.reviewComplete, needsDivider: true)
+        }
+
+        if rejectedCount > 0 {
+            appendSummarySegment(to: &result, value: rejectedCount, title: "Abgelehnt", valueColor: StatusVisualSemantics.danger, needsDivider: true)
+        }
+
+        return result
+    }
+
+    private func appendSummarySegment(
+        to result: inout AttributedString,
+        value: Int,
+        title: String,
+        valueColor: Color,
+        needsDivider: Bool
+    ) {
+        if needsDivider {
+            var divider = AttributedString(" · ")
+            divider.foregroundColor = .secondary
+            divider.font = .system(size: 10.5, weight: .medium)
+            result.append(divider)
+        }
+
+        var valuePart = AttributedString("\(value)")
+        valuePart.foregroundColor = valueColor
+        valuePart.font = .system(size: 12.5, weight: .semibold, design: .rounded)
+        result.append(valuePart)
+
+        var titlePart = AttributedString(" \(title)")
+        titlePart.foregroundColor = .secondary
+        titlePart.font = .system(size: 10.5, weight: .medium)
+        result.append(titlePart)
     }
 
     private var emptyInspectorState: some View {
@@ -2905,7 +3817,7 @@ private struct ReviewSidebar: View {
             Text("Noch nichts zu prüfen")
                 .font(.system(size: 13, weight: .semibold))
 
-            Text("Starte `Erkennen`, damit hier die vorgeschlagenen Schutzstellen erscheinen. Danach kannst du sie freigeben oder ablehnen.")
+            Text("Starte `Erkennen`, damit hier die vorgeschlagenen Schutzstellen erscheinen. Danach kannst du sie prüfen, bestätigen oder ablehnen.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2917,24 +3829,6 @@ private struct ReviewSidebar: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(summaryBorder, lineWidth: 0.6)
         )
-    }
-
-    private var categoryLegend: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Farblegende")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.tertiary)
-
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(Array(FindingVisualSemantics.legendItems.chunked(into: 3).enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: 6) {
-                        ForEach(row, id: \.category) { item in
-                            legendChip(title: item.title, color: FindingVisualSemantics.color(for: item.category))
-                        }
-                    }
-                }
-            }
-        }
     }
 
     private func legendChip(title: String, color: Color) -> some View {
@@ -2953,6 +3847,154 @@ private struct ReviewSidebar: View {
         .overlay(
             Capsule()
                 .strokeBorder(summaryBorder, lineWidth: 0.6)
+        )
+    }
+
+    private var pageStatusStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(pageSummaries) { page in
+                    HStack(spacing: 6) {
+                        Image(systemName: page.status.symbol)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(page.status.tint)
+
+                        Text("S\(page.pageNumber): \(page.detail)")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(page.status.tint)
+                    }
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(summaryFill, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(
+                                StatusVisualSemantics.softBorder(page.status.tint, colorScheme: colorScheme),
+                                lineWidth: 0.7
+                            )
+                    )
+                    .help("Seite \(page.pageNumber): \(page.status.title). \(page.explanation)")
+                }
+            }
+        }
+    }
+
+    private var legendPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Farblegende")
+                .font(.system(size: 13, weight: .semibold))
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(FindingVisualSemantics.legendItems.chunked(into: 2).enumerated()), id: \.offset) { _, row in
+                    HStack(spacing: 6) {
+                        ForEach(row, id: \.category) { item in
+                            legendChip(title: item.title, color: FindingVisualSemantics.color(for: item.category))
+                        }
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 240, alignment: .leading)
+    }
+
+    private var visualReviewReminderBanner: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "eye.trianglebadge.exclamationmark")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(StatusVisualSemantics.attention)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Vor dem Export kurz visuell nachprüfen.")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(StatusVisualSemantics.attention.opacity(0.96))
+
+                Text(visualReviewReminderText)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button {
+                showVisualReminder = false
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(
+            LinearGradient(
+                colors: [
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.attention, colorScheme: colorScheme),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.neutral, colorScheme: colorScheme)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.attention, colorScheme: colorScheme), lineWidth: 0.8)
+        )
+    }
+
+    private var preExportSummaryBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme, strong: true))
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "doc.badge.shield.checkmark")
+                        .foregroundStyle(StatusVisualSemantics.trust)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Export-Zusammenfassung")
+                        .font(.system(size: 12.5, weight: .semibold))
+
+                    Text(preExportSummaryFacts.joined(separator: " · "))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if hasLowTextWarning || manualRedactionCount > 0 {
+                Text(hasLowTextWarning
+                     ? "Vor dem Speichern bitte noch einmal auf Seiten mit schwächerem Text und auf manuell ergänzte Stellen schauen."
+                     : "Vor dem Speichern bitte die manuell ergänzten Stellen noch einmal kurz mit dem Dokument abgleichen.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.trust, colorScheme: colorScheme, strong: true),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.neutral, colorScheme: colorScheme)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.trust, colorScheme: colorScheme), lineWidth: 0.8)
         )
     }
 
@@ -2982,6 +4024,11 @@ private struct ReviewSidebar: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            Text("Vor dem Export noch einmal visuell prüfen, ob Anreden, Namensvarianten und freie Textstellen vollständig abgedeckt sind.")
+                .font(.system(size: 11.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("Bereit zum Export")
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
@@ -3043,7 +4090,7 @@ private struct ReviewSidebar: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Noch keine geschützte Stelle aktiv")
+                    Text("Keine Schwärzung mehr aktiv")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(StatusVisualSemantics.attention.opacity(0.96))
 
@@ -3074,24 +4121,26 @@ private struct ReviewSidebar: View {
     }
 
     private func undoBanner(_ notice: ReviewUndoNotice) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "arrow.uturn.backward.circle.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(StatusVisualSemantics.attention)
-                .padding(.top, 1)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "arrow.uturn.backward.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(StatusVisualSemantics.attention)
+                    .padding(.top, 1)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(notice.title)
-                    .font(.system(size: 12.5, weight: .semibold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(notice.title)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text(notice.detail.isEmpty ? "Die letzte Entscheidung kann direkt wieder geöffnet werden." : notice.detail)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(notice.detail.isEmpty ? "Die letzte Entscheidung kann direkt wieder geöffnet werden." : notice.detail)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             }
-
-            Spacer(minLength: 0)
 
             HStack(spacing: 6) {
                 Button("Rückgängig", action: onUndoLastDecision)
@@ -3142,7 +4191,7 @@ private struct ReviewSidebar: View {
                     Text("Export geprüft")
                         .font(.system(size: 12.5, weight: .semibold))
 
-                    Text(report.shortStatusText)
+                    Text(report.humanSummaryTitle)
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -3152,7 +4201,7 @@ private struct ReviewSidebar: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(report.trustChecklist, id: \.self) { item in
+                ForEach(report.humanSummaryFacts, id: \.self) { item in
                     HStack(alignment: .top, spacing: 7) {
                         Image(systemName: "checkmark")
                             .font(.system(size: 10, weight: .bold))
@@ -3198,11 +4247,14 @@ private struct ReviewSidebar: View {
 private struct ReviewFindingRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let finding: ReviewFinding
+    let similarPendingCount: Int
     let isSelected: Bool
     let onSelect: () -> Void
     let onAccept: () -> Void
     let onReject: () -> Void
     let onReopen: () -> Void
+    let onAcceptSimilar: () -> Void
+    let onRejectSimilar: () -> Void
     @State private var isExpanded = false
 
     var body: some View {
@@ -3220,6 +4272,9 @@ private struct ReviewFindingRow: View {
                                 Text(displayCategory)
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(categoryTextColor)
+                                if finding.status == .pending, finding.confidence < 0.7 {
+                                    lowConfidenceInlineBadge
+                                }
                                 Spacer(minLength: 0)
                                 statusBadge
                             }
@@ -3230,6 +4285,19 @@ private struct ReviewFindingRow: View {
                                 .lineLimit(isExpanded ? 4 : 2)
                                 .multilineTextAlignment(.leading)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if finding.status == .pending, finding.confidence < 0.7 {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundStyle(StatusVisualSemantics.attention)
+
+                                    Text("Weniger sicher. Bitte direkt im Dokument prüfen.")
+                                        .font(.system(size: 10.5, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -3244,6 +4312,22 @@ private struct ReviewFindingRow: View {
                                     .foregroundStyle(pageLabelColor)
                             }
                         }
+                    }
+
+                    if isExpanded, finding.status == .pending, similarPendingCount > 0 {
+                        HStack(spacing: 8) {
+                            Text("\(similarPendingCount) ähnliche offene Stelle\(similarPendingCount == 1 ? "" : "n")")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+
+                            Spacer(minLength: 0)
+
+                            Button("Ähnliche bestätigen", action: onAcceptSimilar)
+                                .buttonStyle(.bordered)
+                            Button("Ähnliche ablehnen", action: onRejectSimilar)
+                                .buttonStyle(.bordered)
+                        }
+                        .controlSize(.small)
                     }
 
                     HStack(spacing: 8) {
@@ -3298,6 +4382,18 @@ private struct ReviewFindingRow: View {
             .padding(.vertical, 4)
             .background(StatusVisualSemantics.softFill(sourceTone, colorScheme: colorScheme, strong: true), in: Capsule())
             .foregroundStyle(sourceTone)
+    }
+
+    private var lowConfidenceInlineBadge: some View {
+        Text("\(Int((Double(finding.confidence) * 100).rounded()))%")
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                StatusVisualSemantics.softFill(StatusVisualSemantics.attention, colorScheme: colorScheme, strong: true),
+                in: Capsule()
+            )
+            .foregroundStyle(StatusVisualSemantics.attention)
     }
 
     private var cardFill: Color {

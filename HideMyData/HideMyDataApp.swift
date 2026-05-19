@@ -57,11 +57,12 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
 }
 
 extension Notification.Name {
-    static let showClipboardAnonymizer = Notification.Name("HMD.showClipboardAnonymizer")
+    static let showClipboardAnonymizer = Notification.Name("Inkognito.showClipboardAnonymizer")
+    static let legacyShowClipboardAnonymizer = Notification.Name("HMD.showClipboardAnonymizer")
 }
 
 @main
-struct HideMyDataApp: App {
+struct InkognitoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
@@ -131,7 +132,7 @@ struct AppSettingsView: View {
             Section("Datenschutz") {
                 Toggle("Zuletzt verwendete Dateien merken", isOn: $recentsEnabled)
 
-                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac, damit zuletzt geoeffnete Dokumente schneller wieder verfuegbar sind.")
+                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac, damit zuletzt geöffnete Dokumente schneller wieder verfügbar sind.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

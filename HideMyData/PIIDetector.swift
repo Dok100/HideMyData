@@ -771,6 +771,24 @@ struct TextRestorationResult: Sendable {
     let suspiciousTokens: [String]
 }
 
+enum DetectionDocumentClass: String, Sendable {
+    case general
+    case invoice
+    case taxNotice
+    case contactBankPage
+    case standardizedForm
+
+    var label: String {
+        switch self {
+        case .general: return "Allgemeines Dokument"
+        case .invoice: return "Rechnung oder Vertragsschreiben"
+        case .taxNotice: return "Steuer- oder Behördenpost"
+        case .contactBankPage: return "Kontakt- oder Bankseite"
+        case .standardizedForm: return "Formular oder Standardbogen"
+        }
+    }
+}
+
 @Observable
 @MainActor
 final class PIIDetector {
@@ -953,7 +971,7 @@ final class PIIDetector {
                 }
                 let patternDetection = PatternMatcher.detectWithDiagnostics(text)
                 let supplementalSpans = Self.supplementalClipboardSpans(in: text)
-                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans + supplementalSpans)
+                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans + supplementalSpans, in: text)
                 Self.printPatternDiagnostics(
                     patternDetection.diagnostics,
                     postProcessed: postProcessed,
@@ -1000,7 +1018,7 @@ final class PIIDetector {
 
     nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
         let detection = PatternMatcher.detectWithDiagnostics(text)
-        let postProcessed = postProcessSpans(detection.spans)
+        let postProcessed = postProcessSpans(detection.spans, in: text)
         return patternDiagnosticsLines(
             detection.diagnostics,
             postProcessed: postProcessed,
@@ -1014,13 +1032,75 @@ final class PIIDetector {
         await Task.detached(priority: .userInitiated) { work() }.value
     }
 
-    nonisolated private static func postProcessSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
+    nonisolated static func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
+        let normalized = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        var scores: [DetectionDocumentClass: Int] = [
+            .invoice: 0,
+            .taxNotice: 0,
+            .contactBankPage: 0,
+            .standardizedForm: 0
+        ]
+
+        let invoiceMarkers = [
+            "rechnung", "rechnungsanschrift", "lieferanschrift", "lieferadresse",
+            "bestellt durch", "kundennummer", "vertragsnummer", "zahlernummer",
+            "zaehlernummer", "lieferstelle", "nutzungsadresse", "rechnungs-nr",
+            "rechnungsdatum", "lieferdatum", "gesamtbetrag brutto",
+            "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
+            "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
+            "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
+            "swift-code"
+        ]
+        let taxMarkers = [
+            "finanzamt", "steuerbescheid", "einkommensteuer", "kirchensteuer",
+            "solidaritatszuschlag", "steuernummer", "idnr", "bescheid"
+        ]
+        let contactBankMarkers = [
+            "iban", "bic", "kontoinhaber", "kontonummer", "girokonto",
+            "girokontonummer", "buchungskonto", "bankverbindung", "ansprechpartner",
+            "kontakt", "telefon", "mobil"
+        ]
+
+        for marker in invoiceMarkers where normalized.contains(marker) {
+            scores[.invoice, default: 0] += 2
+        }
+        for marker in taxMarkers where normalized.contains(marker) {
+            scores[.taxNotice, default: 0] += 2
+        }
+        for marker in contactBankMarkers where normalized.contains(marker) {
+            scores[.contactBankPage, default: 0] += 2
+        }
+
+        if normalized.contains("vorname"),
+           normalized.contains("name"),
+           normalized.contains("plz"),
+           normalized.contains("ort") {
+            scores[.standardizedForm, default: 0] += 4
+        }
+
+        if looksLikeStandaloneFieldSequence(in: text) {
+            scores[.standardizedForm, default: 0] += 5
+        }
+
+        let best = scores.max { lhs, rhs in
+            if lhs.value == rhs.value {
+                return lhs.key.rawValue > rhs.key.rawValue
+            }
+            return lhs.value < rhs.value
+        }
+
+        guard let best, best.value > 0 else { return .general }
+        return best.key
+    }
+
+    nonisolated private static func postProcessSpans(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
         let sanitized = sanitizeSpans(spans)
         let deduplicated = deduplicateExactSpans(sanitized)
         let merged = mergeEquivalentSpans(deduplicated)
         let withoutConjoinedFragments = suppressConjoinedNameFragments(merged)
         let withoutLeadingAddressTails = suppressLeadingConjunctionAddressSpans(withoutConjoinedFragments)
-        return suppressContainedCustomIdentifierSpans(withoutLeadingAddressTails)
+        let withoutLegalBoilerplate = suppressLegalBoilerplateFalsePositives(withoutLeadingAddressTails, in: text)
+        return suppressContainedCustomIdentifierSpans(withoutLegalBoilerplate)
     }
 
     private struct ClipboardTextLine {
@@ -1031,12 +1111,13 @@ final class PIIDetector {
     nonisolated private static func supplementalClipboardSpans(in text: String) -> [DetectedSpan] {
         var spans: [DetectedSpan] = []
         let lines = clipboardTextLines(in: text)
-        let addressLabels = ["Rechnungsanschrift", "Lieferanschrift", "Postanschrift", "Korrespondenzanschrift"]
-        let personFieldLabels = ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kontoinhaber"]
-        let streetFieldLabels = ["Straße", "Strasse"]
-        let houseNumberFieldLabels = ["Hausnr", "Hausnummer"]
-        let postalCodeFieldLabels = ["PLZ"]
-        let cityFieldLabels = ["Ort", "Stadt"]
+        let documentClass = classifyDocumentText(text)
+        let addressLabels = addressBlockLabels(for: documentClass)
+        let personFieldLabels = personFieldLabels(for: documentClass)
+        let streetFieldLabels = streetFieldLabels(for: documentClass)
+        let houseNumberFieldLabels = houseNumberFieldLabels(for: documentClass)
+        let postalCodeFieldLabels = postalCodeFieldLabels(for: documentClass)
+        let cityFieldLabels = cityFieldLabels(for: documentClass)
 
         func appendSpan(for line: ClipboardTextLine, category: String) {
             let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1051,6 +1132,60 @@ final class PIIDetector {
                     source: .pattern
                 )
             )
+        }
+
+        func appendStandaloneFieldValueBlock(startingAt index: Int) {
+            let fieldOrder = ["vorname", "name", "strasse", "hausnr", "plz", "ort"]
+            var labelKeys: [String] = []
+            var cursor = index
+
+            while cursor < lines.count,
+                  let key = standaloneFieldLabelKey(in: lines[cursor].text) {
+                labelKeys.append(key)
+                cursor += 1
+            }
+
+            let orderedKeys = fieldOrder.filter { labelKeys.contains($0) }
+            guard orderedKeys.count >= 3 else { return }
+
+            var valueLines: [ClipboardTextLine] = []
+            var scan = cursor
+            while scan < lines.count, valueLines.count < orderedKeys.count {
+                let cleaned = lines[scan].text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if cleaned.isEmpty {
+                    scan += 1
+                    continue
+                }
+                if standaloneFieldLabelKey(in: cleaned) != nil {
+                    break
+                }
+                valueLines.append(lines[scan])
+                scan += 1
+            }
+
+            for (pairIndex, key) in orderedKeys.enumerated() {
+                guard valueLines.indices.contains(pairIndex) else { continue }
+                let valueLine = valueLines[pairIndex]
+                switch key {
+                case "vorname", "name":
+                    appendSpan(for: valueLine, category: "private_person")
+                case "strasse", "hausnr", "plz", "ort":
+                    appendSpan(for: valueLine, category: "private_address")
+                default:
+                    break
+                }
+            }
+        }
+
+        if documentClass == .standardizedForm {
+            for (index, line) in lines.enumerated() {
+                let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !cleaned.isEmpty,
+                      looksLikeLabeledFormBlockStart(cleaned),
+                      (index == 0 || standaloneFieldLabelKey(in: lines[index - 1].text) == nil)
+                else { continue }
+                appendStandaloneFieldValueBlock(startingAt: index)
+            }
         }
 
         for (index, line) in lines.enumerated() {
@@ -1132,7 +1267,116 @@ final class PIIDetector {
             }
         }
 
+        spans.append(contentsOf: supplementalInlinePersonSpans(in: text))
+
         return spans
+    }
+
+    nonisolated private static func supplementalInlinePersonSpans(in text: String) -> [DetectedSpan] {
+        let inlinePatterns = [
+            #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
+            #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
+            #"\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?)\b"#
+        ]
+
+        var spans: [DetectedSpan] = []
+        var seenRanges: Set<String> = []
+
+        for pattern in inlinePatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+
+            for match in regex.matches(in: text, options: [], range: nsRange) {
+                guard match.numberOfRanges > 1 else { continue }
+                let range = match.range(at: 1)
+                guard range.location != NSNotFound,
+                      let swiftRange = Range(range, in: text) else { continue }
+
+                let snippet = String(text[swiftRange]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
+                guard !snippet.isEmpty,
+                      !looksLikeOrganizationSnippet(snippet),
+                      !personSpanContainsAddressOrContactTail(snippet)
+                else { continue }
+
+                let key = "\(range.location):\(range.length):\(normalizedComparableText(snippet))"
+                guard seenRanges.insert(key).inserted else { continue }
+
+                spans.append(
+                    DetectedSpan(
+                        category: "private_person",
+                        text: snippet,
+                        start: range.location,
+                        end: range.location + range.length,
+                        confidence: 0.93,
+                        source: .pattern
+                    )
+                )
+            }
+        }
+
+        return spans
+    }
+
+    nonisolated private static func addressBlockLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .invoice:
+            return [
+                "Rechnungsanschrift", "Lieferanschrift", "Lieferadresse", "Rechnungsadresse",
+                "Postanschrift", "Korrespondenzanschrift", "Lieferstelle", "Nutzungsadresse",
+                "Objektanschrift"
+            ]
+        case .taxNotice:
+            return ["Postanschrift", "Korrespondenzanschrift", "Anschrift", "Steuerpflichtige Person"]
+        case .contactBankPage:
+            return ["Postanschrift", "Korrespondenzanschrift", "Objektanschrift", "Nutzungsadresse"]
+        case .standardizedForm:
+            return ["Postanschrift", "Korrespondenzanschrift", "Anschrift"]
+        case .general:
+            return ["Rechnungsanschrift", "Lieferanschrift", "Postanschrift", "Korrespondenzanschrift"]
+        }
+    }
+
+    nonisolated private static func personFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .invoice:
+            return ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kundin"]
+        case .taxNotice:
+            return ["Vorname", "Name", "Nachname", "Steuerpflichtige Person", "Steuerpflichtiger"]
+        case .contactBankPage:
+            return ["Vorname", "Name", "Nachname", "Kontoinhaber", "Versicherungsnehmer", "Darlehensnehmer", "Anschlussinhaber", "Ansprechpartner"]
+        case .standardizedForm:
+            return ["Vorname", "Name", "Nachname", "Kunde", "Kundin", "Kontoinhaber"]
+        case .general:
+            return ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kontoinhaber"]
+        }
+    }
+
+    nonisolated private static func streetFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
+            return ["Straße", "Strasse"]
+        }
+    }
+
+    nonisolated private static func houseNumberFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
+            return ["Hausnr", "Hausnummer"]
+        }
+    }
+
+    nonisolated private static func postalCodeFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
+            return ["PLZ", "Postleitzahl"]
+        }
+    }
+
+    nonisolated private static func cityFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
+        switch documentClass {
+        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
+            return ["Ort", "Stadt"]
+        }
     }
 
     nonisolated private static func clipboardTextLines(in text: String) -> [ClipboardTextLine] {
@@ -1160,6 +1404,59 @@ final class PIIDetector {
             }
         }
         return nil
+    }
+
+    nonisolated private static func looksLikeLabeledFormBlockStart(_ text: String) -> Bool {
+        guard let key = standaloneFieldLabelKey(in: text) else { return false }
+        return key == "vorname" || key == "name"
+    }
+
+    nonisolated private static func standaloneFieldLabelKey(in text: String) -> String? {
+        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        let mappings: [(label: String, key: String)] = [
+            ("Vorname", "vorname"),
+            ("Name", "name"),
+            ("Nachname", "name"),
+            ("Straße", "strasse"),
+            ("Strasse", "strasse"),
+            ("Strae", "strasse"),
+            ("Street", "strasse"),
+            ("Hausnr.", "hausnr"),
+            ("Hausnr", "hausnr"),
+            ("Hausnummer", "hausnr"),
+            ("PLZ", "plz"),
+            ("Postleitzahl", "plz"),
+            ("Ort", "ort"),
+            ("Stadt", "ort")
+        ]
+
+        for mapping in mappings {
+            let pattern = #"(?i)^\#(NSRegularExpression.escapedPattern(for: mapping.label))\s*:\s*$"#
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
+            if regex.firstMatch(in: normalized, options: [], range: nsRange) != nil {
+                return mapping.key
+            }
+        }
+        return nil
+    }
+
+    nonisolated private static func looksLikeStandaloneFieldSequence(in text: String) -> Bool {
+        let lines = text.components(separatedBy: .newlines)
+        var consecutiveCount = 0
+
+        for line in lines {
+            if standaloneFieldLabelKey(in: line) != nil {
+                consecutiveCount += 1
+                if consecutiveCount >= 3 {
+                    return true
+                }
+            } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                consecutiveCount = 0
+            }
+        }
+
+        return false
     }
 
     nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
@@ -1291,6 +1588,9 @@ final class PIIDetector {
                 return true
             }
             return false
+
+        case "secret":
+            return looksLikeLegalBoilerplateHeading(text)
 
         default:
             return false
@@ -1464,6 +1764,49 @@ final class PIIDetector {
         return bannedFragments.contains { normalizedText.contains($0) }
     }
 
+    nonisolated private static func looksLikeTermsAndConditionsDocument(_ text: String) -> Bool {
+        let normalizedText = normalizedComparableText(text)
+        let markers = [
+            "allgemeinegeschaftsbedingungen", "geltungsbereich", "vertragsschluss",
+            "eigentumsvorbehalt", "schlussbestimmungen", "streitbeilegung",
+            "vertragsbestandteil", "mitwirkungspflichten", "nacherfullung"
+        ]
+        let hitCount = markers.reduce(into: 0) { count, marker in
+            if normalizedText.contains(marker) {
+                count += 1
+            }
+        }
+        return hitCount >= 3 || normalizedText.contains("allgemeinegeschaftsbedingungen")
+    }
+
+    nonisolated private static func looksLikeLegalBoilerplateHeading(_ text: String) -> Bool {
+        let normalizedText = normalizedComparableText(text)
+        let headings: Set<String> = [
+            "geltungsbereich", "vertragsschluss", "eigentumsvorbehalt",
+            "schlussbestimmungen", "streitbeilegung", "widerrufsrecht",
+            "gewahrleistung", "haftung", "zahlungsbedingungen", "datenschutz"
+        ]
+        return headings.contains(normalizedText)
+    }
+
+    nonisolated private static func looksLikePlausiblePersonName(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return false }
+
+        let patterns = [
+            #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#,
+            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
+        ]
+
+        return patterns.contains { pattern in
+            cleaned.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
     nonisolated private static func deduplicateExactSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
         var bestByKey: [String: DetectedSpan] = [:]
         var order: [String] = []
@@ -1522,6 +1865,25 @@ final class PIIDetector {
         spans.filter { candidate in
             guard candidate.category == "private_address" else { return true }
             return !looksLikeLeadingConjunctionAddressTail(candidate.text)
+        }
+    }
+
+    nonisolated private static func suppressLegalBoilerplateFalsePositives(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
+        let suppressPersonNoise = looksLikeTermsAndConditionsDocument(text)
+
+        return spans.filter { candidate in
+            if candidate.category == "secret",
+               looksLikeLegalBoilerplateHeading(candidate.text) {
+                return false
+            }
+
+            if suppressPersonNoise,
+               candidate.category == "private_person",
+               !looksLikePlausiblePersonName(candidate.text) {
+                return false
+            }
+
+            return true
         }
     }
 

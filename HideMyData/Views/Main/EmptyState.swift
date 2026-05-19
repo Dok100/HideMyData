@@ -113,7 +113,7 @@ struct EmptyState: View {
             )
 
             VStack(spacing: 12) {
-                Text(isTargeted ? "Jetzt zum Öffnen ablegen" : "Wähle deinen Start")
+                Text(isTargeted ? "Jetzt zum Öffnen ablegen" : "Anonymisieren. Direkt auf deinem Mac.")
                     .font(.system(size: 38, weight: .medium, design: .rounded))
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
@@ -204,9 +204,11 @@ struct EmptyState: View {
                         }
                     }
 
-                    Text(isTargeted ? "Loslassen zum direkten Öffnen" : "Drag-and-drop funktioniert überall in dieser Karte.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.tertiary)
+                    if isTargeted {
+                        Text("Loslassen zum direkten Öffnen")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 11)
@@ -250,19 +252,19 @@ struct EmptyState: View {
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.green)
-                Text("Text schützen")
+                Text("Zwischenablage schützen")
                     .font(.system(size: 15, weight: .semibold))
             }
             .frame(minHeight: cardHeaderHeight, alignment: .topLeading)
 
-            Text("Kopierten Text anonymisieren, geschützt weitergeben und bei Bedarf zurückführen.")
+            Text("Kopierten Text anonymisieren, sicher weitergeben und bei Bedarf wieder zurückführen.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minHeight: cardDescriptionHeight, alignment: .topLeading)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Direkt starten")
+                Text("Schnellzugriff")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.tertiary)
                 HStack(spacing: 8) {
@@ -270,7 +272,7 @@ struct EmptyState: View {
                     ShortcutKey(text: "⇧")
                     ShortcutKey(text: "A")
 
-                    Text("öffnet die Text-Vorschau sofort.")
+                    Text("öffnet die Textansicht sofort.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -344,7 +346,7 @@ struct EmptyState: View {
                         Text("Noch keine zuletzt verwendeten Dateien")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text("Geöffnete PDFs und Bilder erscheinen hier für einen schnellen Wiedereinstieg.")
+                        Text("Zuletzt geöffnete PDFs und Bilder erscheinen hier für einen schnellen Wiedereinstieg.")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)

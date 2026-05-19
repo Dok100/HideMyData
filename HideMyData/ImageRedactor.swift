@@ -96,6 +96,8 @@ final class ImageRedactor {
 
     var hasRedactions: Bool { !redactionRects.isEmpty }
     var canDetect: Bool { image != nil && phase != .detecting }
+    var redactionCount: Int { redactionEntries.count }
+    var manualRedactionCount: Int { redactionEntries.filter { $0.findingID == nil }.count }
     var hasReviewFindings: Bool { !reviewFindings.isEmpty }
     var pendingReviewCount: Int { reviewFindings.filter { $0.status == .pending }.count }
     var hasPendingReview: Bool { pendingReviewCount > 0 }
@@ -997,8 +999,11 @@ final class ImageRedactor {
         let report = ExportValidationReport(
             format: .image,
             redactionCount: redactionRects.count,
+            manualRedactionCount: manualRedactionCount,
             redactedPageCount: nil,
             totalPageCount: nil,
+            lowTextWarning: detectionNotice?.title.localizedCaseInsensitiveContains("lesbarer Text") == true
+                || detectionNotice?.title.localizedCaseInsensitiveContains("OCR") == true,
             removedMetadata: options.removeMetadata,
             annotationsRemoved: true,
             bakedIntoPixels: !redactionRects.isEmpty

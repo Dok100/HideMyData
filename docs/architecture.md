@@ -22,7 +22,7 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
   Bildbasierte Erkennung, Redaktionslogik, Schwachsignal-Erkennung fuer OCR und technischer Export-Validierungsreport.
 
 - `HideMyData/Views/Main/MainView.swift`
-  Review-Workflow, Sidebar, Export, Diagnose, Clipboard-Anonymisierung, Vertrauensfeedback nach dem Speichern und ruhige Fehlerfuehrung fuer Oeffnen-, Retry-, Export- und Clipboard-Probleme.
+  Review-Workflow, Sidebar, Export, Diagnose, Clipboard-Anonymisierung, Regel-Assistenz, Seitenstatus, Export-Zusammenfassung, Vertrauensfeedback nach dem Speichern und ruhige Fehlerfuehrung fuer Oeffnen-, Retry-, Export- und Clipboard-Probleme.
 
 ## Erkennungspipeline
 
@@ -30,19 +30,21 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 2. Text normalisieren
 3. Modell-Treffer erzeugen
 4. Regex-Treffer ergaenzen
-5. Heuristiken fuer Dokumentrauschen und False Positives anwenden
-6. Review-faehige Treffer aufbereiten
-7. finale Redaktionen exportieren
-8. Export technisch validieren und Vertrauenssignale im UI anzeigen
+5. Dokumentklasse heuristisch einschaetzen
+6. Heuristiken fuer Dokumentrauschen, Briefkopf-Kontext, AGB-/Rechtstext und False Positives anwenden
+7. Review-faehige Treffer aufbereiten
+8. finale Redaktionen exportieren
+9. Export technisch validieren und Vertrauenssignale im UI anzeigen
 
 ## Aktuelle Schwerpunkte
 
 - abgeschlossene Detection-Haertung fuer native PDFs, OCR/Bilder und Clipboard-Text
-- abgeschlossener Review-Workflow mit direkter Ruecknahme, Fokus-Sprung aus der Dokumentflaeche und exportorientiertem Abschlussmoment
-- Export-Vertrauen durch technische Validierung nach dem Speichern
-- Fehlerfuehrung und Resilienz fuer Oeffnen, OCR-Schwachfaelle und Clipboard-Status
+- dokumentklassensensitive Erkennung fuer Rechnungen, Formulare, Bankseiten, DIN-5008-Briefe und E-Rechnungen
+- abgeschlossener Review-Workflow mit direkter Ruecknahme, Fokus-Sprung aus der Dokumentflaeche, Seitenstatus und Sammelaktionen fuer aehnliche Treffer
+- Export-Vertrauen durch technische Validierung und eine zusaetzliche menschliche Export-Zusammenfassung
+- Fehlerfuehrung und Resilienz fuer Oeffnen, OCR-Schwachfaelle, Export und Clipboard-Status
 - abgeschlossene Vereinheitlichung des Farbsystems zwischen Legende, Sidebar, Dokument-Highlights und Review-Karten
-- zentrale visuelle Semantik fuer Kategorien, Statusflächen und neutrale Oberflächen
-- abgeschlossene Start- und Leerzustände mit gleichwertigem Einstieg für Dokumente und Zwischenablage
+- abgeschlossene Start- und Leerzustaende mit gleichwertigem Einstieg fuer Dokumente und Zwischenablage
 - abgeschlossene Produktkommunikation fuer Einstieg, Export, Review, `Eigene Regeln` und `Technische Ansicht`
-- konsistente Terminologie und Dokumentation
+- Regel-Assistenz mit Vorlagen, Qualitaets-Hinweisen und Dokumentvorschau im Editor
+- konsistente Terminologie und nachgezogene Produktdokumentation bis `PROJ-20`

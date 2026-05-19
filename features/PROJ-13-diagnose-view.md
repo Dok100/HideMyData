@@ -1,6 +1,6 @@
 # PROJ-13 – Diagnose-View produktreif machen
 
-**Status**: Geplant
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -25,3 +25,10 @@ Die Diagnose soll wie ein bewusstes Power-User-Feature wirken und nicht wie ein 
 - Diagnose-View-Dateien
 - Export-/Share-Logik für Diagnosedaten
 
+## Umsetzung
+
+- Trefferlisten mit farbigen Kategorie-Akzenten und strukturierteren Karten ausgestattet
+- Seitenliste links mit kompakten Status-Pills für Treffer, Hinweise und Vorschau ergänzt
+- Developer-Modus ergänzt, damit Zeichenpositionen nur bei Bedarf sichtbar sind
+- `Diagnose als JSON exportieren` als eigener Exportpfad ergänzt
+- Diagnoseansicht an die produktnahen Labels aus dem Hauptworkflow angeglichen

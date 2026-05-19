@@ -154,7 +154,7 @@
       "id": "mrz",
       "description": "Passport machine-readable zone (15+ uppercase / digit / < chars)",
       "category": "secret",
-      "regex": "\\b[A-Z0-9<]{15,}\\b"
+      "regex": "\\b(?=[A-Z0-9<]{15,}\\b)(?=[A-Z0-9<]*[0-9<])[A-Z0-9<]{15,}\\b"
     },
     {
       "id": "polish_zip",

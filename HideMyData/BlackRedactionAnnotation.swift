@@ -4,6 +4,8 @@ import AppKit
 import SwiftUI
 
 enum FindingVisualSemantics {
+    static let manualPreviewCategory = "custom_identifier"
+
     static let accountNumberColor = NSColor(
         calibratedHue: 0.12,
         saturation: 0.72,
@@ -11,8 +13,17 @@ enum FindingVisualSemantics {
         alpha: 1
     )
 
-    static func displayName(for category: String) -> String {
+    static func canonicalCategory(for category: String) -> String {
         switch category.lowercased() {
+        case "adresse":
+            return "private_address"
+        default:
+            return category.lowercased()
+        }
+    }
+
+    static func displayName(for category: String) -> String {
+        switch canonicalCategory(for: category) {
         case "private_person":
             return "Person"
         case "private_phone":
@@ -28,7 +39,7 @@ enum FindingVisualSemantics {
         case "kontakt":
             return "Kontakt"
         case "account_number":
-            return "Kontonummer"
+            return "Nummer oder Kennung"
         case "custom_identifier":
             return "Eigene Regel"
         case "secret":
@@ -38,8 +49,19 @@ enum FindingVisualSemantics {
         }
     }
 
+    static func shortDisplayName(for category: String) -> String {
+        switch canonicalCategory(for: category) {
+        case "account_number":
+            return "Kennung"
+        case "custom_identifier":
+            return "Begriff"
+        default:
+            return displayName(for: category)
+        }
+    }
+
     static func nsColor(for category: String) -> NSColor {
-        switch category.lowercased() {
+        switch canonicalCategory(for: category) {
         case "private_email":
             return .systemGreen
         case "kontakt":
@@ -67,14 +89,30 @@ enum FindingVisualSemantics {
         Color(nsColor: nsColor(for: category))
     }
 
+    static func previewStrokeNSColor(for category: String) -> NSColor {
+        nsColor(for: category).withAlphaComponent(0.85)
+    }
+
+    static func previewFillNSColor(for category: String) -> NSColor {
+        nsColor(for: category).withAlphaComponent(0.22)
+    }
+
+    static func previewStrokeColor(for category: String) -> Color {
+        Color(nsColor: previewStrokeNSColor(for: category))
+    }
+
+    static func previewFillColor(for category: String) -> Color {
+        Color(nsColor: previewFillNSColor(for: category))
+    }
+
     static var legendItems: [(title: String, category: String)] {
         [
-            ("Person", "private_person"),
-            ("Adresse", "private_address"),
-            ("Nummer", "account_number"),
-            ("Kontakt", "kontakt"),
-            ("Datum", "private_date"),
-            ("E-Mail", "private_email")
+            (shortDisplayName(for: "private_person"), "private_person"),
+            (shortDisplayName(for: "private_address"), "private_address"),
+            (shortDisplayName(for: "account_number"), "account_number"),
+            (shortDisplayName(for: "kontakt"), "kontakt"),
+            (shortDisplayName(for: "private_date"), "private_date"),
+            (shortDisplayName(for: "private_email"), "private_email")
         ]
     }
 }

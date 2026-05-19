@@ -250,10 +250,11 @@
 				};
 			};
 			buildConfigurationList = 9F3FE37702D14C804BD6F631 /* Build configuration list for PBXProject "HideMyData" */;
-			developmentRegion = en;
+			developmentRegion = de;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				Base,
+				de,
 				en,
 			);
 			mainGroup = 2FA8625DDBED38F39F1C2203;

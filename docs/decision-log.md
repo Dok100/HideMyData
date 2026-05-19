@@ -14,6 +14,16 @@
 - Bei aktivem Filter `Nur offene Treffer` bleibt ein ueber die Dokumentflaeche fokussierter bestaetigter oder abgelehnter Treffer sichtbar, damit Korrekturen ohne Filterwechsel moeglich bleiben.
 - `PROJ-5` wird als abgeschlossen gewertet.
 - Das Farbsystem gilt fuer Kategorien, Statusflächen, Review-Karten und neutrale Hauptflächen als zentralisiert und konsistent genug fuer den aktiven Produktstand.
+- `PROJ-6` wird als abgeschlossen gewertet.
+- Startfläche, Leerzustände und Clipboard-Einstieg gelten als produktseitig klar genug, um die zwei Hauptworkflows gleichwertig zu kommunizieren.
+- `PROJ-7` startet mit einem ersten Mikrocopy-Block fuer Trust-Momente im Intro, im Modell-Download und an den zentralen Einstiegen.
+
+## 2026-05-19
+
+- `PROJ-7` wird als abgeschlossen gewertet.
+- Produktkommunikation gilt jetzt fuer Einstieg, Export, Review, `Eigene Regeln` und `Technische Ansicht` als ausreichend harmonisiert.
+- Eigene Regeln zeigen gruppierte Nutzerregeln statt flachen Maschinen-Output, und Wartungsaktionen erklaeren sich an der Stelle, an der sie ausgefuehrt werden.
+- Die `Technische Ansicht` bleibt technisch nutzbar, spricht aber mit klareren Abschnittstiteln und kontextbezogenen Info-Hinweisen produktnäher.
 
 ## 2026-05-13
 

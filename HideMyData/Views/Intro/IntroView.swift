@@ -18,7 +18,7 @@ struct IntroView: View {
                         .font(.system(size: 32, weight: .bold))
                         .tracking(-0.6)
 
-                    Text("Anonymisieren. Direkt auf deinem Mac.\nVertrauliches bleibt vertraulich.")
+                    Text("Lokal anonymisieren. Direkt auf deinem Mac.\nVertrauliches bleibt auf deinem Gerät.")
                         .font(.system(size: 14))
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -35,22 +35,22 @@ struct IntroView: View {
                 FeatureRow(
                     icon: "lock.shield.fill",
                     tint: .green,
-                    title: "Datenschutz ab Werk",
-                    subtitle: "Erkennung und Schwärzung laufen vollständig auf deinem Mac. Keine Konten, keine Server, keine Telemetrie — deine Dokumente verlassen das Gerät nie.",
+                    title: "Lokal und privat",
+                    subtitle: "Erkennung und Schwärzung laufen vollständig auf deinem Mac. Keine Konten, keine Server, keine Cloud — deine Dokumente bleiben auf dem Gerät.",
                     delay: 0.10
                 )
                 FeatureRow(
                     icon: "sparkles",
                     tint: .indigo,
-                    title: "Intelligente Erkennung",
+                    title: "Erkennt sensible Inhalte",
                     subtitle: "Ein lokales Sprachmodell findet Namen, E-Mails, Telefonnummern, Adressen, Daten und Kennungen in PDFs und gescannten Bildern.",
                     delay: 0.20
                 )
                 FeatureRow(
                     icon: "rectangle.dashed",
                     tint: .pink,
-                    title: "Dauerhafte Schwärzung",
-                    subtitle: "In gespeicherten Dateien wird der Originaltext von der Seite entfernt — nicht nur mit einem schwarzen Balken überdeckt, den man wieder entfernen könnte.",
+                    title: "Geschützt exportieren",
+                    subtitle: "Beim Speichern werden Schwärzungen fest in den Export eingebrannt — nicht nur als überdeckende Markierung.",
                     delay: 0.30
                 )
             }

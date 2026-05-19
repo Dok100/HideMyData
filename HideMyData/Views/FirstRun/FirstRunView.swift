@@ -17,9 +17,8 @@ struct FirstRunView: View {
                     .tracking(-0.6)
 
                 Text("""
-                Inkognito nutzt ein kleines lokales Sprachmodell, um personenbezogene Informationen in deinen Dokumenten zu finden. \
-                Das Modell wird einmal von Hugging Face geladen und läuft danach vollständig auf deinem Mac — \
-                nichts wird in die Cloud hochgeladen. Für die OCR bei Bildern wird Apple Vision verwendet, das bereits auf deinem Gerät vorhanden ist.
+                Inkognito lädt einmal ein kleines Sprachmodell und nutzt es danach vollständig lokal auf deinem Mac. \
+                Deine Dokumente bleiben auf dem Gerät, ohne Cloud und ohne Übertragung. Für Bilder verwendet Inkognito Apple Vision, das bereits auf deinem Mac vorhanden ist.
                 """)
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)

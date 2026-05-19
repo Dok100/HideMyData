@@ -215,6 +215,11 @@ final class PDFRedactor {
         let exportAccessory = ExportOptionsAccessoryView()
         panel.allowedContentTypes = [.pdf]
         panel.canCreateDirectories = true
+        panel.title = "Geschützte Kopie speichern"
+        panel.message = "Wähle Speicherort und Dateinamen für das geschützte PDF."
+        panel.prompt = "Speichern"
+        panel.nameFieldLabel = "Dateiname:"
+        panel.showsTagField = false
         panel.nameFieldStringValue = suggestedSaveName()
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }

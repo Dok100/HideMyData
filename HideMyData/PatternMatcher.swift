@@ -17,6 +17,34 @@ struct CustomPattern: Identifiable, Codable, Equatable {
 @Observable
 @MainActor
 final class CustomPatternStore {
+    struct PatternGroup: Identifiable, Equatable {
+        let id: String
+        let baseLabel: String
+        let category: String
+        let original: CustomPattern?
+        let patterns: [CustomPattern]
+
+        var title: String {
+            original?.label ?? baseLabel
+        }
+
+        var editorPattern: CustomPattern {
+            original ?? patterns[0]
+        }
+
+        var componentCount: Int {
+            let source = (original?.value ?? patterns[0].value)
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            return max(source.count, 1)
+        }
+
+        var derivedPatterns: [CustomPattern] {
+            patterns.filter { $0.id != original?.id }
+        }
+    }
+
     private(set) var patterns: [CustomPattern] = []
 
     init() {
@@ -35,6 +63,36 @@ final class CustomPatternStore {
 
     func remove(id: UUID) {
         patterns.removeAll { $0.id == id }
+        persist()
+    }
+
+    func remove(ids: [UUID]) {
+        let idSet = Set(ids)
+        patterns.removeAll { idSet.contains($0.id) }
+        persist()
+    }
+
+    func update(id: UUID, label: String, value: String, category: String) {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLabel.isEmpty, !trimmedValue.isEmpty else { return }
+        guard let index = patterns.firstIndex(where: { $0.id == id }) else { return }
+        guard let normalized = normalize(CustomPattern(id: id, label: trimmedLabel, value: trimmedValue, category: category)) else { return }
+        patterns[index] = normalized
+        patterns = deduplicated(patterns)
+        persist()
+    }
+
+    func replaceGroup(ids: [UUID], label: String, value: String, category: String) {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLabel.isEmpty, !trimmedValue.isEmpty else { return }
+        let normalizedCategory = normalizedCategory(category)
+
+        let idSet = Set(ids)
+        patterns.removeAll { idSet.contains($0.id) }
+        patterns.append(contentsOf: expandedPatterns(label: trimmedLabel, value: trimmedValue, category: normalizedCategory))
+        patterns = deduplicated(patterns)
         persist()
     }
 
@@ -66,6 +124,10 @@ final class CustomPatternStore {
         return removedCount
     }
 
+    func previewDeduplicateRemovalCount() -> Int {
+        patterns.count - deduplicated(patterns).count
+    }
+
     func cleanupWeakPatterns() -> Int {
         let originalCount = patterns.count
         patterns = Self.sanitizedPersistedPatterns(patterns)
@@ -74,6 +136,10 @@ final class CustomPatternStore {
             persist()
         }
         return removedCount
+    }
+
+    func previewWeakPatternRemovalCount() -> Int {
+        patterns.count - Self.sanitizedPersistedPatterns(patterns).count
     }
 
     func migrateLegacyPatterns() -> Int {
@@ -105,8 +171,87 @@ final class CustomPatternStore {
         return addedCount
     }
 
+    func previewLegacyMigrationAddedCount() -> Int {
+        let originalCount = patterns.count
+        var rebuilt: [CustomPattern] = []
+
+        for pattern in patterns {
+            let normalizedPattern = normalize(pattern)
+            guard let normalizedPattern else { continue }
+
+            if isGeneratedPatternLabel(normalizedPattern.label) {
+                rebuilt.append(normalizedPattern)
+            } else {
+                rebuilt.append(contentsOf: expandedPatterns(
+                    label: normalizedPattern.label,
+                    value: normalizedPattern.value,
+                    category: normalizedPattern.category
+                ))
+            }
+        }
+
+        let rebuiltPatterns = deduplicated(rebuilt)
+        return max(0, rebuiltPatterns.count - originalCount)
+    }
+
     func exportPatterns() -> [CustomPattern] {
         patterns
+    }
+
+    func groupedPatterns() -> [PatternGroup] {
+        let originals = patterns.filter { !Self.isGeneratedPatternLabel($0.label) }
+        var remaining = Dictionary(uniqueKeysWithValues: patterns.map { ($0.id, $0) })
+        var groups: [PatternGroup] = []
+
+        for original in originals {
+            let expected = expandedPatterns(label: original.label, value: original.value, category: original.category)
+            var matched: [CustomPattern] = []
+
+            for pattern in expected {
+                if let match = remaining.values.first(where: { patternKey($0) == patternKey(pattern) }) {
+                    matched.append(match)
+                    remaining.removeValue(forKey: match.id)
+                }
+            }
+
+            if matched.isEmpty, let fallback = remaining.removeValue(forKey: original.id) {
+                matched = [fallback]
+            }
+
+            guard !matched.isEmpty else { continue }
+
+            groups.append(
+                PatternGroup(
+                    id: groupID(baseLabel: baseLabel(for: original.label), category: original.category, anchorID: original.id),
+                    baseLabel: baseLabel(for: original.label),
+                    category: original.category,
+                    original: matched.first(where: { $0.id == original.id }) ?? original,
+                    patterns: sortGroupPatterns(matched)
+                )
+            )
+        }
+
+        let orphanGroups = Dictionary(grouping: remaining.values) { pattern in
+            groupID(baseLabel: baseLabel(for: pattern.label), category: pattern.category, anchorID: pattern.id)
+        }
+            .values
+            .map { orphanPatterns in
+                let sorted = sortGroupPatterns(Array(orphanPatterns))
+                let first = sorted[0]
+                return PatternGroup(
+                    id: groupID(baseLabel: baseLabel(for: first.label), category: first.category, anchorID: first.id),
+                    baseLabel: baseLabel(for: first.label),
+                    category: first.category,
+                    original: sorted.first(where: { !Self.isGeneratedPatternLabel($0.label) }),
+                    patterns: sorted
+                )
+            }
+            .sorted { (lhs: PatternGroup, rhs: PatternGroup) in
+                lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            }
+
+        groups.append(contentsOf: orphanGroups)
+        return groups
     }
 
     private func load() {
@@ -223,6 +368,41 @@ final class CustomPatternStore {
 
     private func deduplicated(_ patterns: [CustomPattern]) -> [CustomPattern] {
         Self.sanitizedPersistedPatterns(patterns)
+    }
+
+    private func baseLabel(for label: String) -> String {
+        Self.baseLabel(for: label)
+    }
+
+    nonisolated fileprivate static func baseLabel(for label: String) -> String {
+        label
+            .replacingOccurrences(of: " – Teil", with: "")
+            .replacingOccurrences(of: " – Block", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func groupID(baseLabel: String, category: String, anchorID: UUID) -> String {
+        [
+            baseLabel.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+            category.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current),
+            anchorID.uuidString
+        ].joined(separator: "::")
+    }
+
+    private func sortGroupPatterns(_ patterns: [CustomPattern]) -> [CustomPattern] {
+        patterns.sorted { lhs, rhs in
+            let lhsGenerated = Self.isGeneratedPatternLabel(lhs.label)
+            let rhsGenerated = Self.isGeneratedPatternLabel(rhs.label)
+            if lhsGenerated != rhsGenerated {
+                return !lhsGenerated
+            }
+            let lhsBlock = lhs.label.contains(" – Block")
+            let rhsBlock = rhs.label.contains(" – Block")
+            if lhsBlock != rhsBlock {
+                return !lhsBlock
+            }
+            return lhs.label.localizedCaseInsensitiveCompare(rhs.label) == .orderedAscending
+        }
     }
 
     private func normalize(_ pattern: CustomPattern) -> CustomPattern? {

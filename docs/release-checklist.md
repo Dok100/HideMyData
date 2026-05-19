@@ -31,6 +31,8 @@
 - fehlgeschlagene Exporte geben eine klare Folgeaktion wie Wiederholen oder Speicherort wechseln
 - Legende, Dokument-Highlights und Review-Karten verwenden dieselbe Farblogik für Kategorien
 - Source- und Status-Badges in den Review-Karten wirken konsistent zu Status-Pill, Undo-Banner und Export-Vertrauenskarte
+- `Eigene Regeln` erklaert sich ohne Technikjargon und zeigt Rueckmeldungen zu Wartungsaktionen in unmittelbarer Naehe der ausloesenden Buttons
+- `Technische Ansicht` bleibt lesbar im Dunkelmodus und erklaert ihre Bereiche ueber kurze Info-Hinweise statt rohe Debug-Begriffe
 
 ## Release-Artefakte
 

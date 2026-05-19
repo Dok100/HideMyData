@@ -192,6 +192,11 @@ final class ImageRedactor {
         let exportAccessory = ExportOptionsAccessoryView()
         panel.allowedContentTypes = [outUTI]
         panel.canCreateDirectories = true
+        panel.title = "Geschützte Kopie speichern"
+        panel.message = "Wähle Speicherort und Dateinamen für das geschützte Bild."
+        panel.prompt = "Speichern"
+        panel.nameFieldLabel = "Dateiname:"
+        panel.showsTagField = false
         panel.nameFieldStringValue = suggestedSaveName(uti: outUTI)
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }

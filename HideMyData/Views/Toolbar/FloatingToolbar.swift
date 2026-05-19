@@ -51,12 +51,12 @@ struct FloatingToolbar: View {
     @ViewBuilder
     private var openButton: some View {
         Button(action: onOpenRequest) {
-            Label("Öffnen", systemImage: openIcon)
+            Label("Dokument öffnen", systemImage: openIcon)
                 .padding(.horizontal, 4)
         }
         .buttonStyle(.bordered)
         .keyboardShortcut("o", modifiers: [.command])
-        .help("Öffnen  ⌘O")
+        .help("Dokument öffnen  ⌘O")
     }
 
     @ViewBuilder
@@ -82,7 +82,7 @@ struct FloatingToolbar: View {
                 .padding(.horizontal, 4)
         }
         .buttonStyle(.bordered)
-        .disabled(!hasFile)
+        .disabled(!hasFile || !hasProtectedContent)
         .keyboardShortcut("s", modifiers: [.command])
         .help(saveHelpText)
     }
@@ -118,12 +118,12 @@ struct FloatingToolbar: View {
                 }
 
                 Button(action: onAnonymizeClipboard) {
-                    Label("Zwischenablage anonymisieren", systemImage: "doc.on.clipboard")
+                    Label("Text schützen", systemImage: "doc.on.clipboard")
                 }
                 .disabled(!detector.isReady || isDetecting)
 
                 Button(action: onShowDiagnostics) {
-                    Label("Diagnose öffnen", systemImage: "ladybug")
+                    Label("Technische Ansicht", systemImage: "ladybug")
                 }
                 .disabled(!hasDiagnostics)
 
@@ -134,12 +134,12 @@ struct FloatingToolbar: View {
                 }
                 .disabled(!hasRedactions || isDetecting)
             } label: {
-                Label("Werkzeuge", systemImage: "ellipsis.circle")
+                Label("Mehr", systemImage: "ellipsis.circle")
                     .padding(.horizontal, 4)
             }
             .menuStyle(.button)
             .controlSize(.regular)
-            .help("Sekundäre Werkzeuge und Hilfsfunktionen")
+            .help("Weitere Aktionen und Hilfen")
         }
     }
 
@@ -190,6 +190,10 @@ struct FloatingToolbar: View {
         }
     }
 
+    private var hasProtectedContent: Bool {
+        hasRedactions
+    }
+
     private var isDetecting: Bool {
         switch inputMode {
         case .pdf: pdfRedactor.phase == .detecting
@@ -237,17 +241,20 @@ struct FloatingToolbar: View {
     }
 
     private var saveHelpText: String {
+        if hasFile && !hasProtectedContent {
+            return "Erst erkennen oder manuell schwärzen, dann exportieren"
+        }
         if hasPendingReview {
-            return "Vor dem Speichern alle Treffer prüfen"
+            return "Vor dem Export alle Stellen prüfen"
         }
         if reviewIsComplete {
-            return "Review fertig: geschwärzte Kopie jetzt sicher speichern  ⌘S"
+            return "Alles geprüft: geschützte Kopie jetzt exportieren  ⌘S"
         }
-        return "Geschwärzte Kopie speichern  ⌘S"
+        return "Geschützte Kopie exportieren  ⌘S"
     }
 
     private var saveButtonTitle: String {
-        reviewIsComplete ? "Sicher exportieren" : "Speichern"
+        reviewIsComplete ? "Geschützt exportieren" : "Exportieren"
     }
 
     private var hasPendingReview: Bool {

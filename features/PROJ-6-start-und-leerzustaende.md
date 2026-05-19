@@ -1,6 +1,6 @@
 # PROJ-6 – Start- und Leerzustände
 
-**Status**: Teilweise umgesetzt
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -12,15 +12,13 @@ Der Einstieg in die App soll sofort verständlich sein und die zwei Hauptworkflo
 - sichtbarer Drag-and-Drop-Bereich
 - gleichwertigere Button-Hierarchie
 - stärkerer Abschlusszustand in der Review-Sidebar
-
-## Offene Punkte
-
-- Meta-Texte weiter reduzieren
-- Einstieg noch stärker auf Handlungs-Hinweise trimmen
-- Leerzustände zwischen Dokument- und Clipboard-Flow weiter vereinheitlichen
+- handlungsorientierterer Startzustand mit klareren Einstiegen für Dokument und Zwischenablage
+- reduzierte Meta-Texte im Empty State und im Clipboard-Einstieg
+- konsistentere Formulierungen zwischen Dokument-Start und Clipboard-Flow
+- vereinheitlichte Leerzustände im Clipboard-Sheet für `noch nichts geladen`, `noch keine Vorschau`, `noch keine Platzhalter`, `noch keine Rückführung` und `noch kein Mapping`
+- `Zuletzt verwendet` bleibt auch ohne Einträge als ruhiger, erklärter Startbereich sichtbar
 
 ## Relevante Dateien
 
 - `HideMyData/Views/Main/EmptyState.swift`
 - `HideMyData/Views/Main/MainView.swift`
-

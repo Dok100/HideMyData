@@ -23,14 +23,10 @@ struct EmptyState: View {
 
                     Spacer().frame(height: 28)
 
-                    if !recents.items.isEmpty {
-                        RecentsRow(store: recents, onOpen: onOpenRecent)
-                            .padding(.horizontal, 36)
-                            .padding(.bottom, 12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    } else {
-                        Spacer().frame(height: 12)
-                    }
+                    recentsSection
+                        .padding(.horizontal, 36)
+                        .padding(.bottom, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
                     UpdateStatusFooter()
                         .padding(.bottom, 14)
@@ -117,12 +113,12 @@ struct EmptyState: View {
             )
 
             VStack(spacing: 12) {
-                Text(isTargeted ? "Zum Öffnen ablegen" : "Anonymisieren. Direkt auf deinem Mac.")
+                Text(isTargeted ? "Jetzt zum Öffnen ablegen" : "Wähle deinen Start")
                     .font(.system(size: 38, weight: .medium, design: .rounded))
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
 
-                Text("Ziehe ein PDF oder Bild hierher. Inkognito erkennt sensible Daten, zeigt sie zur Prüfung an und schwärzt sie dauerhaft.")
+                Text("Öffne ein Dokument oder anonymisiere kopierten Text. Inkognito arbeitet vollständig lokal auf deinem Mac, ohne Cloud und ohne Datenübertragung.")
                     .font(.system(size: 14))
                     .foregroundStyle(Color.primary.opacity(0.62))
                     .multilineTextAlignment(.center)
@@ -167,12 +163,12 @@ struct EmptyState: View {
                 Image(systemName: "doc.text.viewfinder")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(Color.accentColor)
-                Text("Dokument anonymisieren")
+                Text("Dokument öffnen")
                     .font(.system(size: 15, weight: .semibold))
             }
             .frame(minHeight: cardHeaderHeight, alignment: .topLeading)
 
-            Text("Öffne ein PDF oder Bild und prüfe erkannte sensible Stellen vor dem finalen Schwärzen.")
+            Text("PDF oder Bild öffnen, sensible Inhalte prüfen und geschützt exportieren.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -202,13 +198,13 @@ struct EmptyState: View {
                                 .font(.system(size: 12.5, weight: .semibold))
                                 .foregroundStyle(.primary)
 
-                            Text("Ziehe ein PDF oder Bild direkt in diesen Bereich.")
+                            Text("Ziehe PDF oder Bild direkt in die Startfläche.")
                                 .font(.system(size: 11.5))
                                 .foregroundStyle(.secondary)
                         }
                     }
 
-                    Text(isTargeted ? "Loslassen zum direkten Oeffnen" : "Die gesamte Karte reagiert auf Drag-and-Drop.")
+                    Text(isTargeted ? "Loslassen zum direkten Öffnen" : "Drag-and-drop funktioniert überall in dieser Karte.")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
@@ -254,19 +250,19 @@ struct EmptyState: View {
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(.green)
-                Text("Kopierten Text schützen")
+                Text("Text schützen")
                     .font(.system(size: 15, weight: .semibold))
             }
             .frame(minHeight: cardHeaderHeight, alignment: .topLeading)
 
-            Text("Anonymisiere sensible Inhalte, bevor du sie in KI-Chatbots, E-Mails oder Dokumente einfügst.")
+            Text("Kopierten Text anonymisieren, geschützt weitergeben und bei Bedarf zurückführen.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minHeight: cardDescriptionHeight, alignment: .topLeading)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Schnellzugriff")
+                Text("Direkt starten")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundStyle(.tertiary)
                 HStack(spacing: 8) {
@@ -274,7 +270,7 @@ struct EmptyState: View {
                     ShortcutKey(text: "⇧")
                     ShortcutKey(text: "A")
 
-                    Text("öffnet die Vorschau für kopierten Text.")
+                    Text("öffnet die Text-Vorschau sofort.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -285,7 +281,7 @@ struct EmptyState: View {
             Spacer(minLength: 0)
 
             Button(action: onOpenClipboardAnonymizer) {
-                Label("Kopierten Text anonymisieren", systemImage: "arrow.left.arrow.right.square")
+                Label("Text aus Zwischenablage öffnen", systemImage: "arrow.left.arrow.right.square")
                     .padding(.horizontal, 6)
             }
             .buttonStyle(.borderedProminent)
@@ -326,6 +322,45 @@ struct EmptyState: View {
         switch inputMode {
         case .pdf: onOpenPDF
         case .image: onOpenImage
+        }
+    }
+
+    @ViewBuilder
+    private var recentsSection: some View {
+        if recents.items.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Zuletzt verwendet")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .tracking(1.8)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 4)
+
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(StatusVisualSemantics.trust)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Noch keine zuletzt verwendeten Dateien")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.primary)
+                        Text("Geöffnete PDFs und Bilder erscheinen hier für einen schnellen Wiedereinstieg.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(14)
+                .background(cardFill, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(cardBorder, lineWidth: 0.8)
+                )
+            }
+        } else {
+            RecentsRow(store: recents, onOpen: onOpenRecent)
         }
     }
 

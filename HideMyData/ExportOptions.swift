@@ -22,7 +22,7 @@ struct ExportValidationReport: Equatable {
         switch format {
         case .pdf:
             if let redactedPageCount, let totalPageCount {
-                return "PDF gespeichert · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") neu aufgebaut"
+                return "PDF gespeichert · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") geschützt neu aufgebaut"
             }
             return "PDF gespeichert"
         case .image:
@@ -33,13 +33,13 @@ struct ExportValidationReport: Equatable {
     var trustChecklist: [String] {
         var items: [String] = []
         if bakedIntoPixels {
-            items.append("Schwärzungen sind fest im Export enthalten")
+            items.append("Schwärzungen bleiben im Export fest enthalten")
         }
         if annotationsRemoved {
-            items.append("Anmerkungen und Overlays wurden nicht übernommen")
+            items.append("Anmerkungen und Overlays wurden nicht mit übernommen")
         }
         if removedMetadata {
-            items.append("Metadaten wurden entfernt")
+            items.append("Dokumentmetadaten wurden entfernt")
         }
         return items
     }

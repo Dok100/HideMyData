@@ -105,6 +105,7 @@ struct MainView: View {
                             pendingCount: currentPendingReviewCount,
                             acceptedCount: currentAcceptedReviewCount,
                             rejectedCount: currentRejectedReviewCount,
+                            hasProtectedContent: hasProtectedContent,
                             selectedFindingID: currentFocusedFindingID,
                             undoNotice: reviewUndoNotice,
                             exportReport: currentExportReport,
@@ -372,6 +373,9 @@ struct MainView: View {
         if hasPendingReview {
             return .review
         }
+        if !hasProtectedContent {
+            return currentReviewFindings.isEmpty ? .detect : .review
+        }
         switch inputMode {
         case .pdf:
             if pdfRedactor.hasRedactions || !pdfRedactor.reviewFindings.isEmpty {
@@ -393,6 +397,13 @@ struct MainView: View {
         inputMode == .pdf ? pdfRedactor.currentPageIndex : 0
     }
 
+    private var hasProtectedContent: Bool {
+        switch inputMode {
+        case .pdf: pdfRedactor.hasRedactions
+        case .image: imageRedactor.hasRedactions
+        }
+    }
+
     private var hasPendingReview: Bool {
         switch inputMode {
         case .pdf: pdfRedactor.hasPendingReview
@@ -408,6 +419,13 @@ struct MainView: View {
     }
 
     private func requestSave() {
+        guard hasProtectedContent else {
+            presentIssue(
+                title: "Noch nichts zum Exportieren geschützt",
+                message: "Erkenne zuerst sensible Inhalte oder setze mindestens eine manuelle Schwärzung. Erst danach kann Inkognito eine geschützte Kopie exportieren."
+            )
+            return
+        }
         guard !hasPendingReview else {
             saveWarningPresented = true
             return
@@ -514,6 +532,30 @@ private struct ReviewUndoNotice: Equatable {
     let detail: String
 }
 
+private struct DebugInfoButton: View {
+    let text: String
+    @State private var isPresented = false
+
+    var body: some View {
+        Button {
+            isPresented = true
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPresented, arrowEdge: .top) {
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 280, alignment: .leading)
+                .padding(16)
+        }
+    }
+}
+
 private struct UserFacingIssue: Identifiable {
     let id = UUID()
     let title: String
@@ -524,6 +566,7 @@ private struct UserFacingIssue: Identifiable {
 
 private struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     let entries: [DetectionDebugEntry]
     @State private var selectedEntryID: DetectionDebugEntry.ID?
     @State private var query = ""
@@ -534,7 +577,7 @@ private struct DiagnosticsSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.title)
                         .font(.system(size: 13, weight: .semibold))
-                    Text("\(entry.findings.count) Treffer · \(entry.diagnostics.count) Diagnosezeilen · \(entry.previewDiagnostics.count) Preview-Zeilen · \(entry.textSourceLabel)")
+                    Text("\(entry.findings.count) Treffer · \(entry.diagnostics.count) Hinweise · \(entry.previewDiagnostics.count) Vorschauzeilen · \(entry.textSourceLabel)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -553,13 +596,16 @@ private struct DiagnosticsSheet: View {
                                 .foregroundStyle(.secondary)
                         }
 
-                        debugCard(title: "Suche in der Diagnose") {
+                        debugCard(
+                            title: "Inhalte durchsuchen",
+                            helpText: "Sucht gleichzeitig im gelesenen Ausgangstext, im aufbereiteten Text und in den erkannten Stellen dieser Seite."
+                        ) {
                             VStack(alignment: .leading, spacing: 10) {
                                 TextField("z. B. 01.10.1938 oder Offenau", text: $query)
                                     .textFieldStyle(.roundedBorder)
 
                                 if query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    Text("Suche nach OCR-Text, normalisiertem Text und erkannten Treffern.")
+                                    Text("Suche nach Ausgangstext, aufbereitetem Text und erkannten Stellen.")
                                         .font(.system(size: 12))
                                         .foregroundStyle(.secondary)
                                 } else {
@@ -571,26 +617,29 @@ private struct DiagnosticsSheet: View {
                                 if !searchMatches.isEmpty {
                                     LazyVStack(alignment: .leading, spacing: 8) {
                                         ForEach(Array(searchMatches.enumerated()), id: \.offset) { index, match in
-                                            VStack(alignment: .leading, spacing: 3) {
-                                                Text(match.section)
-                                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                                    .foregroundStyle(.secondary)
-                                                Text(match.snippet)
-                                                    .font(.system(size: 12, design: .monospaced))
-                                                    .textSelection(.enabled)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(match.section)
+                                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
+                                            Text(match.snippet)
+                                                .font(.system(size: 12, design: .monospaced))
+                                                .textSelection(.enabled)
                                             }
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .padding(10)
-                                            .background(.yellow.opacity(index == 0 ? 0.18 : 0.1), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .background(searchMatchFill(isPrimary: index == 0), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                                         }
                                     }
                                 }
                             }
                         }
 
-                        debugCard(title: "Erkannte Treffer") {
+                        debugCard(
+                            title: "Erkannte Stellen",
+                            helpText: "Zeigt alle Stellen, die Inkognito auf dieser Seite erkannt hat, inklusive Quelle, Kategorie und Konfidenz."
+                        ) {
                             if selectedEntry.findings.isEmpty {
-                                Text("Keine Treffer erkannt.")
+                                Text("Keine Stellen erkannt.")
                                     .foregroundStyle(.secondary)
                             } else {
                                 LazyVStack(alignment: .leading, spacing: 10) {
@@ -611,18 +660,25 @@ private struct DiagnosticsSheet: View {
                                                 .textSelection(.enabled)
                                             Text("Konfidenz \(Int(finding.confidence * 100))% · Zeichen \(finding.start)-\(finding.end)")
                                                 .font(.system(size: 11))
-                                                .foregroundStyle(.secondary)
+                                                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.72 : 0.62))
                                         }
                                         .frame(maxWidth: .infinity, alignment: .leading)
                                         .padding(10)
-                                        .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                        .background(debugItemFillColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .stroke(debugItemBorderColor, lineWidth: 0.8)
+                                        )
                                     }
                                 }
                             }
                         }
 
                         if !selectedEntry.diagnostics.isEmpty {
-                            debugCard(title: "Custom-Rule-Diagnose") {
+                            debugCard(
+                                title: "Eigene Regeln im Kontext",
+                                helpText: "Zeigt, welche deiner eigenen Regeln hier mitgewirkt haben oder warum Einträge berücksichtigt oder verworfen wurden."
+                            ) {
                                 LazyVStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(selectedEntry.diagnostics.enumerated()), id: \.offset) { _, line in
                                         Text(line)
@@ -630,14 +686,21 @@ private struct DiagnosticsSheet: View {
                                             .textSelection(.enabled)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .padding(10)
-                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .background(debugItemFillColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(debugItemBorderColor, lineWidth: 0.8)
+                                            )
                                     }
                                 }
                             }
                         }
 
                         if !selectedEntry.previewDiagnostics.isEmpty {
-                            debugCard(title: "Preview-Debugliste") {
+                            debugCard(
+                                title: "Abgleich mit der Vorschau",
+                                helpText: "Hilft nachzuvollziehen, welche Textstellen in der Vorschau markiert wurden und wie sie zugeordnet sind."
+                            ) {
                                 LazyVStack(alignment: .leading, spacing: 8) {
                                     ForEach(Array(selectedEntry.previewDiagnostics.enumerated()), id: \.offset) { _, line in
                                         Text(line)
@@ -645,13 +708,20 @@ private struct DiagnosticsSheet: View {
                                             .textSelection(.enabled)
                                             .frame(maxWidth: .infinity, alignment: .leading)
                                             .padding(10)
-                                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .background(debugItemFillColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                    .stroke(debugItemBorderColor, lineWidth: 0.8)
+                                            )
                                     }
                                 }
                             }
                         }
 
-                        debugCard(title: "Gelesener Text") {
+                        debugCard(
+                            title: "Gelesener Ausgangstext",
+                            helpText: "Das ist der Text, den Inkognito direkt aus PDF oder OCR übernommen hat."
+                        ) {
                             Text(selectedEntry.rawText.isEmpty ? "Kein Text vorhanden." : selectedEntry.rawText)
                                 .font(.system(size: 12, design: .monospaced))
                                 .textSelection(.enabled)
@@ -659,7 +729,10 @@ private struct DiagnosticsSheet: View {
                         }
 
                         if selectedEntry.normalizedText != selectedEntry.rawText {
-                            debugCard(title: "Normalisierter Text") {
+                            debugCard(
+                                title: "Aufbereiteter Text",
+                                helpText: "Das ist die interne, bereinigte Fassung für Erkennung und Abgleich. Layoutreste oder OCR-Artefakte können hier vereinfacht sein."
+                            ) {
                                 Text(selectedEntry.normalizedText)
                                     .font(.system(size: 12, design: .monospaced))
                                     .textSelection(.enabled)
@@ -669,7 +742,7 @@ private struct DiagnosticsSheet: View {
 
                         HStack {
                             Spacer()
-                            Button("Diagnose kopieren") {
+                            Button("Ansicht kopieren") {
                                 copyDiagnostics(selectedEntry)
                             }
                             .buttonStyle(.glass)
@@ -679,7 +752,7 @@ private struct DiagnosticsSheet: View {
                 }
                 .background(AmbientBackdrop())
             } else {
-                ContentUnavailableView("Keine Diagnose ausgewählt", systemImage: "ladybug")
+                ContentUnavailableView("Keine Ansicht ausgewählt", systemImage: "ladybug")
             }
         }
         .frame(minWidth: 860, idealWidth: 1040, minHeight: 620, idealHeight: 760)
@@ -698,14 +771,46 @@ private struct DiagnosticsSheet: View {
         return entries.first(where: { $0.id == selectedEntryID }) ?? entries.first
     }
 
-    private func debugCard<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func debugCard<Content: View>(title: String, helpText: String? = nil, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
+            HStack(alignment: .center, spacing: 8) {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                if let helpText {
+                    DebugInfoButton(text: helpText)
+                }
+            }
             content()
         }
         .padding(16)
-        .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(debugCardFillColor, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(debugCardBorderColor, lineWidth: 0.9)
+        )
+    }
+
+    private var debugCardFillColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.24) : Color.white.opacity(0.16)
+    }
+
+    private var debugCardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
+    }
+
+    private var debugItemFillColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.30) : Color.white.opacity(0.72)
+    }
+
+    private var debugItemBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
+    }
+
+    private func searchMatchFill(isPrimary: Bool) -> Color {
+        if colorScheme == .dark {
+            return Color.yellow.opacity(isPrimary ? 0.22 : 0.14)
+        }
+        return Color.yellow.opacity(isPrimary ? 0.18 : 0.10)
     }
 
     private var searchMatches: [(section: String, snippet: String)] {
@@ -718,17 +823,17 @@ private struct DiagnosticsSheet: View {
         matches.append(contentsOf: snippetMatches(in: selectedEntry.rawText, section: "Gelesener Text", query: trimmedQuery))
 
         if selectedEntry.normalizedText != selectedEntry.rawText {
-            matches.append(contentsOf: snippetMatches(in: selectedEntry.normalizedText, section: "Normalisierter Text", query: trimmedQuery))
+            matches.append(contentsOf: snippetMatches(in: selectedEntry.normalizedText, section: "Aufbereiteter Text", query: trimmedQuery))
         }
 
         for line in selectedEntry.diagnostics where line.localizedCaseInsensitiveContains(trimmedQuery) {
-            matches.append(("Custom-Rule-Diagnose", line))
+            matches.append(("Eigene Regeln im Kontext", line))
         }
 
         for finding in selectedEntry.findings {
             if finding.text.localizedCaseInsensitiveContains(trimmedQuery) || finding.category.localizedCaseInsensitiveContains(trimmedQuery) {
                 matches.append((
-                    "Treffer · \(finding.source.label)",
+                    "Erkannte Stellen · \(finding.source.label)",
                     "\(finding.category): \(finding.text)"
                 ))
             }
@@ -777,19 +882,19 @@ private struct DiagnosticsSheet: View {
             entry.title,
             entry.textSourceLabel,
             "",
-            "Treffer:",
-            findingsText.isEmpty ? "Keine Treffer" : findingsText,
+            "Erkannte Stellen:",
+            findingsText.isEmpty ? "Keine Stellen" : findingsText,
             "",
-            "Custom-Rule-Diagnose:",
-            entry.diagnostics.isEmpty ? "Keine Diagnose" : entry.diagnostics.joined(separator: "\n"),
+            "Eigene Regeln im Kontext:",
+            entry.diagnostics.isEmpty ? "Keine Hinweise" : entry.diagnostics.joined(separator: "\n"),
             "",
-            "Preview-Debugliste:",
-            entry.previewDiagnostics.isEmpty ? "Keine Preview-Diagnose" : entry.previewDiagnostics.joined(separator: "\n"),
+            "Abgleich mit der Vorschau:",
+            entry.previewDiagnostics.isEmpty ? "Keine Vorschauhinweise" : entry.previewDiagnostics.joined(separator: "\n"),
             "",
-            "Gelesener Text:",
+            "Gelesener Ausgangstext:",
             entry.rawText,
             "",
-            "Normalisierter Text:",
+            "Aufbereiteter Text:",
             entry.normalizedText
         ].joined(separator: "\n")
 
@@ -812,8 +917,8 @@ private struct ClipboardAnonymizerSheet: View {
     @State private var unresolvedPlaceholders: [String] = []
     @State private var suspiciousPlaceholderTokens: [String] = []
     @State private var isProcessing = false
-    @State private var statusMessage = "Kopiere einen Text in die Zwischenablage und prüfe hier die anonymisierte Vorschau."
-    @State private var restoreStatusMessage = "Füge danach die KI-Antwort ein oder lade sie aus der Zwischenablage, um die Platzhalter wieder zurückzuführen."
+    @State private var statusMessage = "Kopiere einen Text und lade ihn hier zur anonymisierten Vorschau."
+    @State private var restoreStatusMessage = "Lade danach die KI-Antwort, um die Platzhalter wieder zurückzuführen."
 
     private var statusTone: ClipboardStatusTone {
         if statusMessage.contains("fehlgeschlagen") {
@@ -832,7 +937,7 @@ private struct ClipboardAnonymizerSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Zwischenablage anonymisieren")
                             .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        Text("Vorher-/Nachher-Vorschau für kopierten Text. Die Anonymisierung läuft lokal auf deinem Mac.")
+                        Text("Kopierten Text lokal anonymisieren, prüfen und später wieder zurückführen.")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
                     }
@@ -870,31 +975,49 @@ private struct ClipboardAnonymizerSheet: View {
 
                 HStack(alignment: .top, spacing: 20) {
                     comparisonCard(title: "Original", minHeight: 360) {
-                        ScrollView {
-                            Text(originalText.isEmpty ? "Noch kein Text geladen." : originalText)
-                                .font(.system(size: 12.5, design: .monospaced))
-                                .foregroundStyle(originalText.isEmpty ? .secondary : .primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        if originalText.isEmpty {
+                            clipboardEmptyState(
+                                title: "Noch nichts geladen",
+                                message: "Lade einen kopierten Text aus der Zwischenablage, um hier die Originalfassung zu sehen.",
+                                symbol: "doc.text"
+                            )
+                        } else {
+                            ScrollView {
+                                Text(originalText)
+                                    .font(.system(size: 12.5, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
 
                     comparisonCard(title: "Anonymisiert", minHeight: 360) {
-                        ScrollView {
-                            Text(anonymizedText.isEmpty ? "Noch keine anonymisierte Vorschau vorhanden." : anonymizedText)
-                                .font(.system(size: 12.5, design: .monospaced))
-                                .foregroundStyle(anonymizedText.isEmpty ? .secondary : .primary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                        if anonymizedText.isEmpty {
+                            clipboardEmptyState(
+                                title: "Noch keine Vorschau",
+                                message: "Sobald ein Text anonymisiert wurde, erscheint hier die geschützte Version mit Platzhaltern.",
+                                symbol: "lock.doc"
+                            )
+                        } else {
+                            ScrollView {
+                                Text(anonymizedText)
+                                    .font(.system(size: 12.5, design: .monospaced))
+                                    .foregroundStyle(.primary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
                         }
                     }
                 }
 
                 comparisonCard(title: "Platzhalter", minHeight: 220) {
                     if placeholders.isEmpty {
-                        Text("Noch keine Ersetzungen vorhanden.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                        clipboardEmptyState(
+                            title: "Noch keine Platzhalter",
+                            message: "Nach der Anonymisierung siehst du hier, welche Werte ersetzt und später wieder zurückgeführt werden können.",
+                            symbol: "tag"
+                        )
                     } else {
                         ScrollView {
                             LazyVStack(alignment: .leading, spacing: 10) {
@@ -976,23 +1099,37 @@ private struct ClipboardAnonymizerSheet: View {
                         }
 
                         comparisonCard(title: "Zurückgeführt", minHeight: 320) {
-                            ScrollView {
-                                Text(restoredText.isEmpty ? "Noch keine zurückgeführte Vorschau vorhanden." : restoredText)
-                                    .font(.system(size: 12.5, design: .monospaced))
-                                    .foregroundStyle(restoredText.isEmpty ? .secondary : .primary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            if restoredText.isEmpty {
+                                clipboardEmptyState(
+                                    title: "Noch keine Rückführung",
+                                    message: "Lade eine KI-Antwort mit Platzhaltern, um hier die personalisierte Vorschau zu sehen.",
+                                    symbol: "arrow.uturn.backward.circle"
+                                )
+                            } else {
+                                ScrollView {
+                                    Text(restoredText)
+                                        .font(.system(size: 12.5, design: .monospaced))
+                                        .foregroundStyle(.primary)
+                                        .textSelection(.enabled)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
                             }
                         }
                     }
 
                     comparisonCard(title: "Rückführungsstatus", minHeight: 120) {
                         VStack(alignment: .leading, spacing: 10) {
-                            Text(detector.lastClipboardSession == nil
-                                 ? "Noch kein Mapping vorhanden. Starte oben zuerst eine Anonymisierung."
-                                 : "Ersetzte Platzhalter: \(restoreCount)")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
+                            if detector.lastClipboardSession == nil {
+                                clipboardEmptyState(
+                                    title: "Noch kein Mapping",
+                                    message: "Starte oben zuerst eine Anonymisierung. Danach kann Inkognito Platzhalter wieder zuverlässig zurückführen.",
+                                    symbol: "link.badge.plus"
+                                )
+                            } else {
+                                Text("Ersetzte Platzhalter: \(restoreCount)")
+                                    .font(.system(size: 12.5, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                            }
 
                             if !unresolvedPlaceholders.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
@@ -1052,6 +1189,32 @@ private struct ClipboardAnonymizerSheet: View {
         .background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    private func clipboardEmptyState(title: String, message: String, symbol: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(StatusVisualSemantics.trust)
+
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+
+            Text(message)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.white.opacity(0.16), lineWidth: 0.8)
+        )
+    }
+
     private func refreshFromClipboard() async {
         guard let clipboardText = NSPasteboard.general.string(forType: .string)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1061,7 +1224,7 @@ private struct ClipboardAnonymizerSheet: View {
             anonymizedText = ""
             placeholders = []
             replacementCount = 0
-            statusMessage = "Bitte kopiere zuerst einen Text in die Zwischenablage und versuche es dann erneut."
+            statusMessage = "Kopiere zuerst einen Text in die Zwischenablage und lade ihn dann erneut."
             return
         }
 
@@ -1078,8 +1241,8 @@ private struct ClipboardAnonymizerSheet: View {
         case .success(let result):
             hydrate(from: result)
             statusMessage = result.placeholders.isEmpty
-                ? "Es wurden keine ersetzbaren Inhalte gefunden. Du kannst den Text trotzdem prüfen oder einen anderen Ausschnitt versuchen."
-                : "Ersetzungen: \(result.replacementCount), Platzhalter: \(result.placeholders.count)."
+                ? "Keine passenden Inhalte gefunden. Prüfe den Text oder versuche einen anderen Ausschnitt."
+                : "Bereit: \(result.placeholders.count) Platzhalter für \(result.replacementCount) Ersetzungen."
         }
     }
 
@@ -1103,7 +1266,7 @@ private struct ClipboardAnonymizerSheet: View {
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !clipboardText.isEmpty
         else {
-            restoreStatusMessage = "Bitte kopiere zuerst die KI-Antwort in die Zwischenablage und lade sie dann erneut."
+            restoreStatusMessage = "Kopiere zuerst die KI-Antwort in die Zwischenablage und lade sie dann erneut."
             return
         }
         aiResponseText = clipboardText
@@ -1116,7 +1279,7 @@ private struct ClipboardAnonymizerSheet: View {
             restoreCount = 0
             unresolvedPlaceholders = detector.lastClipboardSession?.placeholders.keys.sorted() ?? []
             suspiciousPlaceholderTokens = []
-            restoreStatusMessage = "Füge danach die KI-Antwort ein oder lade sie aus der Zwischenablage, um die Platzhalter wieder zurückzuführen."
+            restoreStatusMessage = "Lade jetzt die KI-Antwort, um die Platzhalter wieder zurückzuführen."
             return
         }
 
@@ -1202,8 +1365,7 @@ private enum ClipboardStatusTone {
 private struct CustomPatternsSheet: View {
     private enum Field: Hashable {
         case label
-        case value
-        case category
+        case line(Int)
     }
 
     private enum ImportMode: String, CaseIterable, Identifiable {
@@ -1220,35 +1382,133 @@ private struct CustomPatternsSheet: View {
         }
     }
 
+    private enum RuleCategoryOption: String, CaseIterable, Identifiable {
+        case customIdentifier = "custom_identifier"
+        case privatePerson = "private_person"
+        case privateAddress = "private_address"
+        case accountNumber = "account_number"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .customIdentifier: "Eigener Begriff"
+            case .privatePerson: "Person"
+            case .privateAddress: "Adresse"
+            case .accountNumber: "Kennung"
+            }
+        }
+
+        var helpText: String {
+            switch self {
+            case .customIdentifier:
+                "Für freie Begriffe, Namen oder Blöcke, die Inkognito zusätzlich erkennen soll."
+            case .privatePerson:
+                "Wenn der Eintrag klar eine Person beschreibt."
+            case .privateAddress:
+                "Wenn der Eintrag vor allem als Adresse behandelt werden soll."
+            case .accountNumber:
+                "Für Konten, Vertragsnummern, IDs oder ähnliche Kennungen."
+            }
+        }
+    }
+
+    private enum RuleCategorySelection: String, CaseIterable, Identifiable {
+        case automatic
+        case customIdentifier = "custom_identifier"
+        case privatePerson = "private_person"
+        case privateAddress = "private_address"
+        case accountNumber = "account_number"
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .automatic: "Automatisch"
+            case .customIdentifier: "Eigener Begriff"
+            case .privatePerson: "Person"
+            case .privateAddress: "Adresse"
+            case .accountNumber: "Kennung"
+            }
+        }
+
+        var resolvedCategory: String? {
+            switch self {
+            case .automatic: nil
+            case .customIdentifier,
+                 .privatePerson,
+                 .privateAddress,
+                 .accountNumber:
+                rawValue
+            }
+        }
+    }
+
+    private enum MaintenanceAction: String, Identifiable {
+        case migrate
+        case cleanup
+        case deduplicate
+
+        var id: String { rawValue }
+    }
+
+    private enum RuleListFilter: String, CaseIterable, Identifiable {
+        case all
+        case address
+        case person
+        case account
+        case custom
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .all: "Alle"
+            case .address: "Adresse"
+            case .person: "Person"
+            case .account: "Kennung"
+            case .custom: "Begriff"
+            }
+        }
+    }
+
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @Bindable var store: CustomPatternStore
     @State private var label = ""
-    @State private var value = ""
-    @State private var category = "custom_identifier"
+    @State private var valueLines = ["", "", ""]
+    @State private var selectedCategory: RuleCategorySelection = .automatic
+    @State private var selectedPatternID: UUID?
+    @State private var selectedGroupPatternIDs: [UUID] = []
     @State private var isImporting = false
     @State private var isExporting = false
     @State private var importExportMessage: String?
     @State private var importMode: ImportMode = .append
+    @State private var showRuleLogicInfo = false
+    @State private var pendingMaintenanceAction: MaintenanceAction?
+    @State private var expandedGroupIDs: Set<String> = []
+    @State private var rulesFilter: RuleListFilter = .all
     @FocusState private var focusedField: Field?
 
     var body: some View {
         GeometryReader { proxy in
-            let useSplitLayout = proxy.size.width >= 980
+            let useSplitLayout = proxy.size.width >= 920
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     headerBar
+                    importModeBar
 
                     if useSplitLayout {
                         HStack(alignment: .top, spacing: 22) {
+                            activeRulesColumn
+                                .frame(width: min(max(proxy.size.width * 0.34, 320), 400), alignment: .topLeading)
                             composerColumn
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                            activeRulesColumn
-                                .frame(width: min(max(proxy.size.width * 0.34, 300), 380), alignment: .topLeading)
                         }
                     } else {
-                        composerColumn
                         activeRulesColumn
+                        composerColumn
                     }
                 }
             }
@@ -1270,17 +1530,42 @@ private struct CustomPatternsSheet: View {
             defaultFilename: "Inkognito-Regeln",
             onCompletion: handleExport
         )
+        .alert(item: $pendingMaintenanceAction) { action in
+            switch action {
+            case .migrate:
+                return Alert(
+                    title: Text("Bestehende Regeln ergänzen?"),
+                    message: Text(migrateConfirmationMessage),
+                    primaryButton: .default(Text("Ausführen"), action: migratePatterns),
+                    secondaryButton: .cancel(Text("Abbrechen"))
+                )
+            case .cleanup:
+                return Alert(
+                    title: Text("Unklare Regeln entfernen?"),
+                    message: Text(cleanupConfirmationMessage),
+                    primaryButton: .destructive(Text("Entfernen"), action: cleanupWeakPatterns),
+                    secondaryButton: .cancel(Text("Abbrechen"))
+                )
+            case .deduplicate:
+                return Alert(
+                    title: Text("Doppelte Regeln löschen?"),
+                    message: Text(deduplicateConfirmationMessage),
+                    primaryButton: .destructive(Text("Entfernen"), action: deduplicatePatterns),
+                    secondaryButton: .cancel(Text("Abbrechen"))
+                )
+            }
+        }
     }
 
     private var headerBar: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Eigene Erkennungsregeln")
+                Text("Eigene Regeln")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
-                Text("Pflege eigene Trefferlisten, importiere Regeldateien und prüfe vor dem Speichern die erzeugten Bausteine.")
+                Text("Lege eigene Begriffe, Personen oder Adressbausteine Zeile für Zeile an und prüfe direkt, welche Regeln Inkognito daraus ableitet.")
                     .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
+                    .foregroundStyle(.primary.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: 16)
@@ -1293,7 +1578,7 @@ private struct CustomPatternsSheet: View {
                     isExporting = true
                 }
             } label: {
-                Label("Regel-Datei", systemImage: "arrow.up.arrow.down.circle")
+                Label("Import & Export", systemImage: "arrow.up.arrow.down.circle")
             }
             .menuStyle(.button)
             .controlSize(.large)
@@ -1307,103 +1592,63 @@ private struct CustomPatternsSheet: View {
 
     private var composerColumn: some View {
         VStack(alignment: .leading, spacing: 18) {
-            sectionCard(title: "Neue Regel", subtitle: "Gib Namen, IDs oder ganze Adressblöcke ein. Mehrzeilige Blöcke werden automatisch in robuste Teilregeln zerlegt.") {
+            sectionCard(title: selectedPatternID == nil ? "Neue Regel" : "Regel bearbeiten", subtitle: "Lege pro Zeile einen Baustein an. Inkognito zeigt dir danach direkt, welche Regeln daraus entstehen.") {
                 VStack(alignment: .leading, spacing: 18) {
-                    fieldGroup(title: "Import beim Laden", footnote: "Steuert, ob importierte Regeln zum Bestand hinzugefügt oder komplett ersetzt werden.") {
-                        Picker("Importmodus", selection: $importMode) {
-                            ForEach(ImportMode.allCases) { mode in
-                                Text(mode.title).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-
-                    fieldGroup(title: "Bezeichnung") {
-                        TextField("z. B. Firmenname oder Lieferadresse", text: $label)
+                    fieldGroup(title: "Name der Regel", footnote: "Dieser Name erscheint später in der Liste deiner eigenen Regeln.") {
+                        TextField("z. B. Familie Mustermann oder Lieferadresse", text: $label)
                             .textFieldStyle(.plain)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 12)
-                            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .foregroundStyle(.black.opacity(0.82))
+                            .background(fieldFillColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(fieldTextColor)
                             .overlay(fieldBorder(isFocused: focusedField == .label, cornerRadius: 14))
-                            .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                            .shadow(color: .black.opacity(colorScheme == .dark ? 0.18 : 0.05), radius: 10, y: 4)
                             .focused($focusedField, equals: .label)
                     }
 
-                    fieldGroup(title: "Adressblock oder Wert", trailingText: "Mehrzeilig empfohlen", footnote: "Ideal für Name, Straße, PLZ/Ort oder komplette Lieferadresse.") {
-                        ZStack(alignment: .topLeading) {
-                            addressEditorBackground
+                    fieldGroup(title: "Bausteine eingeben", trailingText: "Eine Zeile pro Baustein", footnote: "Geeignet für einzelne Werte ebenso wie für vollständige Adressblöcke.") {
+                        HStack(spacing: 10) {
+                            Text("Name, Straße, PLZ/Ort oder weitere Bausteine jeweils in eine eigene Zeile setzen.")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.primary.opacity(0.76))
+                                .fixedSize(horizontal: false, vertical: true)
 
-                            TextEditor(text: $value)
-                                .font(.system(size: 15))
-                                .scrollContentBackground(.hidden)
-                                .padding(.horizontal, 16)
-                                .padding(.top, 18)
-                                .padding(.bottom, 16)
-                                .frame(minHeight: 150)
-                                .background(Color.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                                .foregroundStyle(.black.opacity(0.84))
-                                .focused($focusedField, equals: .value)
-                                .overlay(fieldBorder(isFocused: focusedField == .value, cornerRadius: 20))
-                                .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+                            Spacer(minLength: 0)
 
-                            if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    Text("Beispiel")
-                                        .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(.tertiary)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(.white.opacity(0.7), in: Capsule())
-
-                                    VStack(alignment: .leading, spacing: 8) {
-                                        previewInputLine("Max Mustermann")
-                                        previewInputLine("Friedensstr. 25")
-                                        previewInputLine("74229 Sommerfeld")
-                                        previewInputLine("Deutschland")
-                                    }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.top, 16)
-                                .allowsHitTesting(false)
+                            Button {
+                                showRuleLogicInfo = true
+                            } label: {
+                                Label("Wie wird das bewertet?", systemImage: "info.circle")
+                            }
+                            .buttonStyle(.glass)
+                            .controlSize(.small)
+                            .popover(isPresented: $showRuleLogicInfo, arrowEdge: .top) {
+                                ruleExplanationCard
+                                    .frame(width: 360)
+                                    .padding(16)
                             }
                         }
 
-                        HStack(spacing: 8) {
-                            addressHintChip("Eine Zeile pro Baustein")
-                            addressHintChip("z. B. Name, Straße, PLZ/Ort")
-                        }
+                        rulesLineEditor
                     }
 
-                    fieldGroup(title: "Kategorie", footnote: "Wird für die spätere Einordnung der Treffer verwendet.") {
-                        TextField("z. B. customer_id", text: $category)
-                            .textFieldStyle(.plain)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 12)
-                            .background(.white.opacity(0.9), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .foregroundStyle(.black.opacity(0.82))
-                            .overlay(fieldBorder(isFocused: focusedField == .category, cornerRadius: 14))
-                            .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
-                            .focused($focusedField, equals: .category)
+                    fieldGroup(title: "Einordnung", footnote: categoryFootnote) {
+                        Picker("Einordnung", selection: $selectedCategory) {
+                            ForEach(RuleCategorySelection.allCases) { option in
+                                Text(option.title).tag(option)
+                            }
+                        }
+                        .pickerStyle(.menu)
                     }
                 }
             }
 
-            sectionCard(title: "Vorschau vor dem Speichern", subtitle: previewPatterns.isEmpty ? "Füge oben eine Regel oder einen Adressblock ein. Hier siehst du vor dem Speichern, welche Einträge neu erzeugt werden." : "Diese Regeln werden neu angelegt:") {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        if previewPatterns.isEmpty {
-                            HStack(spacing: 12) {
-                                Image(systemName: "text.badge.plus")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundStyle(.secondary)
-                                Text("Noch keine Vorschau verfügbar")
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(14)
-                        } else {
+            if !previewPatterns.isEmpty {
+                sectionCard(title: "Vorschau vor dem Speichern", subtitle: "Diese Regeln werden aus deinen Eingaben neu angelegt:") {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            previewSummary
+
                             ForEach(previewPatterns) { pattern in
                                 HStack(alignment: .top, spacing: 12) {
                                     Text(previewBadgeText(for: pattern))
@@ -1426,98 +1671,260 @@ private struct CustomPatternsSheet: View {
                                     Spacer(minLength: 0)
                                 }
                                 .padding(12)
-                                .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .background(secondaryCardFillColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .stroke(secondaryCardBorderColor, lineWidth: 0.8)
+                                )
                             }
                         }
                     }
+                    .frame(minHeight: 140, maxHeight: 240)
                 }
-                .frame(minHeight: 140, maxHeight: 240)
             }
 
             HStack(spacing: 12) {
-                Button("Regel hinzufügen", action: addPattern)
+                Button(selectedPatternID == nil ? "Regel hinzufügen" : "Regel aktualisieren", action: savePattern)
                     .controlSize(.large)
                     .buttonStyle(.glassProminent)
-                    .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || composedValue.isEmpty)
 
-                if let importExportMessage {
-                    Text(importExportMessage)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.secondary)
+                if selectedPatternID != nil {
+                    Button("Neue Regel beginnen", action: resetEditor)
+                        .controlSize(.large)
+                        .buttonStyle(.glass)
                 }
             }
         }
     }
 
     private var activeRulesColumn: some View {
-        sectionCard(title: "Aktive Regeln", subtitle: "\(store.patterns.count) gespeicherte Regeln") {
+        sectionCard(title: "Deine Regeln", subtitle: "\(patternGroups.count) Regeln mit \(store.patterns.count) abgeleiteten Einträgen") {
             HStack(spacing: 10) {
-                Button("Bestand modernisieren", action: migratePatterns)
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-                Button("Schwache Regeln bereinigen", action: cleanupWeakPatterns)
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
-                Button("Duplikate entfernen", action: deduplicatePatterns)
-                    .buttonStyle(.glass)
-                    .controlSize(.small)
+                Button("Regeln ergänzen") {
+                    pendingMaintenanceAction = .migrate
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+
+                Button("Unklare Regeln entfernen") {
+                    pendingMaintenanceAction = .cleanup
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+
+                Button("Doppelte Regeln löschen") {
+                    pendingMaintenanceAction = .deduplicate
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Regeln ergänzen erstellt zusätzliche Teil- oder Blockregeln aus bestehenden Einträgen.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.76 : 0.64))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Unklare Regeln entfernen löscht voraussichtlich wenig hilfreiche Einträge. Doppelte Regeln löschen bereinigt identische Regeln.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.76 : 0.64))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if let importExportMessage {
+                compactHintCard(importExportMessage)
+            }
+
+            if !store.patterns.isEmpty {
+                fieldGroup(title: "Filter", footnote: "Zeigt nur passende Regelgruppen in der Liste.") {
+                    Picker("Filter", selection: $rulesFilter) {
+                        ForEach(RuleListFilter.allCases) { filter in
+                            Text(filter.title).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
 
             if store.patterns.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Noch keine eigenen Regeln angelegt.")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("Importiere eine Regeldatei oder lege links deine erste Regel an.")
+                        .foregroundStyle(.primary.opacity(0.82))
+                    Text("Importiere eine Regeldatei oder lege rechts deine erste Regel an.")
                         .font(.system(size: 12))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.primary.opacity(0.68))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(store.patterns) { pattern in
-                            HStack(alignment: .top, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(pattern.label)
-                                        .font(.system(size: 13, weight: .semibold))
-                                    Text(pattern.value)
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                    Text(pattern.category)
-                                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                Spacer(minLength: 0)
-                                Button("Löschen") {
-                                    store.remove(id: pattern.id)
-                                }
-                                .buttonStyle(.glass)
-                                .controlSize(.small)
+                if filteredPatternGroups.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Keine Regeln für diesen Filter.")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.primary.opacity(0.82))
+                        Text("Wähle einen anderen Filter oder lege eine neue Regel in dieser Einordnung an.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.primary.opacity(0.68))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(filteredPatternGroups) { group in
+                                ruleGroupCard(group)
                             }
-                            .padding(12)
-                            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                     }
+                    .frame(minHeight: 220)
                 }
-                .frame(minHeight: 220)
             }
         }
     }
 
-    private func addPattern() {
-        store.add(label: label, value: value, category: category)
-        label = ""
-        value = ""
-        if category.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            category = "custom_identifier"
+    private var importModeBar: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Beim Import")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("Steuert nur den nächsten Import und verändert das Anlegen neuer Regeln nicht.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.80 : 0.70))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            Picker("Importmodus", selection: $importMode) {
+                ForEach(ImportMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 280)
         }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(hintCardFillColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(hintCardBorderColor, lineWidth: 0.8)
+                )
+        )
+    }
+
+    private func savePattern() {
+        let category = effectiveCategory.rawValue
+        if !selectedGroupPatternIDs.isEmpty {
+            store.replaceGroup(ids: selectedGroupPatternIDs, label: label, value: composedValue, category: category)
+        } else if let selectedPatternID {
+            store.update(id: selectedPatternID, label: label, value: composedValue, category: category)
+        } else {
+            store.add(label: label, value: composedValue, category: category)
+        }
+        resetEditor()
     }
 
     private var previewPatterns: [CustomPattern] {
-        store.previewPatterns(label: label, value: value, category: category)
+        store.previewPatterns(label: label, value: composedValue, category: effectiveCategory.rawValue)
+    }
+
+    private var patternGroups: [CustomPatternStore.PatternGroup] {
+        store.groupedPatterns()
+    }
+
+    private var filteredPatternGroups: [CustomPatternStore.PatternGroup] {
+        patternGroups.filter { group in
+            switch rulesFilter {
+            case .all:
+                return true
+            case .address:
+                return resolvedFilterCategory(for: group) == .privateAddress
+            case .person:
+                return resolvedFilterCategory(for: group) == .privatePerson
+            case .account:
+                return resolvedFilterCategory(for: group) == .accountNumber
+            case .custom:
+                return resolvedFilterCategory(for: group) == .customIdentifier
+            }
+        }
+    }
+
+    private var composedValue: String {
+        normalizedLines.joined(separator: "\n")
+    }
+
+    private var normalizedLines: [String] {
+        valueLines
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private var previewSummary: some View {
+        HStack(spacing: 8) {
+            summaryChip(title: "Original", count: previewPatterns.filter { !$0.label.contains("Teil") && !$0.label.contains("Block") }.count, color: .blue)
+            summaryChip(title: "Teilregeln", count: previewPatterns.filter { $0.label.contains("Teil") }.count, color: .teal)
+            summaryChip(title: "Blockregeln", count: previewPatterns.filter { $0.label.contains("Block") }.count, color: .indigo)
+        }
+    }
+
+    private var effectiveCategory: RuleCategoryOption {
+        if let explicit = selectedCategory.resolvedCategory.flatMap({ RuleCategoryOption(rawValue: $0) }) {
+            return explicit
+        }
+        return inferredCategory
+    }
+
+    private var inferredCategory: RuleCategoryOption {
+        let joined = normalizedLines.joined(separator: " ")
+        if looksLikeAddressBlock(normalizedLines) {
+            return .privateAddress
+        }
+        if looksLikeIdentifier(joined) {
+            return .accountNumber
+        }
+        if looksLikePersonName(joined) {
+            return .privatePerson
+        }
+        return .customIdentifier
+    }
+
+    private var categoryFootnote: String {
+        if selectedCategory == .automatic {
+            if effectiveCategory == .customIdentifier {
+                return "Inkognito ordnet die Eingabe derzeit neutral als „Eigener Begriff“ ein. Wenn du schon weißt, dass es eher eine Person, Adresse oder Kennung ist, kannst du das hier festlegen."
+            }
+            return "Inkognito ordnet die Eingabe derzeit als „\(effectiveCategory.title)“ ein. Du kannst die Einordnung bei Bedarf überschreiben."
+        }
+        return effectiveCategory.helpText
+    }
+
+    private var migrateConfirmationMessage: String {
+        let addedCount = store.previewLegacyMigrationAddedCount()
+        if addedCount > 0 {
+            return "Inkognito ergänzt voraussichtlich \(addedCount) zusätzliche Teil- oder Blockregeln aus deinen vorhandenen Regeln."
+        }
+        return "Inkognito prüft deine vorhandenen Regeln und ergänzt aktuell keine weiteren Ableitungen."
+    }
+
+    private var cleanupConfirmationMessage: String {
+        let removedCount = store.previewWeakPatternRemovalCount()
+        if removedCount > 0 {
+            return "Inkognito hat \(removedCount) voraussichtlich wenig hilfreiche oder unklare Regeln gefunden. Möchtest du sie entfernen?"
+        }
+        return "Aktuell wurden keine unklaren Regeln gefunden."
+    }
+
+    private var deduplicateConfirmationMessage: String {
+        let removedCount = store.previewDeduplicateRemovalCount()
+        if removedCount > 0 {
+            return "Inkognito hat \(removedCount) doppelte Regeln gefunden. Möchtest du diese Duplikate entfernen?"
+        }
+        return "Aktuell wurden keine doppelten Regeln gefunden."
     }
 
     private func sectionCard<Content: View>(title: String, subtitle: String? = nil, @ViewBuilder content: () -> Content) -> some View {
@@ -1528,7 +1935,8 @@ private struct CustomPatternsSheet: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 12.5))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.primary.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -1537,10 +1945,35 @@ private struct CustomPatternsSheet: View {
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.white.opacity(0.16))
+                .fill(sectionCardFillColor)
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(.white.opacity(0.28), lineWidth: 1)
+                        .stroke(sectionCardBorderColor, lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.035), radius: 16, y: 6)
+    }
+
+    private func compactHintCard(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundStyle(.primary.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(hintCardFillColor)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(hintCardBorderColor, lineWidth: 0.8)
                 )
         )
     }
@@ -1555,41 +1988,255 @@ private struct CustomPatternsSheet: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title)
                     .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(0.9))
                 Spacer(minLength: 0)
                 if let trailingText {
                     Text(trailingText)
                         .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.78 : 0.62))
                 }
             }
 
             if let footnote {
                 Text(footnote)
                     .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.84 : 0.74))
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             content()
         }
     }
 
-    private func previewInputLine(_ text: String) -> some View {
+    private var ruleExplanationCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("So bewertet Inkognito deine Eingaben")
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(.primary.opacity(0.92))
+
+            VStack(alignment: .leading, spacing: 7) {
+                explanationLine("Der komplette Block wird als Originalregel gespeichert.")
+                explanationLine("Zusätzlich entstehen Teilregeln pro Zeile oder pro Komma-getrenntem Baustein.")
+                explanationLine("Nur benachbarte Bausteine werden zu Blockregeln kombiniert, zum Beispiel Name + Straße oder Straße + PLZ/Ort.")
+                explanationLine("Es gibt keine automatische Umstellung wie „Mustermann Max“.")
+            }
+        }
+        .padding(14)
+        .background(secondaryCardFillColor, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(secondaryCardBorderColor, lineWidth: 0.8)
+        )
+    }
+
+    private func ruleGroupCard(_ group: CustomPatternStore.PatternGroup) -> some View {
+        let isExpanded = expandedGroupIDs.contains(group.id)
+        let isSelected = selectedPatternID == group.editorPattern.id
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                Button {
+                    toggleGroup(group.id)
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    selectGroup(group)
+                    expandedGroupIDs.insert(group.id)
+                } label: {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Regelname")
+                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        Text(group.title)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.primary)
+                            .multilineTextAlignment(.leading)
+
+                        HStack(spacing: 8) {
+                            groupMetaChip("\(group.componentCount) Bausteine")
+                            groupMetaChip(displayCategoryTitle(group.category, sampleValue: group.editorPattern.value))
+                            if !group.derivedPatterns.isEmpty {
+                                groupMetaChip("\(group.derivedPatterns.count) Ableitungen")
+                            }
+                        }
+
+                        Text(group.editorPattern.value)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.primary.opacity(0.88))
+                            .lineLimit(isExpanded ? nil : 3)
+                            .multilineTextAlignment(.leading)
+                            .padding(.top, 4)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, 6)
+                }
+                .buttonStyle(.plain)
+
+                Button("Löschen") {
+                    removeGroup(group)
+                }
+                .buttonStyle(.glass)
+                .controlSize(.small)
+            }
+            .padding(12)
+
+            if isExpanded {
+                Divider()
+                    .overlay(dividerColor)
+                    .padding(.horizontal, 12)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    if let original = group.original {
+                        derivedPatternRow(pattern: original, badgeTitle: "Original")
+                    }
+                    ForEach(group.derivedPatterns) { pattern in
+                        derivedPatternRow(
+                            pattern: pattern,
+                            badgeTitle: pattern.label.contains("Block") ? "Block" : "Teil"
+                        )
+                    }
+                }
+                .padding(12)
+            }
+        }
+        .background(
+            (isSelected ? selectedRuleCardFillColor : ruleCardFillColor),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isSelected ? selectedRuleCardBorderColor : ruleCardBorderColor, lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(colorScheme == .dark ? 0.22 : 0.04), radius: 10, y: 3)
+    }
+
+    private func derivedPatternRow(pattern: CustomPattern, badgeTitle: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(badgeTitle)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.88 : 0.82))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(chipFillColor, in: Capsule())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(pattern.label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary.opacity(0.92))
+                Text(pattern.value)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.primary.opacity(0.82))
+                    .textSelection(.enabled)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var rulesLineEditor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(spacing: 10) {
+                ForEach(Array(valueLines.enumerated()), id: \.offset) { index, _ in
+                    HStack(alignment: .center, spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22, height: 22)
+                            .background(chipFillColor, in: Circle())
+
+                        TextField(linePlaceholder(at: index), text: lineBinding(at: index))
+                            .textFieldStyle(.plain)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(fieldFillColor, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(fieldTextColor)
+                            .overlay(fieldBorder(isFocused: focusedField == .line(index), cornerRadius: 14))
+                            .focused($focusedField, equals: .line(index))
+
+                        Button {
+                            removeLine(at: index)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(valueLines.count > 1 ? Color.red.opacity(0.9) : .secondary.opacity(0.4))
+                        .disabled(valueLines.count == 1)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("Zeile hinzufügen", action: addLine)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+
+                Button("Beispiel einsetzen", action: insertExampleBlock)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+
+                Button("Eingaben leeren", action: clearLines)
+                    .buttonStyle(.glass)
+                    .controlSize(.small)
+                    .disabled(normalizedLines.isEmpty)
+            }
+        }
+    }
+
+    private func explanationLine(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(Color.accentColor.opacity(0.9))
+                .frame(width: 6, height: 6)
+                .padding(.top, 5)
+
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundStyle(.primary.opacity(0.78))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func groupMetaChip(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
-            .foregroundStyle(.black.opacity(0.28))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, 2)
+            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.88 : 0.82))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(chipFillColor, in: Capsule())
+    }
+
+    private func summaryChip(title: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(color.opacity(0.9))
+                .frame(width: 7, height: 7)
+
+            Text("\(title) \(count)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.primary.opacity(colorScheme == .dark ? 0.88 : 0.82))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(chipFillColor.opacity(colorScheme == .dark ? 0.95 : 0.82), in: Capsule())
     }
 
     private func previewBadgeText(for pattern: CustomPattern) -> String {
         if pattern.label.contains("Teil") {
-            return "Teil"
+            return "Teilregel"
         }
         if pattern.label.contains("Block") {
-            return "Block"
+            return "Blockregel"
         }
-        return "Original"
+        return "Originalregel"
     }
 
     private func previewBadgeColor(for pattern: CustomPattern) -> Color {
@@ -1641,54 +2288,279 @@ private struct CustomPatternsSheet: View {
     private func deduplicatePatterns() {
         let removedCount = store.deduplicatePatterns()
         importExportMessage = removedCount > 0
-            ? "\(removedCount) Duplikate entfernt."
-            : "Keine Duplikate gefunden."
+            ? "\(removedCount) doppelte Regeln entfernt."
+            : "Keine doppelten Regeln gefunden."
     }
 
     private func cleanupWeakPatterns() {
         let removedCount = store.cleanupWeakPatterns()
         importExportMessage = removedCount > 0
-            ? "\(removedCount) schwache Regelbausteine entfernt."
-            : "Keine schwachen Regelbausteine gefunden."
+            ? "\(removedCount) unklare Regeln entfernt."
+            : "Keine unklaren Regeln gefunden."
     }
 
     private func migratePatterns() {
         let addedCount = store.migrateLegacyPatterns()
         importExportMessage = addedCount > 0
-            ? "Bestand modernisiert. \(addedCount) zusätzliche Regelbausteine ergänzt."
-            : "Bestand geprüft und modernisiert."
+            ? "\(addedCount) zusätzliche Ableitungen ergänzt."
+            : "Keine zusätzlichen Ableitungen nötig."
+    }
+
+    private func lineBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard valueLines.indices.contains(index) else { return "" }
+                return valueLines[index]
+            },
+            set: { newValue in
+                guard valueLines.indices.contains(index) else { return }
+                valueLines[index] = newValue
+            }
+        )
+    }
+
+    private func linePlaceholder(at index: Int) -> String {
+        switch index {
+        case 0: "Name oder Firma"
+        case 1: "Straße und Hausnummer"
+        case 2: "PLZ und Ort"
+        case 3: "Land oder Zusatz"
+        default: "Weiterer Baustein"
+        }
+    }
+
+    private func addLine() {
+        valueLines.append("")
+    }
+
+    private func removeLine(at index: Int) {
+        guard valueLines.count > 1, valueLines.indices.contains(index) else { return }
+        valueLines.remove(at: index)
+    }
+
+    private func insertExampleBlock() {
+        valueLines = [
+            "Max Mustermann",
+            "Friedenstraße 25",
+            "74223 Sommerfeld",
+            "Deutschland"
+        ]
+    }
+
+    private func clearLines() {
+        valueLines = ["", "", ""]
+    }
+
+    private func resetEditor() {
+        selectedPatternID = nil
+        selectedGroupPatternIDs = []
+        label = ""
+        valueLines = ["", "", ""]
+        selectedCategory = .automatic
+    }
+
+    private func selectPattern(_ pattern: CustomPattern) {
+        selectedPatternID = pattern.id
+        selectedGroupPatternIDs = [pattern.id]
+        label = pattern.label
+        valueLines = pattern.value
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if valueLines.isEmpty {
+            valueLines = [pattern.value]
+        }
+        selectedCategory = selectionForEditor(category: pattern.category, value: pattern.value)
+    }
+
+    private func selectGroup(_ group: CustomPatternStore.PatternGroup) {
+        let pattern = group.editorPattern
+        selectedPatternID = pattern.id
+        selectedGroupPatternIDs = group.patterns.map(\.id)
+        label = group.title
+        valueLines = pattern.value
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if valueLines.isEmpty {
+            valueLines = [pattern.value]
+        }
+        selectedCategory = selectionForEditor(category: group.category, value: pattern.value)
+    }
+
+    private func removeGroup(_ group: CustomPatternStore.PatternGroup) {
+        if group.patterns.contains(where: { $0.id == selectedPatternID }) {
+            resetEditor()
+        }
+        store.remove(ids: group.patterns.map(\.id))
+        expandedGroupIDs.remove(group.id)
+    }
+
+    private func toggleGroup(_ id: String) {
+        if expandedGroupIDs.contains(id) {
+            expandedGroupIDs.remove(id)
+        } else {
+            expandedGroupIDs.insert(id)
+        }
+    }
+
+    private func looksLikeAddressBlock(_ lines: [String]) -> Bool {
+        let joined = lines.joined(separator: " ")
+        let hasStreet = joined.localizedCaseInsensitiveContains("straße")
+            || joined.localizedCaseInsensitiveContains("str.")
+            || joined.localizedCaseInsensitiveContains("weg")
+            || joined.localizedCaseInsensitiveContains("allee")
+            || joined.localizedCaseInsensitiveContains("platz")
+            || joined.localizedCaseInsensitiveContains("ring")
+            || joined.localizedCaseInsensitiveContains("gasse")
+        let hasPostalCode = lines.contains { $0.range(of: #"\b\d{5}\b"#, options: .regularExpression) != nil }
+        return hasStreet || (hasPostalCode && lines.count >= 2)
+    }
+
+    private func looksLikePersonName(_ text: String) -> Bool {
+        let words = text.split(whereSeparator: \.isWhitespace)
+        guard words.count == 2 else { return false }
+        return words.allSatisfy { word in
+            guard let first = word.first else { return false }
+            return first.isUppercase
+        }
+    }
+
+    private func looksLikeIdentifier(_ text: String) -> Bool {
+        let digits = text.filter(\.isNumber).count
+        let letters = text.filter(\.isLetter).count
+        return digits >= 4 && (letters == 0 || text.contains("-") || text.contains("/"))
+    }
+
+    private func selectionForEditor(category: String, value: String) -> RuleCategorySelection {
+        if let explicit = RuleCategorySelection(rawValue: category), explicit != .customIdentifier {
+            return explicit
+        }
+
+        let lines = value
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if looksLikeAddressBlock(lines) {
+            return .privateAddress
+        }
+        if looksLikeIdentifier(value) {
+            return .accountNumber
+        }
+        if looksLikePersonName(value) {
+            return .privatePerson
+        }
+        return RuleCategorySelection(rawValue: category) ?? .automatic
+    }
+
+    private func displayCategoryTitle(_ rawValue: String, sampleValue: String? = nil) -> String {
+        if rawValue == RuleCategoryOption.customIdentifier.rawValue, let sampleValue {
+            let lines = sampleValue
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if looksLikeAddressBlock(lines) {
+                return RuleCategoryOption.privateAddress.title
+            }
+            if looksLikeIdentifier(sampleValue) {
+                return RuleCategoryOption.accountNumber.title
+            }
+            if looksLikePersonName(sampleValue) {
+                return RuleCategoryOption.privatePerson.title
+            }
+        }
+        return RuleCategoryOption(rawValue: rawValue)?.title ?? rawValue
+    }
+
+    private func resolvedFilterCategory(for group: CustomPatternStore.PatternGroup) -> RuleCategoryOption {
+        let sampleValue = group.editorPattern.value
+        if group.category == RuleCategoryOption.customIdentifier.rawValue {
+            let lines = sampleValue
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if looksLikeAddressBlock(lines) {
+                return .privateAddress
+            }
+            if looksLikeIdentifier(sampleValue) {
+                return .accountNumber
+            }
+            if looksLikePersonName(sampleValue) {
+                return .privatePerson
+            }
+        }
+        return RuleCategoryOption(rawValue: group.category) ?? .customIdentifier
+    }
+
+    private var sectionCardFillColor: Color {
+        colorScheme == .dark
+            ? SurfaceVisualSemantics.elevatedPanelFill(colorScheme: colorScheme)
+            : Color.white.opacity(0.78)
+    }
+
+    private var sectionCardBorderColor: Color {
+        colorScheme == .dark
+            ? SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme)
+            : Color.black.opacity(0.08)
+    }
+
+    private var hintCardFillColor: Color {
+        SurfaceVisualSemantics.secondaryPanelFill(colorScheme: colorScheme)
+    }
+
+    private var hintCardBorderColor: Color {
+        SurfaceVisualSemantics.secondaryPanelBorder(colorScheme: colorScheme)
+    }
+
+    private var secondaryCardFillColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.22) : Color.white.opacity(0.72)
+    }
+
+    private var secondaryCardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+    }
+
+    private var ruleCardFillColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.24) : Color.white.opacity(0.92)
+    }
+
+    private var ruleCardBorderColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+    }
+
+    private var selectedRuleCardFillColor: Color {
+        SurfaceVisualSemantics.selectionAccentFill(colorScheme: colorScheme)
+    }
+
+    private var selectedRuleCardBorderColor: Color {
+        SurfaceVisualSemantics.selectionAccentBorder(colorScheme: colorScheme)
+    }
+
+    private var chipFillColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.16) : Color.white.opacity(0.82)
+    }
+
+    private var fieldFillColor: Color {
+        colorScheme == .dark ? Color.black.opacity(0.26) : Color.white.opacity(0.94)
+    }
+
+    private var fieldTextColor: Color {
+        colorScheme == .dark ? .white.opacity(0.92) : .black.opacity(0.84)
+    }
+
+    private var dividerColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
     }
 
     private func fieldBorder(isFocused: Bool, cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius)
-            .stroke(isFocused ? .blue.opacity(0.45) : .white.opacity(0.5), lineWidth: isFocused ? 2 : 1)
-    }
-
-    private var addressEditorBackground: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        .white.opacity(0.96),
-                        .white.opacity(0.9)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+            .stroke(
+                isFocused
+                    ? Color.accentColor.opacity(colorScheme == .dark ? 0.72 : 0.45)
+                    : (colorScheme == .dark ? Color.white.opacity(0.16) : Color.black.opacity(0.12)),
+                lineWidth: isFocused ? 2 : 1
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(.white.opacity(0.7), lineWidth: 1)
-            )
-    }
-
-    private func addressHintChip(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(.white.opacity(0.42), in: Capsule())
     }
 }
 
@@ -1742,9 +2614,9 @@ private struct WorkflowStepStrip: View {
         HStack(spacing: 10) {
             stepBadge(number: 1, title: "Erkennen", isActive: currentStep == .detect, isCompleted: currentStep.rawValue > 1)
             connector
-            stepBadge(number: 2, title: "Prüfen", isActive: currentStep == .review, isCompleted: currentStep.rawValue > 2)
+            stepBadge(number: 2, title: "Freigeben", isActive: currentStep == .review, isCompleted: currentStep.rawValue > 2)
             connector
-            stepBadge(number: 3, title: "Speichern", isActive: currentStep == .save, isCompleted: false)
+            stepBadge(number: 3, title: "Exportieren", isActive: currentStep == .save, isCompleted: false)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -1831,6 +2703,7 @@ private struct ReviewSidebar: View {
     let pendingCount: Int
     let acceptedCount: Int
     let rejectedCount: Int
+    let hasProtectedContent: Bool
     let selectedFindingID: UUID?
     let undoNotice: ReviewUndoNotice?
     let exportReport: ExportValidationReport?
@@ -1850,7 +2723,7 @@ private struct ReviewSidebar: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 8) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Treffer prüfen")
+                        Text("Schutz prüfen")
                             .font(.system(size: 15, weight: .semibold))
                         Text(headerText)
                             .font(.system(size: 12))
@@ -1863,7 +2736,7 @@ private struct ReviewSidebar: View {
                     Spacer(minLength: 0)
 
                     if pendingCount > 0 {
-                        Button("Alle bestätigen") {
+                        Button("Alle freigeben") {
                             confirmAcceptAll = true
                         }
                         .buttonStyle(.borderedProminent)
@@ -1882,15 +2755,19 @@ private struct ReviewSidebar: View {
                     undoBanner(undoNotice)
                 }
 
-                if pendingCount == 0, !findings.isEmpty {
+                if pendingCount == 0, !findings.isEmpty, hasProtectedContent {
                     successBanner
+                }
+
+                if pendingCount == 0, !findings.isEmpty, !hasProtectedContent {
+                    noProtectedContentBanner
                 }
 
                 if let exportReport {
                     exportTrustBanner(report: exportReport)
                 }
 
-                Toggle("Nur offene Treffer", isOn: $showOnlyPending)
+                Toggle("Nur offene Stellen", isOn: $showOnlyPending)
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .disabled(pendingCount == 0)
@@ -1941,24 +2818,27 @@ private struct ReviewSidebar: View {
                 .strokeBorder(SurfaceVisualSemantics.elevatedPanelBorder(colorScheme: colorScheme), lineWidth: 0.7)
         )
         .shadow(color: .black.opacity(0.07), radius: 18, y: 7)
-        .confirmationDialog("Alle offenen Treffer bestätigen?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
-            Button("Alle bestätigen") {
+        .confirmationDialog("Alle offenen Stellen freigeben?", isPresented: $confirmAcceptAll, titleVisibility: .visible) {
+            Button("Alle freigeben") {
                 onAcceptAll()
             }
             Button("Abbrechen", role: .cancel) {}
         } message: {
-            Text("Damit werden \(pendingCount) aktuell offene Treffer ohne Einzelprüfung bestätigt.")
+            Text("Damit werden \(pendingCount) aktuell offene Stellen ohne Einzelprüfung freigegeben.")
         }
     }
 
     private var headerText: String {
         if findings.isEmpty {
-            return "Nach der Erkennung erscheinen hier die gefundenen Stellen zur Prüfung."
+            return "Nach der Erkennung erscheinen hier die vorgeschlagenen Schutzstellen zur Prüfung."
         }
         if pendingCount > 0 {
-            return "\(pendingCount) Treffer brauchen vor dem Speichern noch deine Entscheidung."
+            return "\(pendingCount) Stellen warten vor dem Export noch auf deine Freigabe."
         }
-        return "Review ist fertig. Du kannst jetzt sicher exportieren."
+        if !hasProtectedContent {
+            return "Alles geprüft. Aktuell ist noch keine geschützte Stelle aktiv."
+        }
+        return "Alles geprüft. Du kannst jetzt geschützt exportieren."
     }
 
     private var filteredFindings: [ReviewFinding] {
@@ -2022,10 +2902,10 @@ private struct ReviewSidebar: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            Text("Noch keine Prüfung aktiv")
+            Text("Noch nichts zu prüfen")
                 .font(.system(size: 13, weight: .semibold))
 
-            Text("Starte `Erkennen`, damit hier die Treffer erscheinen. Danach kannst du sie bestätigen oder ablehnen.")
+            Text("Starte `Erkennen`, damit hier die vorgeschlagenen Schutzstellen erscheinen. Danach kannst du sie freigeben oder ablehnen.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2090,20 +2970,20 @@ private struct ReviewSidebar: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Review abgeschlossen")
+                    Text("Alles geprüft")
                         .font(.system(size: 12.5, weight: .semibold))
                         .foregroundStyle(StatusVisualSemantics.reviewComplete.opacity(0.95))
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
 
-                    Text("Alle Treffer sind entschieden. Du kannst die geschwärzte Kopie jetzt sicher speichern.")
+                    Text("Alle Stellen sind entschieden. Du kannst die geschützte Kopie jetzt exportieren.")
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Text("Bereit für Export")
+            Text("Bereit zum Export")
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                 .foregroundStyle(StatusVisualSemantics.reviewComplete.opacity(0.92))
                 .padding(.horizontal, 8)
@@ -2113,7 +2993,7 @@ private struct ReviewSidebar: View {
             VStack(alignment: .leading, spacing: 8) {
                 Button(action: onSave) {
                     Label {
-                        Text("Geschwärzte Kopie speichern")
+                        Text("Geschützte Kopie exportieren")
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2147,6 +3027,49 @@ private struct ReviewSidebar: View {
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.reviewComplete, colorScheme: colorScheme), lineWidth: 0.9)
+        )
+    }
+
+    private var noProtectedContentBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(StatusVisualSemantics.softFill(StatusVisualSemantics.attention, colorScheme: colorScheme, strong: true))
+                        .frame(width: 28, height: 28)
+
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .foregroundStyle(StatusVisualSemantics.attention)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Noch keine geschützte Stelle aktiv")
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundStyle(StatusVisualSemantics.attention.opacity(0.96))
+
+                    Text("Alle Entscheidungen sind getroffen, aber aktuell ist nichts mehr geschwärzt. Lege mindestens eine Schwärzung an oder starte die Erkennung erneut, bevor du exportierst.")
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 11)
+        .background(
+            LinearGradient(
+                colors: [
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.attention, colorScheme: colorScheme, strong: true),
+                    StatusVisualSemantics.softFill(StatusVisualSemantics.neutral, colorScheme: colorScheme)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(StatusVisualSemantics.softBorder(StatusVisualSemantics.attention, colorScheme: colorScheme), lineWidth: 0.8)
         )
     }
 
@@ -2216,7 +3139,7 @@ private struct ReviewSidebar: View {
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Export technisch geprüft")
+                    Text("Export geprüft")
                         .font(.system(size: 12.5, weight: .semibold))
 
                     Text(report.shortStatusText)

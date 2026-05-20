@@ -125,6 +125,7 @@ Aktueller Fortschritt in Phase 4:
 - sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert
 - der größere Span-Sanitizing-/Suppression-Block aus `PIIDetector.swift` liegt jetzt in `HideMyData/PIIDetectorSpanSanitizationSupport.swift`
 - Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorSupplementalClipboardSupport.swift`
+- Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `HideMyData/ReviewFindingCompactor.swift`
 
 ## Bekannte Ausgangslage
 

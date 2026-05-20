@@ -192,4 +192,6 @@ Die naechsten Schritte werden weiterhin ueber echte Dokumentfaelle, Regressionen
 
 Der aktuelle Repository-Stand wird weiterhin unter der in [LICENSE](LICENSE) enthaltenen Lizenz verteilt.
 
-Eine spaetere Umstellung auf ein kommerzielles oder proprietaeres Modell setzt zuerst eine saubere Rechteklaerung und den Abschluss von `PROJ-21` voraus.
+Eine spaetere Umstellung auf ein kommerzielles oder proprietaeres Modell setzt zuerst eine saubere Rechteklaerung, die Bewertung der verbleibenden Fachkern-Dateien und den Abschluss von `PROJ-21` voraus.
+
+Der aktuelle Commercial-Readiness-Stand wird in [docs/commercial-readiness-audit.md](docs/commercial-readiness-audit.md) separat nachgehalten.

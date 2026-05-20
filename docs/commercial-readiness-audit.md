@@ -22,6 +22,8 @@ Bereits bereinigt oder ersetzt:
 - kleine Modell- und Darstellungsbausteine wie `BlurRedactionAnnotation`, `RedactionStyle+UI` und `InputMode`
 - Shared-Modelle fuer `RedactionStyle`, `EditingMode`, Redaction-Workflow-Typen und sicheren Array-Zugriff
 - `PDFRedactor` und `ImageRedactor` auf die ausgelagerten Typen umgestellt
+- groessere `PIIDetector`-Bloecke fuer Modellcache, Platzhalter, Pattern-Diagnostik, Span-Sanitizing und Clipboard-Supplemente in eigene Support-Dateien verschoben
+- Review-Kompaktierung fuer Trefferprojektionen in `ReviewFindingCompactor.swift` ausgelagert
 - README-Lizenzhinweis auf den realen Zwischenstand geschaerft
 - `.swiftlint.yml` als schlanke eigene Projektkonfiguration neu aufgebaut
 
@@ -38,6 +40,7 @@ Diese Punkte muessen vor einer proprietaeren oder kommerziellen Umstellung gekla
   - [HideMyData/patterns.json](../HideMyData/patterns.json)
   - [HideMyData/PDFRedactor.swift](../HideMyData/PDFRedactor.swift)
   - [HideMyData/ImageRedactor.swift](../HideMyData/ImageRedactor.swift)
+  - Teile von [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift), die trotz der bereits erfolgten Extraktionen noch nicht separat neu bewertet wurden
 
 ## Vor Release oder Store-Vorbereitung bereinigen
 
@@ -72,5 +75,6 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
 - `PDFRedactor.swift` und `ImageRedactor.swift` weiter modularisieren, damit verbleibende Altanteile gezielt ersetzbar werden
+- den Restkern von `PIIDetector.swift` nach den neuen Support-Extraktionen erneut auf verbleibende Altanteile bewerten
 - Sparkle-Historie fuer neue Distribution separat neu aufsetzen
 - Lizenzwechsel erst nach Abschluss der technischen und rechtlichen Bereinigung vorbereiten

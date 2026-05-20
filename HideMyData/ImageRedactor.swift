@@ -13,7 +13,7 @@ final class ImageRedactor {
         case failure(String)
     }
 
-    private struct RedactionEntry {
+    struct RedactionEntry {
         let rect: CGRect
         let findingID: UUID?
     }
@@ -304,8 +304,11 @@ final class ImageRedactor {
 
     func clearRedactions() {
         cancelDetection()
-        redactionEntries.removeAll()
-        previewEntries.removeAll()
+        ImageAnnotationReviewLifecycleSupport.clearRedactions(
+            redactionEntries: &redactionEntries,
+            previewEntries: &previewEntries,
+            dismissedPreviewEntries: &dismissedPreviewEntries
+        )
         clearReviewState()
         if image != nil { phase = .loaded }
     }
@@ -358,9 +361,11 @@ final class ImageRedactor {
     }
 
     func rejectFinding(_ id: UUID) {
-        let matches = previewEntries.filter { $0.findingID == id }
-        previewEntries.removeAll { $0.findingID == id }
-        dismissedPreviewEntries.append(contentsOf: matches)
+        ImageAnnotationReviewLifecycleSupport.rejectFinding(
+            id,
+            previewEntries: &previewEntries,
+            dismissedPreviewEntries: &dismissedPreviewEntries
+        )
         updateFinding(id) { $0.status = .rejected }
         if focusedFindingID == id { focusedFindingID = nil }
         if redactionRects.isEmpty && previewRects.isEmpty, image != nil {
@@ -377,18 +382,20 @@ final class ImageRedactor {
         case .pending:
             focusedFindingID = id
         case .accepted:
-            let matches = redactionEntries.filter { $0.findingID == id }
-            guard !matches.isEmpty else { return }
-            redactionEntries.removeAll { $0.findingID == id }
-            previewEntries.append(contentsOf: matches)
+            guard ImageAnnotationReviewLifecycleSupport.reopenAcceptedFinding(
+                id,
+                redactionEntries: &redactionEntries,
+                previewEntries: &previewEntries
+            ) else { return }
             updateFinding(id) { $0.status = .pending }
             focusedFindingID = id
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
         case .rejected:
-            let matches = dismissedPreviewEntries.filter { $0.findingID == id }
-            guard !matches.isEmpty else { return }
-            dismissedPreviewEntries.removeAll { $0.findingID == id }
-            previewEntries.append(contentsOf: matches)
+            guard ImageAnnotationReviewLifecycleSupport.reopenRejectedFinding(
+                id,
+                previewEntries: &previewEntries,
+                dismissedPreviewEntries: &dismissedPreviewEntries
+            ) else { return }
             updateFinding(id) { $0.status = .pending }
             focusedFindingID = id
             phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
@@ -478,32 +485,38 @@ final class ImageRedactor {
     }
 
     private func clearReviewState() {
-        reviewFindings.removeAll()
-        focusedFindingID = nil
-        debugEntries.removeAll()
-        dismissedPreviewEntries.removeAll()
+        ImageAnnotationReviewLifecycleSupport.clearReviewState(
+            reviewFindings: &reviewFindings,
+            focusedFindingID: &focusedFindingID,
+            debugEntries: &debugEntries,
+            dismissedPreviewEntries: &dismissedPreviewEntries
+        )
     }
 
     private func promotePreviewToRedaction(for findingID: UUID) {
-        let matches = previewEntries.filter { $0.findingID == findingID }
-        guard !matches.isEmpty else { return }
-        previewEntries.removeAll { $0.findingID == findingID }
-        for entry in matches {
-            addRedaction(rect: entry.rect, findingID: findingID, rectIsPreNormalized: true)
+        let rects = ImageAnnotationReviewLifecycleSupport.promotePreviewToRedaction(
+            findingID: findingID,
+            previewEntries: &previewEntries
+        )
+        guard !rects.isEmpty else { return }
+        for rect in rects {
+            addRedaction(rect: rect, findingID: findingID, rectIsPreNormalized: true)
         }
     }
 
     private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {
-        guard !redactionEntries.contains(where: { $0.findingID == findingID }) else { return }
-        updateFinding(findingID) {
-            if $0.status == .pending {
-                $0.status = .rejected
-            }
-        }
+        ImageAnnotationReviewLifecycleSupport.syncFindingStateAfterRedactionRemoval(
+            findingID: findingID,
+            redactionEntries: redactionEntries,
+            reviewFindings: &reviewFindings
+        )
     }
 
     private func updateFinding(_ id: UUID, mutate: (inout ReviewFinding) -> Void) {
-        guard let index = reviewFindings.firstIndex(where: { $0.id == id }) else { return }
-        mutate(&reviewFindings[index])
+        ImageAnnotationReviewLifecycleSupport.updateFinding(
+            id,
+            reviewFindings: &reviewFindings,
+            mutate: mutate
+        )
     }
 }

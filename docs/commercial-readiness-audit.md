@@ -25,6 +25,11 @@ Bereits bereinigt oder ersetzt:
 - PDF-OCR-Zusatzanalyse fuer Empfaengerkontext in `PDFOCRSupplementalAnalyzer.swift` ausgelagert
 - `patterns.json` wird jetzt ueber `PatternMatcherBuiltinSupport.swift` als separaten Manifest-/Compile-Layer geladen, ohne die Regex-Basis zu aendern
 - Preview-Diagnostik und Kontext-Rect-Erweiterung fuer PDF-Review laufen jetzt ueber `PDFReviewContextSupport.swift`
+- Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionLifecycleSupport.swift`
+- Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report laufen jetzt ueber `PDFExportLifecycleSupport.swift`
+- Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report laufen jetzt ueber `ImageExportLifecycleSupport.swift`
+- OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung fuer Bild-Erkennung laufen jetzt ueber `ImageDetectionLifecycleSupport.swift`
+- Supplemental-Recovery und Sichtbarkeitspruefung fuer Bild-Previews laufen jetzt ueber `ImageReviewRecoverySupport.swift`
 - groessere `PIIDetector`-Bloecke fuer Modellcache, Platzhalter, Pattern-Diagnostik, Span-Sanitizing und Clipboard-Supplemente in eigene Support-Dateien verschoben
 - Review-Kompaktierung fuer Trefferprojektionen in `ReviewFindingCompactor.swift` ausgelagert
 - README-Lizenzhinweis auf den realen Zwischenstand geschaerft
@@ -43,6 +48,7 @@ Diese Punkte muessen vor einer proprietaeren oder kommerziellen Umstellung gekla
   - [HideMyData/patterns.json](../HideMyData/patterns.json)
   - [HideMyData/PDFRedactor.swift](../HideMyData/PDFRedactor.swift)
   - [HideMyData/ImageRedactor.swift](../HideMyData/ImageRedactor.swift)
+  - [HideMyData/PatternMatcher.swift](../HideMyData/PatternMatcher.swift)
   - Teile von [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift), die trotz der bereits erfolgten Extraktionen noch nicht separat neu bewertet wurden
 
 ## Vor Release oder Store-Vorbereitung bereinigen
@@ -77,7 +83,7 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 ## Naechste konkrete Schritte
 
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
-- `PDFRedactor.swift` und `ImageRedactor.swift` weiter modularisieren, damit verbleibende Altanteile gezielt ersetzbar werden
-- den Restkern von `PIIDetector.swift` nach den neuen Support-Extraktionen erneut auf verbleibende Altanteile bewerten
+- den verbleibenden Restkern von `PDFRedactor.swift` und `ImageRedactor.swift` nach den neuen Lifecycle-Extraktionen erneut klein schneiden
+- `PatternMatcher.swift` und den Restkern von `PIIDetector.swift` nach den neuen Support-Extraktionen erneut auf verbleibende Altanteile bewerten
 - Sparkle-Historie fuer neue Distribution separat neu aufsetzen
 - Lizenzwechsel erst nach Abschluss der technischen und rechtlichen Bereinigung vorbereiten

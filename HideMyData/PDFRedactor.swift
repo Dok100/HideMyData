@@ -150,7 +150,7 @@ final class PDFRedactor {
         panel.prompt = "Speichern"
         panel.nameFieldLabel = "Dateiname:"
         panel.showsTagField = false
-        panel.nameFieldStringValue = suggestedSaveName()
+        panel.nameFieldStringValue = PDFExportLifecycleSupport.suggestedSaveName(for: sourceURL)
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
 
@@ -198,27 +198,20 @@ final class PDFRedactor {
             guard let page = doc.page(at: pageIndex) else { continue }
 
             let pageText = page.string ?? ""
-            let source: PageTextSource
-            let modelInput: String
-            let offsetMap: [Int]
-            let trimmedPageText = pageText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let shouldPreferOCR = trimmedPageText.isEmpty || nativeTextLikelyNeedsOCR(trimmedPageText)
-            if shouldPreferOCR, let ocrPage = await ocrText(for: page), !ocrPage.combinedText.isEmpty {
-                source = .ocr(ocrPage)
-                usedOCRText = true
-                let n = OCRNormalizer.normalize(ocrPage.combinedText, mode: .ocr)
-                modelInput = n.text
-                offsetMap = n.offsetMap
-            } else if !trimmedPageText.isEmpty {
-                source = .nativeText(pageText)
-                usedNativeText = true
-                let n = OCRNormalizer.normalize(pageText, mode: .native)
-                modelInput = n.text
-                offsetMap = n.offsetMap
-            } else {
+            let ocrPage = await ocrText(for: page)
+            guard let detectionInput = PDFDetectionLifecycleSupport.pageDetectionInput(
+                pageText: pageText,
+                ocrPage: ocrPage
+            ) else {
                 pagesWithoutUsableText += 1
                 continue
             }
+            let source = detectionInput.source
+            let modelInput = detectionInput.modelInput
+            let offsetMap = detectionInput.offsetMap
+            usedNativeText = usedNativeText || detectionInput.usedNativeText
+            usedOCRText = usedOCRText || detectionInput.usedOCRText
+
             let result = await detector.detect(modelInput)
             if Task.isCancelled { return }
             switch result {
@@ -378,46 +371,14 @@ final class PDFRedactor {
         if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
             selectFinding(firstPending.id)
         }
-        if reviewFindings.isEmpty && totalSpans == 0 {
-            if !usedNativeText && !usedOCRText {
-                detectionNotice = DocumentDetectionNotice(
-                    title: "Kaum lesbarer Text im PDF",
-                    message: "Inkognito konnte in diesem PDF keinen ausreichend lesbaren Text finden. Häufig ist das bei gescannten Seiten, sehr schwachen Exporten oder rein bildbasierten PDFs der Fall."
-                )
-            } else if usedOCRText && pagesWithoutUsableText > 0 {
-                detectionNotice = DocumentDetectionNotice(
-                    title: "OCR nur teilweise brauchbar",
-                    message: "Ein Teil der Seiten lieferte kaum verwertbaren Text. Wenn etwas sichtbar fehlt, versuche bitte eine klarere Scan-Version oder prüfe die Seite manuell."
-                )
-            }
-        }
+        detectionNotice = PDFDetectionLifecycleSupport.completionNotice(
+            reviewFindingsEmpty: reviewFindings.isEmpty,
+            totalSpans: totalSpans,
+            usedNativeText: usedNativeText,
+            usedOCRText: usedOCRText,
+            pagesWithoutUsableText: pagesWithoutUsableText
+        )
         phase = .redacted(spanCount: totalSpans, rectCount: totalRects)
-    }
-
-    private enum PageTextSource {
-        case nativeText(String)
-        case ocr(OCRPage)
-
-        var text: String {
-            switch self {
-            case .nativeText(let s): return s
-            case .ocr(let p): return p.combinedText
-            }
-        }
-
-        var debugLabel: String {
-            switch self {
-            case .nativeText: return "PDF-Text"
-            case .ocr: return "Apple Vision OCR"
-            }
-        }
-
-        var ocrPage: OCRPage? {
-            switch self {
-            case .nativeText: return nil
-            case .ocr(let page): return page
-            }
-        }
     }
 
     private func ocrText(for page: PDFPage) async -> OCRPage? {
@@ -429,38 +390,12 @@ final class PDFRedactor {
         PDFHeaderSuppressionSupport.shouldSuppressHeaderLikeFinding(span, in: pageText)
     }
 
-    private func nativeTextLikelyNeedsOCR(_ text: String) -> Bool {
-        let ocrLikeNormalized = OCRNormalizer.normalize(text, mode: .ocr).text
-        let nativeNormalized = OCRNormalizer.normalize(text, mode: .native).text
-        let rawCount = max(text.count, 1)
-        let compactedCount = max(0, nativeNormalized.count - ocrLikeNormalized.count)
-        let compactionRatio = Double(compactedCount) / Double(rawCount)
-
-        let spacedRunCount = matches(
-            for: #"(?u)(?:\b[\p{L}\p{N}]\s+){3,}[\p{L}\p{N}]\b"#,
-            in: text
-        )
-        let suspiciousSymbolCount = text.filter { "^�".contains($0) }.count
-
-        if spacedRunCount >= 3 { return true }
-        if spacedRunCount >= 2, compactionRatio > 0.05 { return true }
-        if compactionRatio > 0.12 { return true }
-        if suspiciousSymbolCount >= 2, compactionRatio > 0.04 { return true }
-        return false
-    }
-
     private func contextualSupplementalSpans(in text: String) -> [DetectedSpan] {
         NativePDFContextAnalyzer.contextualSupplementalSpans(in: text)
     }
 
     private func supplementalOCRContextSpans(in page: OCRPage) -> ([DetectedSpan], [String]) {
         PDFOCRSupplementalAnalyzer.analyze(page: page)
-    }
-
-    private func matches(for pattern: String, in text: String) -> Int {
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return 0 }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-        return regex.numberOfMatches(in: text, options: [], range: range)
     }
 
     private func renderPageToCGImage(_ page: PDFPage, scale: CGFloat) -> CGImage? {
@@ -794,7 +729,7 @@ final class PDFRedactor {
 
     // MARK: - Bounding rects via character offsets (with text-search fallback)
 
-    private func boundingRects(for span: DetectedSpan, source: PageTextSource, on page: PDFPage) -> [CGRect] {
+    private func boundingRects(for span: DetectedSpan, source: PDFPageTextSource, on page: PDFPage) -> [CGRect] {
         switch source {
         case .nativeText(let pageText):
             if span.start >= 0,
@@ -891,67 +826,30 @@ final class PDFRedactor {
         guard let doc = document else {
             return .failure("Es ist gerade kein PDF geladen, das gespeichert werden kann.")
         }
-        let newDoc = PDFDocument()
-        newDoc.documentAttributes = options.removeMetadata ? [:] : doc.documentAttributes
-        var redactedPageCount = 0
-
-        for pageIndex in 0..<doc.pageCount {
-            guard let page = doc.page(at: pageIndex) else { continue }
-            let rectsForPage = redactionAnnotations
-                .filter { $0.page === page }
-                .map { $0.annotation.bounds }
-
-            if rectsForPage.isEmpty && !options.removeMetadata {
-                if let copy = page.copy() as? PDFPage {
-                    newDoc.insert(copy, at: newDoc.pageCount)
-                }
-            } else {
-                let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
-                guard let baked = RedactionRendering.bakePDFPage(
-                    page,
-                    rects: rectsForPage,
-                    style: redactionStyle,
-                    detaching: detached
-                ) else {
-                    return .failure("Das PDF konnte nicht exportiert werden, weil mindestens eine Seite nicht sauber neu aufgebaut werden konnte. Bitte versuche es erneut oder speichere an einen anderen Ort.")
-                }
-                newDoc.insert(baked, at: newDoc.pageCount)
-                redactedPageCount += 1
-            }
-        }
-
-        guard newDoc.write(to: url) else {
-            return .failure("Die geschwärzte PDF konnte nicht am gewählten Ort gespeichert werden. Bitte prüfe Schreibrechte, freien Speicherplatz oder wähle einen anderen Speicherort.")
-        }
-
-        let report = ExportValidationReport(
-            format: .pdf,
-            redactionCount: redactionAnnotations.count,
+        let exportResult = PDFExportLifecycleSupport.saveRedactedCopy(
+            sourceDocument: doc,
+            destinationURL: url,
+            options: options,
+            redactionStyle: redactionStyle,
             manualRedactionCount: manualRedactionCount,
-            redactedPageCount: redactedPageCount,
-            totalPageCount: newDoc.pageCount,
-            lowTextWarning: detectionNotice?.title.localizedCaseInsensitiveContains("lesbarer Text") == true
-                || detectionNotice?.title.localizedCaseInsensitiveContains("OCR") == true,
-            removedMetadata: options.removeMetadata,
-            annotationsRemoved: exportedPDFLooksAnnotationFree(newDoc),
-            bakedIntoPixels: redactedPageCount > 0
+            detectionNotice: detectionNotice,
+            rectsForPage: { page in
+                redactionAnnotations
+                    .filter { $0.page === page }
+                    .map { $0.annotation.bounds }
+            },
+            detachableAnnotationsForPage: { page in
+                redactionAnnotations
+                    .filter { $0.page === page }
+                    .map { $0.annotation }
+            }
         )
 
-        return .success(RedactionExportResult(url: url, report: report))
-    }
-
-    private func suggestedSaveName() -> String {
-        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "dokument"
-        return "\(base)-geschwaerzt.pdf"
-    }
-
-    private func exportedPDFLooksAnnotationFree(_ document: PDFDocument) -> Bool {
-        for index in 0..<document.pageCount {
-            guard let page = document.page(at: index) else { continue }
-            if !page.annotations.isEmpty {
-                return false
-            }
+        switch exportResult {
+        case .success(let result):
+            return .success(result)
+        case .failure(let message):
+            return .failure(message)
         }
-        return true
     }
 }

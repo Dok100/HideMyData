@@ -156,7 +156,7 @@ final class ImageRedactor {
         panel.prompt = "Speichern"
         panel.nameFieldLabel = "Dateiname:"
         panel.showsTagField = false
-        panel.nameFieldStringValue = suggestedSaveName(uti: outUTI)
+        panel.nameFieldStringValue = ImageExportLifecycleSupport.suggestedSaveName(sourceURL: sourceURL, uti: outUTI)
         panel.accessoryView = exportAccessory
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
 
@@ -193,106 +193,62 @@ final class ImageRedactor {
         detectionNotice = nil
         phase = .detecting
 
-        guard let ocr = try? await OCREngine.recognize(cg) else {
-            phase = .failed("OCR fehlgeschlagen")
-            return
-        }
+        let preparation = ImageDetectionLifecycleSupport.prepareOCRResult(try? await OCREngine.recognize(cg))
         if Task.isCancelled { return }
-        if ocr.combinedText.isEmpty {
-            detectionNotice = DocumentDetectionNotice(
-                title: "Kaum lesbarer Text im Bild",
-                message: "Apple Vision konnte in diesem Bild praktisch keinen lesbaren Text erkennen. Prüfe bitte Schärfe, Kontrast und Ausschnitt oder versuche eine klarere Aufnahme."
-            )
+        switch preparation {
+        case .failed(let message):
+            phase = .failed(message)
+            return
+        case .noUsableText(let notice):
+            detectionNotice = notice
             phase = .redacted(spanCount: 0, rectCount: 0)
             return
-        }
+        case .success(let prepared):
+            let ocr = prepared.ocrPage
+            let modelInput = prepared.modelInput
 
-        let (modelInput, offsetMap) = OCRNormalizer.normalize(ocr.combinedText, mode: .ocr)
-        let originalCount = ocr.combinedText.count
-
-        let result = await detector.detect(modelInput)
-        if Task.isCancelled { return }
-        switch result {
-        case .failure(let err):
-            phase = .failed("Erkennungsfehler: \(err.localizedDescription)")
-        case .success(let spans):
-            let supplementalAnalysis = supplementalOCRContextAnalysis(in: ocr, modelInput: modelInput)
-            let supplementalCandidates = supplementalAnalysis.candidates
-            let supplementalSpans = supplementalCandidates.map(\.span)
-            let visibleDebugSpans = (spans + supplementalSpans)
-                .sorted {
-                    if $0.start == $1.start { return $0.end < $1.end }
-                    return $0.start < $1.start
+            let result = await detector.detect(modelInput)
+            if Task.isCancelled { return }
+            switch result {
+            case .failure(let err):
+                phase = .failed("Erkennungsfehler: \(err.localizedDescription)")
+            case .success(let spans):
+                let supplementalAnalysis = supplementalOCRContextAnalysis(in: ocr, modelInput: modelInput)
+                let resolved = ImageDetectionLifecycleSupport.resolveDetection(
+                    spans: spans,
+                    prepared: prepared,
+                    supplementalAnalysis: supplementalAnalysis,
+                    pixelRectFromNormalized: pixelRect(fromNormalized:)
+                )
+                let reviewProjections = ReviewFindingCompactor.compact(resolved.reviewCandidates)
+                for projection in reviewProjections {
+                    reviewFindings.append(projection.finding)
+                    for rect in projection.rects {
+                        addPreview(rect: rect, findingID: projection.finding.id)
+                    }
                 }
-            let baseDiagnostics = PIIDetector.visiblePatternDiagnostics(for: modelInput) + supplementalAnalysis.diagnostics
-            var reviewCandidates: [ReviewFindingCandidate] = []
-            for span in visibleDebugSpans {
-                if let supplementalCandidate = supplementalCandidates.first(where: {
-                    $0.span.category == span.category &&
-                    $0.span.start == span.start &&
-                    $0.span.end == span.end &&
-                    $0.span.text == span.text
-                }) {
-                    reviewCandidates.append(
-                        ReviewFindingCandidate(
-                            category: span.category,
-                            snippet: span.text,
-                            source: span.source,
-                            confidence: span.confidence,
-                            pageIndex: nil,
-                            rects: supplementalCandidate.normalizedRects.map(pixelRect(fromNormalized:))
-                        )
+                restoreMissingSupplementalCandidates(resolved.supplementalCandidates)
+                restoreMissingWindowRecipientPrelude(in: ocr)
+                let previewDiagnostics = makePreviewDiagnostics(in: ocr)
+                debugEntries = [
+                    ImageDetectionLifecycleSupport.debugEntry(
+                        ocrPage: ocr,
+                        modelInput: modelInput,
+                        findings: resolved.visibleDebugSpans,
+                        diagnostics: resolved.baseDiagnostics,
+                        previewDiagnostics: previewDiagnostics
                     )
-                    continue
+                ]
+                if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
+                    selectFinding(firstPending.id)
                 }
-
-                let (origStart, origEnd) = OCRNormalizer.translateRange(
-                    start: span.start, end: span.end, map: offsetMap, originalCount: originalCount
+                detectionNotice = ImageDetectionLifecycleSupport.weakOCRNoticeIfNeeded(
+                    reviewFindings: reviewFindings,
+                    modelSpans: spans,
+                    ocrText: ocr.combinedText
                 )
-                let normRects = ocr.normalizedBoxes(start: origStart, end: origEnd)
-                guard !normRects.isEmpty else { continue }
-                reviewCandidates.append(
-                    ReviewFindingCandidate(
-                        category: span.category,
-                        snippet: span.text,
-                        source: span.source,
-                        confidence: span.confidence,
-                        pageIndex: nil,
-                        rects: normRects.map { pixelRect(fromNormalized: $0) }
-                    )
-                )
+                phase = .redacted(spanCount: spans.count, rectCount: previewRects.count)
             }
-            let reviewProjections = ReviewFindingCompactor.compact(reviewCandidates)
-            for projection in reviewProjections {
-                reviewFindings.append(projection.finding)
-                for rect in projection.rects {
-                    addPreview(rect: rect, findingID: projection.finding.id)
-                }
-            }
-            restoreMissingSupplementalCandidates(supplementalCandidates)
-            restoreMissingWindowRecipientPrelude(in: ocr)
-            let previewDiagnostics = makePreviewDiagnostics(in: ocr)
-            debugEntries = [
-                DetectionDebugEntry(
-                    title: "Bilddiagnose",
-                    textSourceLabel: "Apple Vision OCR",
-                    rawText: ocr.combinedText,
-                    normalizedText: modelInput,
-                    findings: visibleDebugSpans,
-                    diagnostics: baseDiagnostics,
-                    previewDiagnostics: previewDiagnostics
-                )
-            ]
-            if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
-                selectFinding(firstPending.id)
-            }
-            if reviewFindings.isEmpty && spans.isEmpty && DocumentTextHeuristics.lowSignalOCRText(ocr.combinedText) {
-                detectionNotice = DocumentDetectionNotice(
-                    title: "OCR-Ergebnis sehr schwach",
-                    message: "Es wurde zwar etwas Text erkannt, aber nur sehr wenig verwertbarer Inhalt. Wenn sensible Daten sichtbar fehlen, versuche bitte ein klareres Bild."
-                )
-            }
-            phase = .redacted(spanCount: spans.count, rectCount: previewRects.count)
         }
     }
 
@@ -301,63 +257,40 @@ final class ImageRedactor {
     }
 
     private func restoreMissingSupplementalCandidates(_ candidates: [ImageSupplementalOCRCandidate]) {
-        for candidate in candidates {
-            let pixelRects = candidate.normalizedRects.map(pixelRect(fromNormalized:))
-            let alreadyVisible = pixelRects.contains { rect in
-                isRectMostlyVisible(rect)
-            }
-            guard !alreadyVisible else { continue }
+        let recoveries = ImageReviewRecoverySupport.missingSupplementalRecoveries(
+            candidates: candidates,
+            pixelRectFromNormalized: pixelRect(fromNormalized:),
+            isRectMostlyVisible: isRectMostlyVisible(_:)
+        )
 
-            let finding = ReviewFinding(
-                category: candidate.span.category,
-                snippet: candidate.span.text,
-                source: candidate.span.source,
-                confidence: candidate.span.confidence,
-                pageIndex: nil
-            )
-            reviewFindings.append(finding)
-            for rect in pixelRects {
-                addPreview(rect: rect, findingID: finding.id)
+        for recovery in recoveries {
+            reviewFindings.append(recovery.finding)
+            for rect in recovery.rects {
+                addPreview(rect: rect, findingID: recovery.finding.id)
             }
         }
     }
 
     private func restoreMissingWindowRecipientPrelude(in page: OCRPage) {
-        let recoveredCandidates = ImageOCRSupplementalAnalyzer.recoveredWindowRecipientPreludeCandidates(
-            in: page,
-            isNormalizedRectVisible: { normalizedRect in
-                isRectMostlyVisible(pixelRect(fromNormalized: normalizedRect))
-            }
+        let recoveries = ImageReviewRecoverySupport.windowRecipientPreludeRecoveries(
+            page: page,
+            pixelRectFromNormalized: pixelRect(fromNormalized:),
+            isRectMostlyVisible: isRectMostlyVisible(_:)
         )
 
-        for candidate in recoveredCandidates {
-            for rect in candidate.normalizedRects.map(pixelRect(fromNormalized:)) {
-                appendRecoveredPreview(span: candidate.span, rect: rect)
+        for recovery in recoveries {
+            reviewFindings.append(recovery.finding)
+            for rect in recovery.rects {
+                addPreview(rect: rect, findingID: recovery.finding.id)
             }
         }
-    }
-
-    private func appendRecoveredPreview(span: DetectedSpan, rect: CGRect) {
-        let finding = ReviewFinding(
-            category: span.category,
-            snippet: span.text,
-            source: span.source,
-            confidence: span.confidence,
-            pageIndex: nil
-        )
-        reviewFindings.append(finding)
-        addPreview(rect: rect, findingID: finding.id)
     }
 
     private func isRectMostlyVisible(_ rect: CGRect) -> Bool {
-        previewEntries.contains { existing in
-            let overlapRect = existing.rect.intersection(rect)
-            guard !overlapRect.isNull else { return false }
-
-            let candidateArea = max(rect.width * rect.height, 1)
-            let overlapArea = overlapRect.width * overlapRect.height
-            return overlapArea / candidateArea >= 0.6
-        }
+        ImageReviewRecoverySupport.isRectMostlyVisible(
+            rect,
+            existingPreviewRects: previewEntries.map(\.rect)
+        )
     }
 
     private func makePreviewDiagnostics(in page: OCRPage) -> [String] {
@@ -511,57 +444,22 @@ final class ImageRedactor {
         guard let cg = image else {
             return .failure("Es ist gerade kein Bild geladen, das exportiert werden kann.")
         }
-        guard let baked = RedactionRendering.bakeImageRedactions(
-            into: cg,
-            rects: redactionRects,
-            style: redactionStyle
-        ) else {
-            return .failure("Das Bild konnte nicht exportiert werden, weil die Schwärzungen nicht sauber ins Bild eingebrannt werden konnten. Bitte versuche es erneut oder wähle einen anderen Speicherort.")
-        }
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, uti.identifier as CFString, 1, nil) else {
-            return .failure("Für dieses Bildformat konnte kein Export-Ziel angelegt werden. Bitte versuche es erneut oder speichere als anderes Bildformat.")
-        }
-        CGImageDestinationAddImage(dest, baked, imageProperties(for: uti, options: options))
-        guard CGImageDestinationFinalize(dest) else {
-            return .failure("Das geschwärzte Bild konnte nicht am gewählten Ort gespeichert werden. Bitte prüfe Schreibrechte, freien Speicherplatz oder wähle einen anderen Speicherort.")
-        }
-
-        let report = ExportValidationReport(
-            format: .image,
-            redactionCount: redactionRects.count,
+        switch ImageExportLifecycleSupport.writeRedactedImage(
+            sourceImage: cg,
+            destinationURL: url,
+            uti: uti,
+            options: options,
+            redactionRects: redactionRects,
+            redactionStyle: redactionStyle,
+            sourceImageProperties: sourceImageProperties,
             manualRedactionCount: manualRedactionCount,
-            redactedPageCount: nil,
-            totalPageCount: nil,
-            lowTextWarning: detectionNotice?.title.localizedCaseInsensitiveContains("lesbarer Text") == true
-                || detectionNotice?.title.localizedCaseInsensitiveContains("OCR") == true,
-            removedMetadata: options.removeMetadata,
-            annotationsRemoved: true,
-            bakedIntoPixels: !redactionRects.isEmpty
-        )
-        return .success(RedactionExportResult(url: url, report: report))
-    }
-
-    private func imageProperties(for uti: UTType, options: ExportOptions) -> CFDictionary? {
-        var properties = options.removeMetadata ? [:] : sourceImageProperties ?? [:]
-        properties[kCGImagePropertyOrientation] = 1
-
-        if options.removeMetadata {
-            if uti.conforms(to: .png) {
-                properties[kCGImagePropertyPNGDictionary] = [:] as CFDictionary
-            } else if uti.conforms(to: .jpeg) {
-                properties[kCGImagePropertyJFIFDictionary] = [:] as CFDictionary
-            } else if uti.conforms(to: .tiff) {
-                properties[kCGImagePropertyTIFFDictionary] = [:] as CFDictionary
-            }
+            detectionNotice: detectionNotice
+        ) {
+        case .success(let result):
+            return .success(result)
+        case .failure(let message):
+            return .failure(message)
         }
-
-        return properties as CFDictionary
-    }
-
-    private func suggestedSaveName(uti: UTType) -> String {
-        let base = sourceURL?.deletingPathExtension().lastPathComponent ?? "bild"
-        let ext = uti.preferredFilenameExtension ?? "png"
-        return "\(base)-geschwaerzt.\(ext)"
     }
 
     func findingRects(for findingID: UUID) -> [CGRect] {

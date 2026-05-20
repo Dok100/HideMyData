@@ -221,137 +221,48 @@ final class PDFRedactor {
             case .success(let spans):
                 let supplementalContextSpans = contextualSupplementalSpans(in: source.text)
                 let ocrSupplemental = source.ocrPage.map { supplementalOCRContextSpans(in: $0) } ?? ([], [])
-                let visibleDebugSpans = (spans + supplementalContextSpans + ocrSupplemental.0)
-                    .filter { !shouldSuppressHeaderLikeFinding($0, in: source.text) }
-                var pageReviewCandidates: [ReviewFindingCandidate] = []
+                let pageResult = await PDFDetectionReviewSupport.resolvePageDetections(
+                    spans: spans,
+                    source: source,
+                    page: page,
+                    offsetMap: offsetMap,
+                    contextualSupplementalSpans: supplementalContextSpans,
+                    ocrSupplemental: ocrSupplemental,
+                    suppressHeaderLikeFinding: { span, pageText in
+                        self.shouldSuppressHeaderLikeFinding(span, in: pageText)
+                    },
+                    boundingRects: { span, source, page in
+                        self.boundingRects(for: span, source: source, on: page)
+                    },
+                    rectsViaOCRFallback: { spans, page in
+                        await self.rectsViaOCRFallback(for: spans, on: page)
+                    }
+                )
                 debugEntries.append(
                     DetectionDebugEntry(
                         title: "Seite \(pageIndex + 1)",
                         textSourceLabel: source.debugLabel,
                         rawText: source.text,
                         normalizedText: modelInput,
-                        findings: visibleDebugSpans,
-                        diagnostics: PIIDetector.visiblePatternDiagnostics(for: modelInput) + ocrSupplemental.1,
-                        previewDiagnostics: []
+                        findings: pageResult.visibleDebugSpans,
+                        diagnostics: PIIDetector.visiblePatternDiagnostics(for: modelInput),
+                        previewDiagnostics: pageResult.previewDiagnostics
                     )
                 )
-                totalSpans += visibleDebugSpans.count
-                var unmapped: [DetectedSpan] = []
-                for span in visibleDebugSpans {
-                    let (s, e) = OCRNormalizer.translateRange(
-                        start: span.start, end: span.end, map: offsetMap, originalCount: source.text.count
-                    )
-                    let translated = DetectedSpan(
-                        category: span.category, text: span.text,
-                        start: s, end: e, confidence: span.confidence,
-                        source: span.source
-                    )
-                    let rects = boundingRects(for: translated, source: source, on: page)
-                    if rects.isEmpty {
-                        unmapped.append(translated)
-                    } else {
-                        let expandedRects = PDFReviewContextSupport.expandedContextRects(
-                            for: translated,
-                            baseRects: rects,
-                            pageText: source.text,
-                            on: page
-                        )
-                        reviewCandidates.append(
-                            ReviewFindingCandidate(
-                                category: translated.category,
-                                snippet: translated.text,
-                                source: translated.source,
-                                confidence: translated.confidence,
-                                pageIndex: pageIndex,
-                                rects: expandedRects
-                            )
-                        )
-                        pageReviewCandidates.append(
-                            ReviewFindingCandidate(
-                                category: translated.category,
-                                snippet: translated.text,
-                                source: translated.source,
-                                confidence: translated.confidence,
-                                pageIndex: pageIndex,
-                                rects: expandedRects
-                            )
-                        )
-                        totalRects += expandedRects.count
-                    }
-                }
-                if !unmapped.isEmpty, case .nativeText = source {
-                    let recovered = await rectsViaOCRFallback(for: unmapped, on: page)
-                    let grouped = Dictionary(grouping: recovered, by: \.1.id)
-                    for span in unmapped {
-                        guard let matches = grouped[span.id], !matches.isEmpty else { continue }
-                        let rects = PDFReviewContextSupport.expandedContextRects(
-                            for: span,
-                            baseRects: matches.map(\.0),
-                            pageText: source.text,
-                            on: page
-                        )
-                        reviewCandidates.append(
-                            ReviewFindingCandidate(
-                                category: span.category,
-                                snippet: span.text,
-                                source: span.source,
-                                confidence: span.confidence,
-                                pageIndex: pageIndex,
-                                rects: rects
-                            )
-                        )
-                        pageReviewCandidates.append(
-                            ReviewFindingCandidate(
-                                category: span.category,
-                                snippet: span.text,
-                                source: span.source,
-                                confidence: span.confidence,
-                                pageIndex: pageIndex,
-                                rects: rects
-                            )
-                        )
-                        totalRects += rects.count
-                    }
-                }
-
-                for span in supplementalContextSpans + ocrSupplemental.0 {
-                    let rects = boundingRects(for: span, source: source, on: page)
-                    guard !rects.isEmpty else { continue }
-                    reviewCandidates.append(
+                totalSpans += pageResult.visibleDebugSpans.count
+                reviewCandidates.append(
+                    contentsOf: pageResult.reviewCandidates.map { candidate in
                         ReviewFindingCandidate(
-                            category: span.category,
-                            snippet: span.text,
-                            source: span.source,
-                            confidence: span.confidence,
+                            category: candidate.category,
+                            snippet: candidate.snippet,
+                            source: candidate.source,
+                            confidence: candidate.confidence,
                             pageIndex: pageIndex,
-                            rects: PDFReviewContextSupport.deduplicatedRects(rects)
+                            rects: candidate.rects
                         )
-                    )
-                    pageReviewCandidates.append(
-                        ReviewFindingCandidate(
-                            category: span.category,
-                            snippet: span.text,
-                            source: span.source,
-                            confidence: span.confidence,
-                            pageIndex: pageIndex,
-                            rects: PDFReviewContextSupport.deduplicatedRects(rects)
-                        )
-                    )
-                    totalRects += rects.count
-                }
-
-                if let entryIndex = debugEntries.indices.last {
-                    let entry = debugEntries[entryIndex]
-                    debugEntries[entryIndex] = DetectionDebugEntry(
-                        title: entry.title,
-                        textSourceLabel: entry.textSourceLabel,
-                        rawText: entry.rawText,
-                        normalizedText: entry.normalizedText,
-                        findings: entry.findings,
-                        diagnostics: entry.diagnostics,
-                        previewDiagnostics: PDFReviewContextSupport.previewDiagnosticsLines(for: pageReviewCandidates)
-                    )
-                }
+                    }
+                )
+                totalRects += pageResult.totalRects
             }
         }
 

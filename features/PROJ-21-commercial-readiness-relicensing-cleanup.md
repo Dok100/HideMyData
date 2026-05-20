@@ -124,6 +124,7 @@ Aktueller Fortschritt in Phase 4:
 - Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
 - Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
+- seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageExportLifecycleSupport.swift`
 - OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageDetectionLifecycleSupport.swift`
@@ -135,6 +136,8 @@ Aktueller Fortschritt in Phase 4:
 - der größere Span-Sanitizing-/Suppression-Block aus `PIIDetector.swift` liegt jetzt in `HideMyData/PIIDetectorSpanSanitizationSupport.swift`
 - Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorSupplementalClipboardSupport.swift`
 - Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `HideMyData/ReviewFindingCompactor.swift`
+- Zustandslogik, Fehlermeldungstexte und Persistenz fuer die letzte Zwischenablage-Sitzung aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorLifecycleSupport.swift` und `HideMyData/PIIDetectorClipboardSessionSupport.swift`
+- Modelltreffer-Mapping, Pattern-/Supplemental-Zusammenfuehrung, sichtbare Pattern-Diagnostik und Clipboard-Session-Aufbau aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorInferenceSupport.swift`
 
 ## Bekannte Ausgangslage
 

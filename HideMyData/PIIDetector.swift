@@ -193,40 +193,24 @@ final class PIIDetector {
     }
 
     init() {
-        let cacheRoot = Self.defaultCacheRoot()
-        let hasReadyMarker = FileManager.default.fileExists(atPath: Self.readyMarkerURL(in: cacheRoot).path)
-        self.phase = hasReadyMarker ? .loadingModel : .needsDownload
-        self.lastClipboardSession = Self.loadPersistedClipboardSession()
+        let readyMarkerURL = Self.readyMarkerURL(in: Self.defaultCacheRoot())
+        self.phase = PIIDetectorLifecycleSupport.initialPhase(readyMarkerURL: readyMarkerURL)
+        self.lastClipboardSession = Self.loadPersistedClipboardSession(
+            key: Self.lastClipboardSessionKey,
+            legacyKey: Self.legacyLastClipboardSessionKey
+        )
     }
 
     var statusText: String {
-        switch phase {
-        case .needsDownload: "Modell nicht heruntergeladen"
-        case .downloading(let downloaded, let total): Self.downloadStatus(downloaded: downloaded, total: total)
-        case .loadingModel: "Modell wird geladen…"
-        case .warmingUp: "Modell wird vorbereitet…"
-        case .ready: "Bereit"
-        case .running: "Wird ausgeführt…"
-        case .failed(let message): message
-        }
-    }
-
-    private static func downloadStatus(downloaded: Int64, total: Int64) -> String {
-        PIIDetectorModelCacheSupport.downloadStatus(downloaded: downloaded, total: total)
+        PIIDetectorLifecycleSupport.statusText(for: phase)
     }
 
     var isReady: Bool {
-        switch phase {
-        case .ready, .running: true
-        default: false
-        }
+        PIIDetectorLifecycleSupport.isReady(phase)
     }
 
     var isBusy: Bool {
-        switch phase {
-        case .loadingModel, .warmingUp, .running, .downloading: return true
-        default: return false
-        }
+        PIIDetectorLifecycleSupport.isBusy(phase)
     }
 
     // MARK: - Lifecycle
@@ -256,7 +240,7 @@ final class PIIDetector {
             _ = try await downloader.download()
             await loadCachedModel()
         } catch {
-            phase = .failed("Der Modelldownload konnte nicht abgeschlossen werden. Prüfe bitte deine Verbindung und versuche es erneut. Details: \(error.localizedDescription)")
+            phase = .failed(PIIDetectorLifecycleSupport.modelDownloadFailureMessage(for: error))
         }
     }
 
@@ -270,7 +254,7 @@ final class PIIDetector {
             openmed = try OpenMed(backend: .mlx(modelDirectoryURL: modelDirectory))
             await warmUp()
         } catch {
-            phase = .failed("Das lokale Modell konnte nicht geladen werden. Bitte versuche den Download erneut oder starte die App noch einmal. Details: \(error.localizedDescription)")
+            phase = .failed(PIIDetectorLifecycleSupport.modelLoadFailureMessage(for: error))
         }
     }
 
@@ -292,30 +276,19 @@ final class PIIDetector {
         defer { phase = prevPhase }
 
         return await runOnBackground {
-            do {
-                let entities = try model.extractPII(text, confidenceThreshold: 0.4, useSmartMerging: false)
-                let modelSpans = entities.map {
-                    DetectedSpan(
-                        category: $0.label,
-                        text: $0.text,
-                        start: $0.start,
-                        end: $0.end,
-                        confidence: $0.confidence,
-                        source: .model
+            PIIDetectorInferenceSupport.detect(
+                text,
+                model: model,
+                supplementalSpans: Self.supplementalClipboardSpans(in:),
+                postProcess: Self.postProcessSpans(_:in:),
+                printDiagnostics: { diagnostics, postProcessed, sourceText in
+                    Self.printPatternDiagnostics(
+                        diagnostics,
+                        postProcessed: postProcessed,
+                        in: sourceText
                     )
                 }
-                let patternDetection = PatternMatcher.detectWithDiagnostics(text)
-                let supplementalSpans = Self.supplementalClipboardSpans(in: text)
-                let postProcessed = Self.postProcessSpans(modelSpans + patternDetection.spans + supplementalSpans, in: text)
-                Self.printPatternDiagnostics(
-                    patternDetection.diagnostics,
-                    postProcessed: postProcessed,
-                    in: text
-                )
-                return .success(postProcessed)
-            } catch {
-                return .failure(error)
-            }
+            )
         }
     }
 
@@ -333,12 +306,9 @@ final class PIIDetector {
         case .failure(let error):
             return .failure(error)
         case .success(let result):
-            let session = ClipboardAnonymizationSession(
+            let session = PIIDetectorInferenceSupport.makeClipboardSession(
                 originalText: text,
-                anonymizedText: result.anonymizedText,
-                replacementCount: result.replacementCount,
-                placeholders: result.placeholders,
-                createdAt: Date()
+                anonymizationResult: result
             )
             lastClipboardSession = session
             Self.persistClipboardSession(session)
@@ -352,12 +322,16 @@ final class PIIDetector {
     }
 
     nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
-        let detection = PatternMatcher.detectWithDiagnostics(text)
-        let postProcessed = postProcessSpans(detection.spans, in: text)
-        return PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
-            detection.diagnostics,
-            postProcessed: postProcessed,
-            in: text
+        PIIDetectorInferenceSupport.visiblePatternDiagnostics(
+            for: text,
+            postProcess: Self.postProcessSpans(_:in:),
+            diagnosticsLines: { diagnostics, postProcessed, sourceText in
+                PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
+                    diagnostics,
+                    postProcessed: postProcessed,
+                    in: sourceText
+                )
+            }
         )
     }
 
@@ -590,33 +564,18 @@ final class PIIDetector {
     }
 
     private static func persistClipboardSession(_ session: ClipboardAnonymizationSession) {
-        guard let data = try? JSONEncoder().encode(session) else { return }
-        let defaults = UserDefaults.standard
-        defaults.set(data, forKey: lastClipboardSessionKey)
-        defaults.removeObject(forKey: legacyLastClipboardSessionKey)
+        PIIDetectorClipboardSessionSupport.persistClipboardSession(
+            session,
+            key: lastClipboardSessionKey,
+            legacyKey: legacyLastClipboardSessionKey
+        )
     }
 
-    private static func loadPersistedClipboardSession() -> ClipboardAnonymizationSession? {
-        let defaults = UserDefaults.standard
-        let isUsingLegacyValue = defaults.data(forKey: lastClipboardSessionKey) == nil
-        guard let data =
-                defaults.data(forKey: lastClipboardSessionKey) ??
-                defaults.data(forKey: legacyLastClipboardSessionKey)
-        else {
-            return nil
-        }
-
-        do {
-            let session = try JSONDecoder().decode(ClipboardAnonymizationSession.self, from: data)
-            if isUsingLegacyValue {
-                persistClipboardSession(session)
-            }
-            return session
-        } catch {
-            defaults.removeObject(forKey: lastClipboardSessionKey)
-            defaults.removeObject(forKey: legacyLastClipboardSessionKey)
-            return nil
-        }
+    private static func loadPersistedClipboardSession(key: String, legacyKey: String) -> ClipboardAnonymizationSession? {
+        PIIDetectorClipboardSessionSupport.loadPersistedClipboardSession(
+            key: key,
+            legacyKey: legacyKey
+        )
     }
 }
 

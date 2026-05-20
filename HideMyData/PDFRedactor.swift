@@ -16,7 +16,7 @@ final class PDFRedactor {
         let rect: CGRect
     }
 
-    private struct RedactionEntry {
+    struct RedactionEntry {
         let page: PDFPage
         let annotation: PDFAnnotation
         let findingID: UUID?
@@ -499,15 +499,11 @@ final class PDFRedactor {
     }
 
     private func clearAllVisuals(silently: Bool) {
-        for entry in redactionAnnotations {
-            entry.page.removeAnnotation(entry.annotation)
-        }
-        for entry in previewAnnotations {
-            entry.page.removeAnnotation(entry.annotation)
-        }
-        redactionAnnotations.removeAll()
-        previewAnnotations.removeAll()
-        dismissedPreviewAnnotations.removeAll()
+        PDFAnnotationReviewLifecycleSupport.clearAllVisuals(
+            redactionAnnotations: &redactionAnnotations,
+            previewAnnotations: &previewAnnotations,
+            dismissedPreviewAnnotations: &dismissedPreviewAnnotations
+        )
         if !silently, document != nil { phase = .loaded }
     }
 
@@ -524,39 +520,39 @@ final class PDFRedactor {
     }
 
     private func clearReviewState() {
-        reviewFindings.removeAll()
-        focusedFindingID = nil
-        focusTarget = nil
         pageCount = document?.pageCount ?? 0
-        currentPageIndex = 0
-        requestedPageIndex = nil
-        debugEntries.removeAll()
-        dismissedPreviewAnnotations.removeAll()
+        PDFAnnotationReviewLifecycleSupport.clearReviewState(
+            reviewFindings: &reviewFindings,
+            focusedFindingID: &focusedFindingID,
+            focusTarget: &focusTarget,
+            pageCount: pageCount,
+            currentPageIndex: &currentPageIndex,
+            requestedPageIndex: &requestedPageIndex,
+            debugEntries: &debugEntries,
+            dismissedPreviewAnnotations: &dismissedPreviewAnnotations
+        )
     }
 
     private func removeRedactions(for findingID: UUID) {
-        let matching = redactionAnnotations.filter { $0.findingID == findingID }
-        for entry in matching {
-            entry.page.removeAnnotation(entry.annotation)
-        }
-        redactionAnnotations.removeAll { $0.findingID == findingID }
+        PDFAnnotationReviewLifecycleSupport.removeRedactions(
+            for: findingID,
+            redactionAnnotations: &redactionAnnotations
+        )
     }
 
     private func removePreviews(for findingID: UUID) {
-        let matching = previewAnnotations.filter { $0.findingID == findingID }
-        for entry in matching {
-            entry.page.removeAnnotation(entry.annotation)
-        }
-        previewAnnotations.removeAll { $0.findingID == findingID }
+        PDFAnnotationReviewLifecycleSupport.removePreviews(
+            for: findingID,
+            previewAnnotations: &previewAnnotations
+        )
     }
 
     private func dismissPreviews(for findingID: UUID) {
-        let matching = previewAnnotations.filter { $0.findingID == findingID }
-        for entry in matching {
-            entry.page.removeAnnotation(entry.annotation)
-        }
-        previewAnnotations.removeAll { $0.findingID == findingID }
-        dismissedPreviewAnnotations.append(contentsOf: matching)
+        PDFAnnotationReviewLifecycleSupport.dismissPreviews(
+            for: findingID,
+            previewAnnotations: &previewAnnotations,
+            dismissedPreviewAnnotations: &dismissedPreviewAnnotations
+        )
     }
 
     private func promotePreviewToRedaction(for findingID: UUID) {
@@ -572,13 +568,11 @@ final class PDFRedactor {
     }
 
     private func restoreDismissedPreviews(for findingID: UUID) {
-        let matches = dismissedPreviewAnnotations.filter { $0.findingID == findingID }
-        guard !matches.isEmpty else { return }
-        dismissedPreviewAnnotations.removeAll { $0.findingID == findingID }
-        for entry in matches {
-            entry.page.addAnnotation(entry.annotation)
-        }
-        previewAnnotations.append(contentsOf: matches)
+        PDFAnnotationReviewLifecycleSupport.restoreDismissedPreviews(
+            for: findingID,
+            previewAnnotations: &previewAnnotations,
+            dismissedPreviewAnnotations: &dismissedPreviewAnnotations
+        )
     }
 
     private func restoreAcceptedFindingToPending(_ findingID: UUID) {
@@ -594,26 +588,28 @@ final class PDFRedactor {
     }
 
     private func syncFindingStateAfterRedactionRemoval(findingID: UUID) {
-        guard !redactionAnnotations.contains(where: { $0.findingID == findingID }) else { return }
-        updateFinding(findingID) {
-            if $0.status == .pending {
-                $0.status = .rejected
-            }
-        }
+        PDFAnnotationReviewLifecycleSupport.syncFindingStateAfterRedactionRemoval(
+            findingID: findingID,
+            redactionAnnotations: redactionAnnotations,
+            reviewFindings: &reviewFindings
+        )
     }
 
     private func updateFinding(_ id: UUID, mutate: (inout ReviewFinding) -> Void) {
-        guard let index = reviewFindings.firstIndex(where: { $0.id == id }) else { return }
-        mutate(&reviewFindings[index])
+        PDFAnnotationReviewLifecycleSupport.updateFinding(
+            id,
+            reviewFindings: &reviewFindings,
+            mutate: mutate
+        )
     }
 
     private func firstFocusTarget(for findingID: UUID) -> FocusTarget? {
-        guard let doc = document,
-              let entry = (previewAnnotations + redactionAnnotations).first(where: { $0.findingID == findingID })
-        else { return nil }
-        let pageIndex = doc.index(for: entry.page)
-        guard pageIndex >= 0 else { return nil }
-        return FocusTarget(pageIndex: pageIndex, rect: entry.annotation.bounds)
+        PDFAnnotationReviewLifecycleSupport.firstFocusTarget(
+            document: document,
+            previewAnnotations: previewAnnotations,
+            redactionAnnotations: redactionAnnotations,
+            findingID: findingID
+        )
     }
 
     func normalizedDisplayRect(for rect: CGRect, on page: PDFPage) -> CGRect {

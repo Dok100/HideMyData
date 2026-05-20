@@ -48,6 +48,7 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 - `HideMyData/patterns.json`
 - `HideMyData/PDFRedactor.swift`
 - `HideMyData/ImageRedactor.swift`
+- `docs/commercial-readiness-audit.md`
 
 ## Bewertung
 
@@ -142,3 +143,14 @@ Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Al
 - Nutzerrelevante Migrationen bleiben nur dort bestehen, wo sie keine neue rechtliche Herkunft transportieren, sondern ausschließlich Bestandsdaten sichern.
 - Phase 1 wurde defensiv gestartet: sichtbare Funding- und historische Personen-/Container-Referenzen wurden aus den aktiven Release-Texten entfernt, ohne historische Artefaktnamen oder Enclosure-URLs umzubenennen.
 - Der erste Phase-2-Block wurde bereits ersetzt: `ContentView`, Intro-/First-Run-Fluss, `StatusPill` und `RecentsRow` wurden neu aufgebaut, ohne die eigentliche Erkennungs- oder Exportlogik anzutasten.
+- Der anschließende Infrastrukturblock wurde ersetzt: `ModelDownloader`, `RecentsStore`, `PDFKitView` und `ImageDocumentSurface` wurden bei stabilen Schnittstellen neu aufgebaut.
+- Kleine Restbausteine wie `BlurRedactionAnnotation`, `RedactionStyle+UI` und `InputMode` wurden ebenfalls neu geschrieben, bevor der schwerere Kernblock beginnt.
+- Der Kernblock wurde auf Shared-Modelle umgestellt: `RedactionStyle`, `EditingMode`, gemeinsame Workflow-Typen und der sichere Array-Zugriff liegen jetzt in eigenen Dateien statt eingebettet in `PDFRedactor` oder `ImageRedactor`.
+- `PDFRedactor` und `ImageRedactor` verwenden diese ausgelagerten Typen inzwischen produktiv, ohne ihr Nutzerverhalten zu verändern. `patterns.json` wurde als kompletter Datenblock neu aufgebaut, während die fachlichen Regexe erhalten bleiben.
+- Das Deliverable fuer den laufenden Audit-Stand liegt jetzt zusaetzlich in `docs/commercial-readiness-audit.md`, damit rechtliche Blocker, sichtbare Altspuren und bewusst verbleibende interne Reste getrennt verfolgt werden koennen.
+- Der naechste Entkopplungsschritt ist ebenfalls erfolgt: Rasterisierung, Blur-Rendering und Bake-Logik fuer Bild- und PDF-Export liegen nun zentral in `RedactionRendering.swift` statt doppelt in beiden Redactoren.
+- Reine Text-Heuristiken fuer Anrede, Formularlabels, schwaches OCR sowie Fenster-/Adresszeilen liegen jetzt zusaetzlich gebuendelt in `DocumentTextHeuristics.swift` und nicht mehr verteilt in beiden Redactoren.
+- OCR-Kontextanalyse fuer Formular-, Liefer- und Fensterempfaengerbloecke liegt jetzt zusaetzlich in `OCRContextAnalyzer.swift`, waehrend `OCRRecipientHeuristics.swift` die eigentliche Blockaufloesung und Headernaehe separat kapselt.
+- Der verbleibende native PDF-Kontextblock fuer Empfaenger-, Kontakt- und Adressmuster wurde ebenfalls entkoppelt und liegt jetzt in `NativePDFContextAnalyzer.swift` statt direkt in `PDFRedactor`.
+- Die kleineren PDF-Textkontext-Helfer fuer Recipient-Marker und Label-Kontextlinien liegen nun zusaetzlich in `PDFTextContextSupport.swift`, sodass `PDFRedactor` an diesen Stellen nur noch Rects aus PDFKit ableitet.
+- Auch die reine PDF-Textsuche und Rect-Aufloesung fuer Treffer-Fallbacks liegt jetzt separat in `PDFTextRectResolver.swift` statt weiterhin direkt in `PDFRedactor`.

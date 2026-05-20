@@ -1,75 +1,13 @@
 import Foundation
 import PDFKit
 import AppKit
-import CoreImage
-import CoreImage.CIFilterBuiltins
 internal import UniformTypeIdentifiers
-
-enum RedactionStyle: String, CaseIterable, Identifiable {
-    case blackRectangle
-    case blur
-
-    var id: Self { self }
-
-    var displayName: String {
-        switch self {
-        case .blackRectangle: return "Schwarz"
-        case .blur: return "Unschärfe"
-        }
-    }
-}
-
-enum EditingMode: String, CaseIterable, Identifiable {
-    case view
-    case add
-    case remove
-
-    var id: Self { self }
-
-    var displayName: String {
-        switch self {
-        case .view: return "Ansehen"
-        case .add: return "Hinzufügen"
-        case .remove: return "Entfernen"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .view: return "eye"
-        case .add: return "plus.square"
-        case .remove: return "minus.square"
-        }
-    }
-}
 
 @Observable
 @MainActor
 final class PDFRedactor {
-    struct DetectionNotice: Equatable {
-        let title: String
-        let message: String
-    }
-
-    enum OpenDocumentResult {
-        case cancelled
-        case opened(URL)
-        case failed(String)
-    }
-
-    enum SaveDocumentResult {
-        case cancelled
-        case saved(URL)
-        case failed(String)
-    }
-
-    struct ExportResult {
-        let url: URL
-        let report: ExportValidationReport
-    }
-
     private enum SaveAttemptResult {
-        case success(ExportResult)
+        case success(RedactionExportResult)
         case failure(String)
     }
 
@@ -84,16 +22,7 @@ final class PDFRedactor {
         let findingID: UUID?
     }
 
-    enum Phase: Equatable {
-        case empty
-        case loaded
-        case detecting
-        case redacted(spanCount: Int, rectCount: Int)
-        case saved(URL)
-        case failed(String)
-    }
-
-    var phase: Phase = .empty
+    var phase: RedactionPhase = .empty
     var document: PDFDocument?
     var sourceURL: URL?
     var editingMode: EditingMode = .view
@@ -110,7 +39,7 @@ final class PDFRedactor {
     var requestedPageIndex: Int?
     var debugEntries: [DetectionDebugEntry] = []
     var lastExportReport: ExportValidationReport?
-    var detectionNotice: DetectionNotice?
+    var detectionNotice: DocumentDetectionNotice?
 
     private var redactionAnnotations: [RedactionEntry] = []
     private var previewAnnotations: [RedactionEntry] = []
@@ -151,7 +80,7 @@ final class PDFRedactor {
 
     // MARK: - Open / Save
 
-    func presentOpenPanel() -> OpenDocumentResult {
+    func presentOpenPanel() -> DocumentOpenResult {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
@@ -208,7 +137,7 @@ final class PDFRedactor {
         return true
     }
 
-    func save() -> SaveDocumentResult {
+    func save() -> DocumentSaveResult {
         guard document != nil else {
             return .failed("Es ist gerade kein PDF geladen, das gespeichert werden kann.")
         }
@@ -451,12 +380,12 @@ final class PDFRedactor {
         }
         if reviewFindings.isEmpty && totalSpans == 0 {
             if !usedNativeText && !usedOCRText {
-                detectionNotice = DetectionNotice(
+                detectionNotice = DocumentDetectionNotice(
                     title: "Kaum lesbarer Text im PDF",
                     message: "Inkognito konnte in diesem PDF keinen ausreichend lesbaren Text finden. Häufig ist das bei gescannten Seiten, sehr schwachen Exporten oder rein bildbasierten PDFs der Fall."
                 )
             } else if usedOCRText && pagesWithoutUsableText > 0 {
-                detectionNotice = DetectionNotice(
+                detectionNotice = DocumentDetectionNotice(
                     title: "OCR nur teilweise brauchbar",
                     message: "Ein Teil der Seiten lieferte kaum verwertbaren Text. Wenn etwas sichtbar fehlt, versuche bitte eine klarere Scan-Version oder prüfe die Seite manuell."
                 )
@@ -543,7 +472,7 @@ final class PDFRedactor {
             return senderKeywords.contains(where: { normalized.contains($0) })
         }
         let firstRecipientIndex = lines.firstIndex { line in
-            looksLikeRecipientMarkerLine(line)
+            PDFTextContextSupport.looksLikeRecipientMarkerLine(line)
         }
 
         for (index, line) in lines.enumerated() {
@@ -553,7 +482,8 @@ final class PDFRedactor {
                     (!compactSnippet.isEmpty && compactLine.contains(compactSnippet))
             else { continue }
 
-            if (isPostalCity || isStreetAddress) && looksLikeOrganizationHeaderLine(line) {
+            if (isPostalCity || isStreetAddress) &&
+                DocumentTextHeuristics.looksLikeOrganizationHeaderLine(line) {
                 return true
             }
 
@@ -605,7 +535,7 @@ final class PDFRedactor {
         let previousIndex = nearestNonEmptyLineIndex(in: lines, before: index)
         let nextIndex = nearestNonEmptyLineIndex(in: lines, after: index)
         let hasRecipientMarkerNearby = (max(0, index - 2)...min(lines.count - 1, index + 1)).contains { nearbyIndex in
-            looksLikeRecipientMarkerLine(lines[nearbyIndex])
+            PDFTextContextSupport.looksLikeRecipientMarkerLine(lines[nearbyIndex])
         }
         guard !hasRecipientMarkerNearby else { return false }
 
@@ -619,14 +549,14 @@ final class PDFRedactor {
 
         if isStreetAddress,
            let nextIndex,
-           looksLikePostalCityLine(lines[nextIndex]),
+           DocumentTextHeuristics.looksLikePostalCityLine(lines[nextIndex]),
            previousLooksSenderLike {
             return true
         }
 
         if isPostalCity,
            let previousIndex,
-           looksLikeGermanStreetLine(lines[previousIndex]) {
+           DocumentTextHeuristics.looksLikeGermanStreetLine(lines[previousIndex]) {
             let senderPreludeIndex = nearestNonEmptyLineIndex(in: lines, before: previousIndex)
             let senderPrelude = senderPreludeIndex.map { lines[$0].trimmingCharacters(in: .whitespacesAndNewlines) } ?? ""
             let normalizedPrelude = senderPrelude.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
@@ -681,324 +611,13 @@ final class PDFRedactor {
     }
 
     private func contextualSupplementalSpans(in text: String) -> [DetectedSpan] {
-        var spans: [DetectedSpan] = []
-        let lines = pageTextLines(in: text)
-
-        func appendSpan(for line: PageTextLine, category: String) {
-            let matched = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !matched.isEmpty,
-                  let swiftRange = Range(line.range, in: text)
-            else { return }
-            let start = text.distance(from: text.startIndex, to: swiftRange.lowerBound)
-            let end = text.distance(from: text.startIndex, to: swiftRange.upperBound)
-            spans.append(
-                DetectedSpan(
-                    category: category,
-                    text: matched,
-                    start: start,
-                    end: end,
-                    confidence: 0.98,
-                    source: .pattern
-                )
-            )
-        }
-
-        func appendSpan(for line: PageTextLine, matchedText: String, category: String) {
-            let lineText = line.text
-            let trimmedMatch = matchedText.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedMatch.isEmpty,
-                  let localRange = lineText.range(
-                    of: trimmedMatch,
-                    options: [.caseInsensitive, .diacriticInsensitive]
-                  ),
-                  let lineRange = Range(line.range, in: text)
-            else { return }
-
-            let start = text.distance(from: text.startIndex, to: lineRange.lowerBound)
-                + lineText.distance(from: lineText.startIndex, to: localRange.lowerBound)
-            let end = start + lineText.distance(from: localRange.lowerBound, to: localRange.upperBound)
-            spans.append(
-                DetectedSpan(
-                    category: category,
-                    text: trimmedMatch,
-                    start: start,
-                    end: end,
-                    confidence: 0.98,
-                    source: .pattern
-                )
-            )
-        }
-
-        func looksLikeHonorificLine(_ text: String) -> Bool {
-            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
-                cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }
-
-        func appendLabeledAddressBlock(startingAt index: Int, includeLabelAsAddress: Bool = true) {
-            guard lines.indices.contains(index) else { return }
-            if includeLabelAsAddress {
-                appendSpan(for: lines[index], category: "private_address")
-            }
-
-            let searchEnd = min(lines.count, index + 8)
-            var blockIndices: [Int] = []
-            var previousComparable = ""
-            for cursor in (index + 1)..<searchEnd {
-                let cleaned = lines[cursor].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else { continue }
-                let comparable = normalizedComparableText(cleaned)
-                if comparable == previousComparable, !comparable.isEmpty { continue }
-                blockIndices.append(cursor)
-                previousComparable = comparable
-                if looksLikePostalCityLine(cleaned) { break }
-            }
-
-            guard !blockIndices.isEmpty else { return }
-
-            var dataStart = 0
-            if let firstIndex = blockIndices.first, looksLikeHonorificLine(lines[firstIndex].text) {
-                appendSpan(for: lines[firstIndex], category: "private_person")
-                dataStart = 1
-            }
-
-            for relativeIndex in dataStart..<blockIndices.count {
-                let actualIndex = blockIndices[relativeIndex]
-                let cleaned = lines[actualIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if relativeIndex == dataStart {
-                    appendSpan(for: lines[actualIndex], category: "private_person")
-                    continue
-                }
-                if looksLikeGermanStreetLine(cleaned) || looksLikePostalCityLine(cleaned) {
-                    appendSpan(for: lines[actualIndex], category: "private_address")
-                }
-            }
-        }
-
-        for (index, line) in lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { continue }
-
-            if let inlineMatch = inlineContextPersonName(in: cleaned) {
-                appendSpan(for: line, matchedText: inlineMatch, category: "private_person")
-                continue
-            }
-
-            if let salutationMatch = inlineSalutationPersonName(in: cleaned) {
-                appendSpan(for: line, matchedText: salutationMatch, category: "private_person")
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Abweichender Ansprechpartner:") {
-                appendSpan(for: line, category: "private_person")
-                if index + 1 < lines.count { appendSpan(for: lines[index + 1], category: "private_person") }
-                if index + 2 < lines.count { appendSpan(for: lines[index + 2], category: "private_email") }
-                if index + 3 < lines.count { appendSpan(for: lines[index + 3], category: "private_phone") }
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Lieferadresse:") ||
-                cleaned.localizedCaseInsensitiveContains("Lieferanschrift:") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Versicherungsnehmer") ||
-                cleaned.localizedCaseInsensitiveContains("Darlehensnehmer") ||
-                cleaned.localizedCaseInsensitiveContains("Anschlussinhaber") {
-                appendLabeledAddressBlock(startingAt: index, includeLabelAsAddress: false)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Lieferstelle") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Ihre Lieferadresse") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Postanschrift") ||
-                cleaned.localizedCaseInsensitiveContains("Korrespondenzanschrift") ||
-                cleaned.localizedCaseInsensitiveContains("Objektanschrift") ||
-                cleaned.localizedCaseInsensitiveContains("Nutzungsadresse") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Hier liefern wir Ihren Strom hin") {
-                appendSpan(for: line, category: "private_address")
-                if index + 1 < lines.count { appendSpan(for: lines[index + 1], category: "private_address") }
-                if index + 2 < lines.count { appendSpan(for: lines[index + 2], category: "private_address") }
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Hierauf stellen wir Ihre Rechnung aus") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Rechnungsanschrift") {
-                appendLabeledAddressBlock(startingAt: index)
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Schriftverkehr") {
-                appendSpan(for: line, category: "private_address")
-                if index + 1 < lines.count { appendSpan(for: lines[index + 1], category: "private_address") }
-                continue
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Für Rückfragen") ||
-                cleaned.localizedCaseInsensitiveContains("Fur Ruckfragen") ||
-                cleaned.localizedCaseInsensitiveContains("Rueckfragen") {
-                appendSpan(for: line, category: "private_person")
-            }
-
-            if cleaned.localizedCaseInsensitiveContains("Hier erreichen wir Sie bei Rückfragen") ||
-                cleaned.localizedCaseInsensitiveContains("Hier erreichen wir Sie bei Rueckfragen") {
-                if let contactNameLine = nativeContactNameLine(in: lines, from: index) {
-                    if contactNameLine.lineIndex == index {
-                        appendSpan(
-                            for: lines[index],
-                            matchedText: contactNameLine.matchedText,
-                            category: "private_person"
-                        )
-                    } else {
-                        appendSpan(for: lines[contactNameLine.lineIndex], category: "private_person")
-                    }
-                }
-            }
-
-            if looksLikeNativeRecipientNameLine(cleaned),
-               let recipientBlock = resolveNativeRecipientBlock(in: lines, nameIndex: index) {
-                appendSpan(for: line, category: "private_person")
-                appendSpan(for: lines[recipientBlock.streetIndex], category: "private_address")
-                appendSpan(for: lines[recipientBlock.postalCityIndex], category: "private_address")
-            }
-        }
-
-        return deduplicatedSpans(spans)
-    }
-
-    private func nativeContactNameLine(in lines: [PageTextLine], from anchorIndex: Int) -> (lineIndex: Int, matchedText: String)? {
-        guard !lines.isEmpty else { return nil }
-        let startIndex = max(0, anchorIndex)
-        let endIndex = min(lines.count - 1, startIndex + 4)
-
-        for index in startIndex...endIndex {
-            let cleaned = lines[index].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { continue }
-
-            if let inlineMatch = inlineContextPersonName(in: cleaned) {
-                return (index, inlineMatch)
-            }
-
-            if looksLikeNativeRecipientNameLine(cleaned) {
-                return (index, cleaned)
-            }
-        }
-
-        return nil
-    }
-
-    private func inlineContextPersonName(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        let pattern = #"(?i)\b(?:name|bestellt\s+durch|besteller(?:in)?|kund(?:e|in)|kontoinhaber)\s*:\s*([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)\b"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
-        guard let match = regex.firstMatch(in: normalized, options: [], range: nsRange),
-              match.numberOfRanges > 1,
-              let range = Range(match.range(at: 1), in: normalized) else {
-            return nil
-        }
-        return String(normalized[range])
-    }
-
-    private func inlineSalutationPersonName(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
-        let patterns = [
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Herr|Frau)\s+und\s+(?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}\s+und\s+(?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Frau|Herr)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#
-        ]
-
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: normalized, options: [], range: nsRange),
-                  match.numberOfRanges > 1,
-                  let range = Range(match.range(at: 1), in: normalized)
-            else { continue }
-            return String(normalized[range]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
-        }
-        return nil
-    }
-
-    private func looksLikeNativeRecipientNameLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let personPattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#
-        return cleaned.range(of: personPattern, options: .regularExpression) != nil
-    }
-
-    private func resolveNativeRecipientBlock(in lines: [PageTextLine], nameIndex: Int) -> (streetIndex: Int, postalCityIndex: Int)? {
-        let searchEnd = min(lines.count, nameIndex + 4)
-        guard nameIndex + 1 < searchEnd else { return nil }
-
-        for streetIndex in (nameIndex + 1)..<searchEnd {
-            let streetText = lines[streetIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !streetText.isEmpty, looksLikeGermanStreetLine(streetText) else { continue }
-
-            for cityIndex in (streetIndex + 1)..<searchEnd {
-                let cityText = lines[cityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cityText.isEmpty else { continue }
-                if looksLikePostalCityLine(cityText) {
-                    return (streetIndex, cityIndex)
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private func hasNativeRecipientContext(in lines: [PageTextLine], around index: Int) -> Bool {
-        let start = max(0, index - 2)
-        let end = min(lines.count - 1, index + 1)
-        let context = lines[start...end]
-            .map(\.text)
-            .joined(separator: "\n")
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-
-        let markers = [
-            "eheleute",
-            "herr",
-            "frau",
-            "kundin",
-            "kunde",
-            "lieferadresse",
-            "ihre lieferadresse",
-            "hier liefern wir ihren strom hin",
-            "hierauf stellen wir ihre rechnung aus",
-            "versicherungsnehmer",
-            "darlehensnehmer",
-            "anschlussinhaber",
-            "postanschrift",
-            "korrespondenzanschrift",
-            "objektanschrift",
-            "nutzungsadresse",
-            "rechnungsanschrift",
-            "lieferstelle"
-        ]
-        return markers.contains { context.contains($0) }
+        NativePDFContextAnalyzer.contextualSupplementalSpans(in: text)
     }
 
     private func supplementalOCRContextSpans(in page: OCRPage) -> ([DetectedSpan], [String]) {
         var spans: [DetectedSpan] = []
         var diagnostics: [String] = []
+        let lines = page.lines.map(\.text)
 
         func appendLine(_ index: Int, category: String) {
             guard let span = page.lineSpan(at: index, category: category) else { return }
@@ -1008,84 +627,22 @@ final class PDFRedactor {
         for (index, line) in page.lines.enumerated() {
             let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { continue }
-            guard looksLikeWindowRecipientNameLine(cleaned),
-                  hasNearbyOrganizationHeader(in: page, before: index),
-                  let block = resolveWindowRecipientBlock(in: page, nameIndex: index)
+            guard DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned),
+                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: index),
+                  let candidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
+                    in: lines,
+                    nameIndex: index,
+                    allowDotsInCityTokens: true
+                  )
             else { continue }
 
             diagnostics.append("PDF OCR supplemental recipient block at line \(index): \(cleaned)")
-            appendLine(index, category: "private_person")
-            for streetIndex in (index + 1)..<block {
-                let streetText = page.lines[streetIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if looksLikeGermanStreetLine(streetText) {
-                    appendLine(streetIndex, category: "private_address")
-                }
+            for candidate in candidates {
+                appendLine(candidate.lineIndex, category: candidate.category)
             }
-            appendLine(block, category: "private_address")
         }
 
         return (deduplicatedSpans(spans), diagnostics)
-    }
-
-    private func looksLikeWindowRecipientNameLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func hasNearbyOrganizationHeader(in page: OCRPage, before index: Int) -> Bool {
-        guard index > 0 else { return false }
-        let start = max(0, index - 3)
-        for previousIndex in start..<index {
-            if looksLikeOrganizationHeaderLine(page.lines[previousIndex].text) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private func looksLikeOrganizationHeaderLine(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func resolveWindowRecipientBlock(in page: OCRPage, nameIndex: Int) -> Int? {
-        let searchEnd = min(page.lines.count, nameIndex + 5)
-        guard nameIndex + 1 < searchEnd else { return nil }
-
-        var foundStreet = false
-        for lineIndex in (nameIndex + 1)..<searchEnd {
-            let text = page.lines[lineIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            if looksLikeGermanStreetLine(text) {
-                foundStreet = true
-                continue
-            }
-            if foundStreet, looksLikePostalCityLine(text) {
-                return lineIndex
-            }
-        }
-
-        return nil
-    }
-
-    private func looksLikeGermanStreetLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func looksLikePostalCityLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 
     private func previewDiagnosticsLines(for candidates: [ReviewFindingCandidate]) -> [String] {
@@ -1121,129 +678,30 @@ final class PDFRedactor {
         return deduplicatedRects(expanded)
     }
 
-    private struct PageTextLine {
-        let text: String
-        let range: NSRange
-    }
-
     private func contextualRedactionLabelRects(
         for span: DetectedSpan,
         in pageText: String,
         on page: PDFPage
     ) -> [CGRect] {
-        let compactSpan = normalizedComparableText(span.text)
-        guard !compactSpan.isEmpty,
-              let spanRange = nsRange(start: span.start, end: span.end, in: pageText)
-        else {
-            return []
-        }
-
-        let lines = pageTextLines(in: pageText)
         var matches: [CGRect] = []
-        var seen = Set<String>()
-
-        for (index, line) in lines.enumerated() {
-            let cleanedLine = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleanedLine.isEmpty else { continue }
-
-            let compactLine = normalizedComparableText(cleanedLine)
-            let lineContainsSpan = compactLine.contains(compactSpan)
-            let overlapsSpanRange = NSIntersectionRange(line.range, spanRange).length > 0
-            guard lineContainsSpan || overlapsSpanRange else { continue }
-
-            if isRedactionContextLabelLine(cleanedLine), seen.insert(cleanedLine).inserted {
-                matches.append(contentsOf: rects(for: line, on: page))
-            }
-
-            for offset in 1...3 {
-                let previousIndex = index - offset
-                guard previousIndex >= 0 else { break }
-                let previousLine = lines[previousIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if previousLine.isEmpty { continue }
-                if isRedactionContextLabelLine(previousLine), seen.insert(previousLine).inserted {
-                    matches.append(contentsOf: rects(for: lines[previousIndex], on: page))
-                }
-                break
-            }
+        for line in PDFTextContextSupport.contextualRedactionLabelLines(for: span, in: pageText) {
+            matches.append(contentsOf: rects(for: line, on: page))
         }
 
         return deduplicatedRects(matches)
     }
 
-    private func pageTextLines(in text: String) -> [PageTextLine] {
-        let nsText = text as NSString
-        var lines: [PageTextLine] = []
-        nsText.enumerateSubstrings(
-            in: NSRange(location: 0, length: nsText.length),
-            options: [.byLines]
-        ) { _, substringRange, _, _ in
-            let lineText = nsText.substring(with: substringRange)
-            lines.append(PageTextLine(text: lineText, range: substringRange))
-        }
-        return lines
-    }
-
-    private func rects(for line: PageTextLine, on page: PDFPage) -> [CGRect] {
+    private func rects(for line: NativePDFPageTextLine, on page: PDFPage) -> [CGRect] {
         guard let selection = page.selection(for: line.range) else {
-            let occurrence = occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
-            return rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
+            let occurrence = PDFTextRectResolver.occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
+            return PDFTextRectResolver.rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
         }
-        let directRects = perLineRects(of: selection, on: page)
+        let directRects = PDFTextRectResolver.perLineRects(of: selection, on: page)
         if !directRects.isEmpty {
             return directRects
         }
-        let occurrence = occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
-        return rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
-    }
-
-    private func isRedactionContextLabelLine(_ line: String) -> Bool {
-        let normalizedLine = line
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        let markers = [
-            "abweichender ansprechpartner",
-            "lieferadresse",
-            "versicherungsnehmer",
-            "darlehensnehmer",
-            "anschlussinhaber",
-            "lieferstelle",
-            "postanschrift",
-            "korrespondenzanschrift",
-            "objektanschrift",
-            "nutzungsadresse",
-            "rechnungsanschrift",
-            "schriftverkehr",
-            "fuer rueckfragen",
-            "fur ruckfragen",
-            "rueckfragen",
-            "ruckfragen",
-            "hier erreichen wir sie bei rueckfragen",
-            "hier liefern wir ihren strom hin",
-            "hierauf stellen wir ihre rechnung aus"
-        ]
-        return markers.contains { normalizedLine.contains($0) }
-    }
-
-    private func looksLikeRecipientMarkerLine(_ line: String) -> Bool {
-        let cleaned = line
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else { return false }
-
-        let explicitPrefixes = [
-            "kundin:", "kunde:", "lieferadresse:", "schriftverkehr", "kontoinhaber:",
-            "abweichender ansprechpartner:", "bestellt durch:", "besteller:", "bestellerin:", "name:",
-            "eheleute", "herr", "frau",
-            "versicherungsnehmer", "darlehensnehmer", "postanschrift",
-            "korrespondenzanschrift", "objektanschrift", "rechnungsanschrift",
-            "lieferstelle", "anschlussinhaber", "nutzungsadresse"
-        ]
-        return explicitPrefixes.contains(where: { cleaned.hasPrefix($0) })
-    }
-
-    private func normalizedComparableText(_ text: String) -> String {
-        text
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .filter { $0.isLetter || $0.isNumber }
+        let occurrence = PDFTextRectResolver.occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
+        return PDFTextRectResolver.rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
     }
 
     private func deduplicatedRects(_ rects: [CGRect]) -> [CGRect] {
@@ -1620,11 +1078,11 @@ final class PDFRedactor {
                span.end > span.start,
                let utf16Range = nsRange(start: span.start, end: span.end, in: pageText),
                let selection = page.selection(for: utf16Range) {
-                let rects = perLineRects(of: selection, on: page)
+                let rects = PDFTextRectResolver.perLineRects(of: selection, on: page)
                 if !rects.isEmpty { return rects }
             }
-            let occurrence = occurrenceIndex(of: span.text, in: pageText, start: span.start)
-            let textSearchRects = rectsByTextSearch(
+            let occurrence = PDFTextRectResolver.occurrenceIndex(of: span.text, in: pageText, start: span.start)
+            let textSearchRects = PDFTextRectResolver.rectsByTextSearch(
                 needle: span.text,
                 occurrenceIndex: occurrence,
                 on: page
@@ -1634,7 +1092,7 @@ final class PDFRedactor {
             if span.category == "private_person",
                span.text.localizedCaseInsensitiveContains(" und "),
                let occurrenceIndex = occurrence {
-                let fallbackRects = rectsByConjoinedNameSearch(
+                let fallbackRects = PDFTextRectResolver.rectsByConjoinedNameSearch(
                     needle: span.text,
                     occurrenceIndex: occurrenceIndex,
                     on: page
@@ -1667,92 +1125,6 @@ final class PDFRedactor {
         return NSRange(location: utf16Start, length: utf16End - utf16Start)
     }
 
-    private func perLineRects(of selection: PDFSelection, on page: PDFPage) -> [CGRect] {
-        var rects: [CGRect] = []
-        for line in selection.selectionsByLine() {
-            for selPage in line.pages where selPage === page {
-                let bounds = line.bounds(for: selPage)
-                if bounds.width > 0.5 && bounds.height > 0.5 {
-                    rects.append(bounds)
-                }
-            }
-        }
-        return rects
-    }
-
-    private func rectsByTextSearch(needle: String, occurrenceIndex: Int? = nil, on page: PDFPage) -> [CGRect] {
-        guard !needle.isEmpty else { return [] }
-        if let occurrenceIndex,
-           let occurrenceRects = rectsByOccurrenceSearch(needle: needle, occurrenceIndex: occurrenceIndex, on: page),
-           !occurrenceRects.isEmpty {
-            return occurrenceRects
-        }
-
-        guard let doc = page.document else { return [] }
-        var rects: [CGRect] = []
-        for selection in doc.findString(needle, withOptions: [.caseInsensitive]) {
-            rects.append(contentsOf: perLineRects(of: selection, on: page))
-        }
-        return rects
-    }
-
-    private func rectsByOccurrenceSearch(needle: String, occurrenceIndex: Int, on page: PDFPage) -> [CGRect]? {
-        let matches = selections(for: needle, on: page)
-        guard matches.indices.contains(occurrenceIndex) else { return nil }
-        return matches[occurrenceIndex].rects
-    }
-
-    private func occurrenceIndex(of needle: String, in text: String, start: Int) -> Int? {
-        guard !needle.isEmpty, start >= 0, start <= text.count else { return nil }
-        let prefixEnd = text.index(text.startIndex, offsetBy: start)
-        let prefix = String(text[..<prefixEnd])
-        var count = 0
-        var searchStart = prefix.startIndex
-        while let range = prefix.range(
-            of: needle,
-            options: [.caseInsensitive, .diacriticInsensitive],
-            range: searchStart..<prefix.endIndex
-        ) {
-            count += 1
-            searchStart = range.upperBound
-        }
-        return count
-    }
-
-    private func rectsByConjoinedNameSearch(needle: String, occurrenceIndex: Int, on page: PDFPage) -> [CGRect] {
-        let separators = [" und ", " UND "]
-        guard let separator = separators.first(where: { needle.localizedCaseInsensitiveContains($0) }) else { return [] }
-
-        let parts = needle.components(separatedBy: separator)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard parts.count == 2 else { return [] }
-
-        let selectionsPerPart = parts.map { selections(for: $0, on: page) }
-        guard selectionsPerPart.allSatisfy({ $0.count > occurrenceIndex }) else { return [] }
-
-        return selectionsPerPart[0][occurrenceIndex].rects + selectionsPerPart[1][occurrenceIndex].rects
-    }
-
-    private func selections(for needle: String, on page: PDFPage) -> [(rects: [CGRect], anchor: CGRect)] {
-        guard let doc = page.document, !needle.isEmpty else { return [] }
-        return doc.findString(needle, withOptions: [.caseInsensitive])
-            .compactMap { selection in
-                let rects = perLineRects(of: selection, on: page)
-                guard !rects.isEmpty else { return nil }
-                let anchor = rects.reduce(.null) { partial, rect in
-                    partial.isNull ? rect : partial.union(rect)
-                }
-                return (rects, anchor)
-            }
-            .sorted { lhs, rhs in
-                if abs(lhs.anchor.minY - rhs.anchor.minY) > 8 {
-                    return lhs.anchor.minY > rhs.anchor.minY
-                }
-                return lhs.anchor.minX < rhs.anchor.minX
-            }
-    }
-
     private func rectsViaOCRFallback(for spans: [DetectedSpan], on page: PDFPage) async -> [(CGRect, DetectedSpan)] {
         guard let ocrPage = await ocrText(for: page), !ocrPage.combinedText.isEmpty else { return [] }
         let pageBounds = page.bounds(for: .mediaBox)
@@ -1782,47 +1154,12 @@ final class PDFRedactor {
     private func blurredImage(for page: PDFPage) -> CGImage? {
         if let cached = blurCache.object(forKey: page) { return cached }
 
-        let pageBounds = page.bounds(for: .mediaBox)
-        let scale: CGFloat = 2.0
-        let pixelWidth = Int(pageBounds.width * scale)
-        let pixelHeight = Int(pageBounds.height * scale)
-        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
-
         let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
-        for ann in detached { page.removeAnnotation(ann) }
-        defer { for ann in detached { page.addAnnotation(ann) } }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil,
-            width: pixelWidth,
-            height: pixelHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
-        ctx.scaleBy(x: scale, y: scale)
-        page.draw(with: .mediaBox, to: ctx)
-
-        guard let sharpCG = ctx.makeImage() else { return nil }
-        guard let blurred = gaussianBlurred(sharpCG) else { return nil }
+        guard let sharpCG = RedactionRendering.renderPDFPageSnapshot(page, detaching: detached),
+              let blurred = RedactionRendering.gaussianBlurred(sharpCG) else { return nil }
 
         blurCache.setObject(blurred, forKey: page)
         return blurred
-    }
-
-    private func gaussianBlurred(_ sharp: CGImage) -> CGImage? {
-        let sharpCI = CIImage(cgImage: sharp)
-        let blur = CIFilter.gaussianBlur()
-        blur.inputImage = sharpCI
-        blur.radius = Float(min(sharp.width, sharp.height)) * 0.02
-        guard let blurredCI = blur.outputImage?.cropped(to: sharpCI.extent) else { return nil }
-        let ciContext = CIContext(options: [.useSoftwareRenderer: false])
-        return ciContext.createCGImage(blurredCI, from: blurredCI.extent)
     }
 
     // MARK: - True (rasterized) save
@@ -1846,7 +1183,13 @@ final class PDFRedactor {
                     newDoc.insert(copy, at: newDoc.pageCount)
                 }
             } else {
-                guard let baked = bakedPage(page, rects: rectsForPage, style: redactionStyle) else {
+                let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
+                guard let baked = RedactionRendering.bakePDFPage(
+                    page,
+                    rects: rectsForPage,
+                    style: redactionStyle,
+                    detaching: detached
+                ) else {
                     return .failure("Das PDF konnte nicht exportiert werden, weil mindestens eine Seite nicht sauber neu aufgebaut werden konnte. Bitte versuche es erneut oder speichere an einen anderen Ort.")
                 }
                 newDoc.insert(baked, at: newDoc.pageCount)
@@ -1871,64 +1214,7 @@ final class PDFRedactor {
             bakedIntoPixels: redactedPageCount > 0
         )
 
-        return .success(ExportResult(url: url, report: report))
-    }
-
-    private func bakedPage(_ page: PDFPage, rects: [CGRect], style: RedactionStyle) -> PDFPage? {
-        let pageBounds = page.bounds(for: .mediaBox)
-        let scale: CGFloat = 2.0
-        let pixelWidth = Int(pageBounds.width * scale)
-        let pixelHeight = Int(pageBounds.height * scale)
-        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
-
-        let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
-        for ann in detached { page.removeAnnotation(ann) }
-        defer { for ann in detached { page.addAnnotation(ann) } }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil,
-            width: pixelWidth,
-            height: pixelHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
-        ctx.saveGState()
-        ctx.scaleBy(x: scale, y: scale)
-        page.draw(with: .mediaBox, to: ctx)
-        ctx.restoreGState()
-
-        let pixelRects: [CGRect] = rects.map { r in
-            CGRect(x: r.minX * scale, y: r.minY * scale,
-                   width: r.width * scale, height: r.height * scale)
-                .insetBy(dx: -2, dy: -2)
-        }
-
-        switch style {
-        case .blackRectangle:
-            ctx.setFillColor(NSColor.black.cgColor)
-            for r in pixelRects { ctx.fill(r) }
-
-        case .blur:
-            guard let sharpCG = ctx.makeImage() else { return nil }
-            guard let blurredCG = gaussianBlurred(sharpCG) else { return nil }
-
-            for r in pixelRects {
-                ctx.saveGState()
-                ctx.clip(to: r)
-                ctx.draw(blurredCG, in: CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
-                ctx.restoreGState()
-            }
-        }
-
-        guard let finalCG = ctx.makeImage() else { return nil }
-        let image = NSImage(cgImage: finalCG, size: pageBounds.size)
-        return PDFPage(image: image)
+        return .success(RedactionExportResult(url: url, report: report))
     }
 
     private func suggestedSaveName() -> String {

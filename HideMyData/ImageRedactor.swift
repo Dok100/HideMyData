@@ -2,43 +2,14 @@ import Foundation
 import AppKit
 import CoreGraphics
 import CoreImage
-import CoreImage.CIFilterBuiltins
 import ImageIO
 internal import UniformTypeIdentifiers
-
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
-    }
-}
 
 @Observable
 @MainActor
 final class ImageRedactor {
-    struct DetectionNotice: Equatable {
-        let title: String
-        let message: String
-    }
-
-    enum OpenDocumentResult {
-        case cancelled
-        case opened(URL)
-        case failed(String)
-    }
-
-    enum SaveDocumentResult {
-        case cancelled
-        case saved(URL)
-        case failed(String)
-    }
-
-    struct ExportResult {
-        let url: URL
-        let report: ExportValidationReport
-    }
-
     private enum SaveAttemptResult {
-        case success(ExportResult)
+        case success(RedactionExportResult)
         case failure(String)
     }
 
@@ -52,16 +23,7 @@ final class ImageRedactor {
         let findingID: UUID?
     }
 
-    enum Phase: Equatable {
-        case empty
-        case loaded
-        case detecting
-        case redacted(spanCount: Int, rectCount: Int)
-        case saved(URL)
-        case failed(String)
-    }
-
-    var phase: Phase = .empty
+    var phase: RedactionPhase = .empty
     var image: CGImage?
     var sourceURL: URL?
     var sourceUTI: UTType?
@@ -71,7 +33,7 @@ final class ImageRedactor {
     var focusedFindingID: UUID?
     var debugEntries: [DetectionDebugEntry] = []
     var lastExportReport: ExportValidationReport?
-    var detectionNotice: DetectionNotice?
+    var detectionNotice: DocumentDetectionNotice?
 
     private var sourceImageProperties: [CFString: Any]?
     private var detectionTask: Task<Void, Never>?
@@ -121,7 +83,7 @@ final class ImageRedactor {
 
     // MARK: - Open / Save
 
-    func presentOpenPanel() -> OpenDocumentResult {
+    func presentOpenPanel() -> DocumentOpenResult {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
@@ -185,7 +147,7 @@ final class ImageRedactor {
         self.phase = .loaded
     }
 
-    func save() -> SaveDocumentResult {
+    func save() -> DocumentSaveResult {
         guard image != nil else {
             return .failed("Es ist gerade kein Bild geladen, das gespeichert werden kann.")
         }
@@ -242,7 +204,7 @@ final class ImageRedactor {
         }
         if Task.isCancelled { return }
         if ocr.combinedText.isEmpty {
-            detectionNotice = DetectionNotice(
+            detectionNotice = DocumentDetectionNotice(
                 title: "Kaum lesbarer Text im Bild",
                 message: "Apple Vision konnte in diesem Bild praktisch keinen lesbaren Text erkennen. Prüfe bitte Schärfe, Kontrast und Ausschnitt oder versuche eine klarere Aufnahme."
             )
@@ -329,8 +291,8 @@ final class ImageRedactor {
             if let firstPending = reviewFindings.first(where: { $0.status == .pending }) {
                 selectFinding(firstPending.id)
             }
-            if reviewFindings.isEmpty && spans.isEmpty && lowSignalOCRText(ocr.combinedText) {
-                detectionNotice = DetectionNotice(
+            if reviewFindings.isEmpty && spans.isEmpty && DocumentTextHeuristics.lowSignalOCRText(ocr.combinedText) {
+                detectionNotice = DocumentDetectionNotice(
                     title: "OCR-Ergebnis sehr schwach",
                     message: "Es wurde zwar etwas Text erkannt, aber nur sehr wenig verwertbarer Inhalt. Wenn sensible Daten sichtbar fehlen, versuche bitte ein klareres Bild."
                 )
@@ -339,18 +301,10 @@ final class ImageRedactor {
         }
     }
 
-    private func lowSignalOCRText(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = trimmed
-            .split(whereSeparator: \.isWhitespace)
-            .count
-        let lettersAndNumbers = trimmed.filter { $0.isLetter || $0.isNumber }.count
-        return words < 6 || lettersAndNumbers < 28
-    }
-
     private func supplementalOCRContextAnalysis(in page: OCRPage, modelInput: String) -> (candidates: [SupplementalOCRCandidate], diagnostics: [String]) {
         var candidates: [SupplementalOCRCandidate] = []
         var diagnostics: [String] = []
+        let lines = page.lines.map(\.text)
 
         func appendCandidate(lineIndex: Int, category: String) {
             guard let span = page.lineSpan(at: lineIndex, category: category),
@@ -375,132 +329,39 @@ final class ImageRedactor {
             )
         }
 
-        func looksLikeHonorificLine(_ text: String) -> Bool {
-            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
-                cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }
-
-        func appendLabeledAddressBlock(startingAt index: Int, includeLabelAsAddress: Bool = true) {
-            guard page.lines.indices.contains(index) else { return }
-            if includeLabelAsAddress {
-                appendCandidate(lineIndex: index, category: "private_address")
-            }
-
-            let searchEnd = min(page.lines.count, index + 8)
-            var blockIndices: [Int] = []
-            var previousComparable = ""
-            for cursor in (index + 1)..<searchEnd {
-                let cleaned = page.lines[cursor].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else { continue }
-                let comparable = cleaned
-                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                    .filter { $0.isLetter || $0.isNumber }
-                if comparable == previousComparable, !comparable.isEmpty { continue }
-                blockIndices.append(cursor)
-                previousComparable = comparable
-                if looksLikePostalCityLine(cleaned) { break }
-            }
-
-            guard !blockIndices.isEmpty else { return }
-
-            var dataStart = 0
-            if let firstIndex = blockIndices.first, looksLikeHonorificLine(page.lines[firstIndex].text) {
-                appendCandidate(lineIndex: firstIndex, category: "private_person")
-                dataStart = 1
-            }
-
-            for relativeIndex in dataStart..<blockIndices.count {
-                let actualIndex = blockIndices[relativeIndex]
-                let cleaned = page.lines[actualIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if relativeIndex == dataStart {
-                    appendCandidate(lineIndex: actualIndex, category: "private_person")
-                    continue
-                }
-                if looksLikeGermanStreetLine(cleaned) || looksLikePostalCityLine(cleaned) {
-                    appendCandidate(lineIndex: actualIndex, category: "private_address")
-                }
-            }
-        }
-
         func appendRecipientBlock(nameIndex: Int, sourceLabel: String) {
-            guard let recipientBlock = resolveWindowRecipientBlock(in: page, nameIndex: nameIndex) else { return }
+            guard let recipientCandidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
+                in: lines,
+                nameIndex: nameIndex,
+                allowDotsInCityTokens: false
+            ) else { return }
 
             let cleanedName = page.lines[nameIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let streetIndices = recipientCandidates
+                .filter { $0.category == "private_address" }
+                .dropLast()
+                .map(\.lineIndex)
+            let postalCityIndex = recipientCandidates.last?.lineIndex ?? nameIndex
             diagnostics.append(
-                "Supplemental OCR hit: \(sourceLabel) at line \(nameIndex) -> '\(cleanedName)' | street='\(recipientBlock.street.trimmingCharacters(in: .whitespacesAndNewlines))' | city='\(recipientBlock.postalCity.trimmingCharacters(in: .whitespacesAndNewlines))'"
+                "Supplemental OCR hit: \(sourceLabel) at line \(nameIndex) -> '\(cleanedName)' | streets='\(streetIndices.map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " | "))' | city='\(page.lines[postalCityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines))'"
             )
-
-            appendCandidate(lineIndex: nameIndex, category: "private_person")
-
-            let streetRange = nameIndex + 1 ... recipientBlock.postalCityIndex
-            let streetIndices = streetRange.filter { lineIndex in
-                guard lineIndex < recipientBlock.postalCityIndex else { return false }
-                let text = page.lines[lineIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return looksLikeGermanStreetLine(text)
+            for candidate in recipientCandidates {
+                appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
             }
-
-            if streetIndices.isEmpty {
-                appendCandidate(lineIndex: recipientBlock.streetIndex, category: "private_address")
-            } else {
-                for streetIndex in streetIndices {
-                    appendCandidate(lineIndex: streetIndex, category: "private_address")
-                }
-            }
-
-            appendCandidate(lineIndex: recipientBlock.postalCityIndex, category: "private_address")
         }
 
         func appendLabeledFormAddressBlock(startingAt index: Int) {
-            let fieldOrder = ["vorname", "name", "strasse", "hausnr", "plz", "ort"]
             var labelLineIndices: [Int] = []
-            var labelKeys: [String] = []
             var cursor = index
-
-            while cursor < page.lines.count,
-                  let key = standaloneFieldLabelKey(in: page.lines[cursor].text) {
+            while cursor < lines.count,
+                  DocumentTextHeuristics.standaloneFieldLabelKey(in: lines[cursor]) != nil {
                 labelLineIndices.append(cursor)
-                labelKeys.append(key)
                 cursor += 1
             }
-
-            guard !labelKeys.isEmpty else { return }
-
             let labelSummary = labelLineIndices.map { page.lines[$0].text }.joined(separator: " | ")
             diagnostics.append("Supplemental OCR hit: labeled form block at line \(index) -> '\(labelSummary)'")
-
-            let orderedKeys = fieldOrder.filter { labelKeys.contains($0) }
-            guard !orderedKeys.isEmpty else { return }
-
-            var valueIndices: [Int] = []
-            var scan = cursor
-            while scan < page.lines.count, valueIndices.count < orderedKeys.count {
-                let cleanedLine = page.lines[scan].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if cleanedLine.isEmpty {
-                    scan += 1
-                    continue
-                }
-                if standaloneFieldLabelKey(in: cleanedLine) != nil {
-                    break
-                }
-                valueIndices.append(scan)
-                scan += 1
-            }
-
-            for (pairIndex, key) in orderedKeys.enumerated() {
-                guard valueIndices.indices.contains(pairIndex) else { continue }
-                let valueIndex = valueIndices[pairIndex]
-                let valueText = page.lines[valueIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !valueText.isEmpty else { continue }
-
-                switch key {
-                case "vorname", "name":
-                    appendCandidate(lineIndex: valueIndex, category: "private_person")
-                case "strasse", "hausnr", "plz", "ort":
-                    appendCandidate(lineIndex: valueIndex, category: "private_address")
-                default:
-                    break
-                }
+            for candidate in OCRContextAnalyzer.labeledFormAddressCandidates(in: lines, startingAt: index) {
+                appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
             }
         }
 
@@ -512,26 +373,35 @@ final class ImageRedactor {
             if cleaned.localizedCaseInsensitiveContains("Lieferadresse:") ||
                 cleaned.localizedCaseInsensitiveContains("Lieferanschrift:") {
                 diagnostics.append("Supplemental OCR hit: delivery-address block at line \(index) -> '\(cleaned)'")
-                appendLabeledAddressBlock(startingAt: index)
+                for candidate in OCRContextAnalyzer.labeledAddressBlockCandidates(
+                    in: lines,
+                    startingAt: index,
+                    allowDotsInCityTokens: false
+                ) {
+                    appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
+                }
                 continue
             }
 
-            if looksLikeLabeledFormBlockStart(cleaned),
-               index == 0 || standaloneFieldLabelKey(in: page.lines[index - 1].text) == nil {
+            if OCRContextAnalyzer.looksLikeLabeledFormBlockStart(cleaned),
+               index == 0 || DocumentTextHeuristics.standaloneFieldLabelKey(in: lines[index - 1]) == nil {
                 appendLabeledFormAddressBlock(startingAt: index)
                 continue
             }
 
-            if let salutationName = salutationPersonName(in: cleaned) {
+            if let salutationName = DocumentTextHeuristics.salutationPersonName(in: cleaned) {
                 diagnostics.append("Supplemental OCR hit: salutation at line \(index) -> '\(salutationName)'")
                 appendCandidate(lineIndex: index, matchedText: salutationName, category: "private_person")
                 continue
             }
 
-            let looksLikeRecipientName = looksLikeWindowRecipientNameLine(cleaned)
+            let looksLikeRecipientName = DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned)
             guard looksLikeRecipientName else { continue }
 
-            let hasHeaderContext = hasNearbyOrganizationHeader(in: page, before: index)
+            let hasHeaderContext = OCRRecipientHeuristics.hasNearbyOrganizationHeader(
+                in: lines,
+                before: index
+            )
             guard hasHeaderContext else { continue }
             appendRecipientBlock(nameIndex: index, sourceLabel: "window recipient block")
         }
@@ -540,12 +410,12 @@ final class ImageRedactor {
         for span in rawPatternSpans {
             guard span.category == "custom_identifier",
                   span.confidence >= 0.95,
-                  strongCustomIdentifierText(span.text),
+                  DocumentTextHeuristics.strongCustomIdentifierText(span.text),
                   let lineIndex = page.lineIndex(containing: span.start)
             else { continue }
 
             guard lineIndex < 12,
-                  hasNearbyOrganizationHeader(in: page, before: lineIndex)
+                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: lineIndex)
             else { continue }
 
             appendRecipientBlock(nameIndex: lineIndex, sourceLabel: "custom recipient fallback")
@@ -582,141 +452,6 @@ final class ImageRedactor {
         return (deduplicated, diagnostics)
     }
 
-    private func salutationPersonName(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
-        let patterns = [
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Herr|Frau)\s+und\s+(?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}\s+und\s+(?:Herr|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
-            #"(?i)\b(?:sehr\s+geehrte[rsn]?|guten\s+tag|guten\s+morgen|guten\s+abend|hallo|liebe|lieber)\s+((?:Frau|Herr)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#
-        ]
-
-        for pattern in patterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern),
-                  let match = regex.firstMatch(in: normalized, options: [], range: nsRange),
-                  match.numberOfRanges > 1,
-                  let range = Range(match.range(at: 1), in: normalized)
-            else { continue }
-            return String(normalized[range]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
-        }
-        return nil
-    }
-
-    private func looksLikeLabeledFormBlockStart(_ text: String) -> Bool {
-        guard let key = standaloneFieldLabelKey(in: text) else { return false }
-        return key == "vorname" || key == "name"
-    }
-
-    private func standaloneFieldLabelKey(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        let mappings: [(label: String, key: String)] = [
-            ("Vorname", "vorname"),
-            ("Name", "name"),
-            ("Nachname", "name"),
-            ("Straße", "strasse"),
-            ("Strasse", "strasse"),
-            ("Strae", "strasse"),
-            ("Street", "strasse"),
-            ("Hausnr.", "hausnr"),
-            ("Hausnr", "hausnr"),
-            ("Hausnummer", "hausnr"),
-            ("PLZ", "plz"),
-            ("Postleitzahl", "plz"),
-            ("Ort", "ort"),
-            ("Stadt", "ort")
-        ]
-        for mapping in mappings {
-            let pattern = #"(?i)^\#(NSRegularExpression.escapedPattern(for: mapping.label))\s*:\s*$"#
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
-            if regex.firstMatch(in: normalized, options: [], range: nsRange) != nil {
-                return mapping.key
-            }
-        }
-        return nil
-    }
-
-    private func strongCustomIdentifierText(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
-        let tokenCount = cleaned.split(separator: " ").count
-        return tokenCount >= 2
-    }
-
-    private func looksLikeWindowRecipientNameLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func looksLikeOrganizationHeaderLine(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func hasNearbyOrganizationHeader(in page: OCRPage, before index: Int) -> Bool {
-        guard index > 0 else { return false }
-        let start = max(0, index - 3)
-        for previousIndex in start..<index {
-            if looksLikeOrganizationHeaderLine(page.lines[previousIndex].text) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private func resolveWindowRecipientBlock(in page: OCRPage, nameIndex: Int) -> (streetIndex: Int, street: String, postalCityIndex: Int, postalCity: String)? {
-        let searchEnd = min(page.lines.count, nameIndex + 5)
-        guard nameIndex + 1 < searchEnd else { return nil }
-
-        var streetCandidates: [(index: Int, text: String)] = []
-        for lineIndex in (nameIndex + 1)..<searchEnd {
-            let text = page.lines[lineIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            if looksLikeGermanStreetLine(text) {
-                streetCandidates.append((lineIndex, text))
-            }
-        }
-
-        guard !streetCandidates.isEmpty else { return nil }
-
-        for streetCandidate in streetCandidates {
-            let citySearchEnd = min(page.lines.count, streetCandidate.index + 4)
-            guard streetCandidate.index + 1 < citySearchEnd else { continue }
-
-            for cityIndex in (streetCandidate.index + 1)..<citySearchEnd {
-                let text = page.lines[cityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { continue }
-                if looksLikePostalCityLine(text) {
-                    return (streetCandidate.index, streetCandidate.text, cityIndex, text)
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private func looksLikeGermanStreetLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse)|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
-    private func looksLikePostalCityLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß]+(?:[ -][A-Za-zÄÖÜäöüß]+){0,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
-    }
-
     private func restoreMissingSupplementalCandidates(_ candidates: [SupplementalOCRCandidate]) {
         for candidate in candidates {
             let alreadyVisible = candidate.rects.contains { rect in
@@ -739,44 +474,22 @@ final class ImageRedactor {
     }
 
     private func restoreMissingWindowRecipientPrelude(in page: OCRPage) {
-        let searchLimit = min(page.lines.count, 12)
-        guard searchLimit > 0 else { return }
+        let lines = page.lines.map(\.text)
+        let recoveredCandidates = OCRContextAnalyzer.recoveredWindowRecipientPreludeCandidates(
+            in: lines,
+            searchLimit: 12,
+            allowDotsInCityTokens: false,
+            isLineVisible: { index in
+                guard let rect = page.normalizedLineBox(at: index).map(pixelRect(fromNormalized:)) else { return false }
+                return isRectMostlyVisible(rect)
+            }
+        )
 
-        for cityIndex in 0..<searchLimit {
-            let cityText = page.lines[cityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard looksLikePostalCityLine(cityText),
-                  let cityRect = page.normalizedLineBox(at: cityIndex).map(pixelRect(fromNormalized:)),
-                  isRectMostlyVisible(cityRect)
+        for candidate in recoveredCandidates {
+            guard let rect = page.normalizedLineBox(at: candidate.lineIndex).map(pixelRect(fromNormalized:)),
+                  let span = page.lineSpan(at: candidate.lineIndex, category: candidate.category)
             else { continue }
-
-            let nameSearchStart = max(0, cityIndex - 4)
-            let possibleNameIndices = Array(nameSearchStart..<cityIndex).filter { index in
-                let text = page.lines[index].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return looksLikeWindowRecipientNameLine(text) && hasNearbyOrganizationHeader(in: page, before: index)
-            }
-
-            guard let nameIndex = possibleNameIndices.last else { continue }
-
-            let streetIndices = Array((nameIndex + 1)..<cityIndex).filter { index in
-                let text = page.lines[index].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return looksLikeGermanStreetLine(text)
-            }
-
-            guard !streetIndices.isEmpty else { continue }
-
-            if let nameRect = page.normalizedLineBox(at: nameIndex).map(pixelRect(fromNormalized:)),
-               !isRectMostlyVisible(nameRect),
-               let nameSpan = page.lineSpan(at: nameIndex, category: "private_person") {
-                appendRecoveredPreview(span: nameSpan, rect: nameRect)
-            }
-
-            for streetIndex in streetIndices {
-                guard let streetRect = page.normalizedLineBox(at: streetIndex).map(pixelRect(fromNormalized:)),
-                      !isRectMostlyVisible(streetRect),
-                      let streetSpan = page.lineSpan(at: streetIndex, category: "private_address")
-                else { continue }
-                appendRecoveredPreview(span: streetSpan, rect: streetRect)
-            }
+            appendRecoveredPreview(span: span, rect: rect)
         }
     }
 
@@ -985,7 +698,11 @@ final class ImageRedactor {
         guard let cg = image else {
             return .failure("Es ist gerade kein Bild geladen, das exportiert werden kann.")
         }
-        guard let baked = bakeRedactions(into: cg) else {
+        guard let baked = RedactionRendering.bakeImageRedactions(
+            into: cg,
+            rects: redactionRects,
+            style: redactionStyle
+        ) else {
             return .failure("Das Bild konnte nicht exportiert werden, weil die Schwärzungen nicht sauber ins Bild eingebrannt werden konnten. Bitte versuche es erneut oder wähle einen anderen Speicherort.")
         }
         guard let dest = CGImageDestinationCreateWithURL(url as CFURL, uti.identifier as CFString, 1, nil) else {
@@ -1008,7 +725,7 @@ final class ImageRedactor {
             annotationsRemoved: true,
             bakedIntoPixels: !redactionRects.isEmpty
         )
-        return .success(ExportResult(url: url, report: report))
+        return .success(RedactionExportResult(url: url, report: report))
     }
 
     private func imageProperties(for uti: UTType, options: ExportOptions) -> CFDictionary? {
@@ -1026,52 +743,6 @@ final class ImageRedactor {
         }
 
         return properties as CFDictionary
-    }
-
-    private func bakeRedactions(into image: CGImage) -> CGImage? {
-        let width = image.width
-        let height = image.height
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil, width: width, height: height,
-            bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-
-        let flippedRects = redactionRects.map { r in
-            CGRect(x: r.minX, y: CGFloat(height) - r.maxY, width: r.width, height: r.height)
-                .insetBy(dx: -2, dy: -2)
-        }
-
-        switch redactionStyle {
-        case .blackRectangle:
-            ctx.setFillColor(NSColor.black.cgColor)
-            for r in flippedRects { ctx.fill(r) }
-
-        case .blur:
-            guard let snapshot = ctx.makeImage(),
-                  let blurred = gaussianBlurred(snapshot) else { return nil }
-            for r in flippedRects {
-                ctx.saveGState()
-                ctx.clip(to: r)
-                ctx.draw(blurred, in: CGRect(x: 0, y: 0, width: width, height: height))
-                ctx.restoreGState()
-            }
-        }
-
-        return ctx.makeImage()
-    }
-
-    private func gaussianBlurred(_ sharp: CGImage) -> CGImage? {
-        let sharpCI = CIImage(cgImage: sharp)
-        let blur = CIFilter.gaussianBlur()
-        blur.inputImage = sharpCI
-        blur.radius = Float(min(sharp.width, sharp.height)) * 0.02
-        guard let blurredCI = blur.outputImage?.cropped(to: sharpCI.extent) else { return nil }
-        let ciContext = CIContext(options: [.useSoftwareRenderer: false])
-        return ciContext.createCGImage(blurredCI, from: blurredCI.extent)
     }
 
     private func suggestedSaveName(uti: UTType) -> String {

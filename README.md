@@ -127,7 +127,7 @@ CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detect
 Der Check verifiziert aktuell unter anderem:
 
 - Briefkopf-Orte wie `74076 Heilbronn` und `74064 Heilbronn` werden unterdrueckt
-- echte Empfaenger-Orte wie `74229 Oodheim` bleiben erhalten
+- echte Empfaenger-Orte wie `74229 Oedheim` bleiben erhalten
 - kurze modellseitige Kontonummern werden verworfen
 - OCR- und Native-Normalisierung regressieren nicht wieder in den frueheren Fehlerzustand
 - DIN-5008-Briefvorlagen ziehen keine falschen Empfaenger aus Layout- oder Absenderkontext
@@ -160,6 +160,7 @@ Fuer das generelle Projekt-Framing gibt es zusaetzlich:
 
 - [features/INDEX.md](features/INDEX.md): Feature-Backlog als einzelne Projektbausteine
 - [docs/architecture.md](docs/architecture.md): technische und fachliche Struktur
+- [docs/commercial-readiness-audit.md](docs/commercial-readiness-audit.md): offener Re-Licensing- und Commercial-Readiness-Status
 - [docs/decision-log.md](docs/decision-log.md): wichtige Richtungsentscheidungen
 - [docs/release-checklist.md](docs/release-checklist.md): Release-Vorbereitung
 - [docs/runbook.md](docs/runbook.md): operative Wartungs- und Debug-Abläufe
@@ -167,6 +168,8 @@ Fuer das generelle Projekt-Framing gibt es zusaetzlich:
 ## Aktueller Stand
 
 Die erste grosse Produktstufe ist abgeschlossen: `PROJ-1` bis `PROJ-20` sind umgesetzt und in `features/` dokumentiert.
+
+`PROJ-21` bereitet das Projekt zusaetzlich auf spaetere Monetarisierung und moegliche Store-Distribution vor. Der Schwerpunkt liegt dort auf Relicensing-Readiness, sichtbarem Herkunfts-Cleanup und dem gezielten Ersetzen aelterer Altbloecke.
 
 Der aktuelle Schwerpunkt liegt jetzt weniger auf fehlenden Grundfunktionen als auf:
 
@@ -187,4 +190,6 @@ Die naechsten Schritte werden weiterhin ueber echte Dokumentfaelle, Regressionen
 
 ## Lizenz
 
-GPL-3.0
+Der aktuelle Repository-Stand wird weiterhin unter der in [LICENSE](LICENSE) enthaltenen Lizenz verteilt.
+
+Eine spaetere Umstellung auf ein kommerzielles oder proprietaeres Modell setzt zuerst eine saubere Rechteklaerung und den Abschluss von `PROJ-21` voraus.

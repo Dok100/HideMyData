@@ -2,349 +2,349 @@
   "patterns": [
     {
       "id": "email",
-      "description": "Email address",
+      "description": "E-Mail-Adresse",
       "category": "private_email",
       "regex": "\\b[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}\\b"
     },
     {
       "id": "phone_international",
-      "description": "International phone number with + prefix",
+      "description": "Internationale Telefonnummer mit Plus-Präfix",
       "category": "private_phone",
       "regex": "\\+(?:[0-9][\\s\\-.()]*){7,15}"
     },
     {
       "id": "iban",
-      "description": "IBAN (International Bank Account, e.g. PL61 1090 1014 ...)",
+      "description": "IBAN, auch mit optionalen Leerzeichen",
       "category": "account_number",
       "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b(?!\\s*BIC\\b)"
     },
     {
       "id": "bic_labeled",
-      "description": "BIC value anchored on a BIC label",
+      "description": "BIC-Wert nach einem BIC-Label",
       "category": "account_number",
       "regex": "(?<=\\bBIC:\\s)[A-Z0-9]{8}(?:[A-Z0-9]{3})?\\b"
     },
     {
       "id": "kundennummer_labeled",
-      "description": "Customer number value anchored on a Kundennummer label, with or without colon and allowing grouped digits",
+      "description": "Kundennummer nach dem Label Kundennummer",
       "category": "account_number",
       "regex": "(?:(?<=\\bKundennummer:\\s)|(?<=\\bKundennummer\\s))(?:[A-Z0-9][A-Z0-9\\-]{5,}|\\d{2,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "vertragsnummer_labeled",
-      "description": "Contract number value anchored on a Vertragsnummer label, with or without colon",
+      "description": "Vertragsnummer nach dem Label Vertragsnummer",
       "category": "account_number",
       "regex": "(?:(?<=\\bVertragsnummer:\\s)|(?<=\\bVertragsnummer\\s))[A-Z0-9][A-Z0-9\\-]{5,}\\b"
     },
     {
       "id": "zaehlernummer_labeled",
-      "description": "Meter number value anchored on a Zählernummer label",
+      "description": "Zählernummer nach dem Label Zählernummer oder Zaehlernummer",
       "category": "account_number",
       "regex": "(?<=\\b(?:Zählernummer|Zaehlernummer):\\s)\\d{6,}\\b"
     },
     {
       "id": "vorgangsnummer_labeled",
-      "description": "Process number value anchored on a Vorgangsnummer label, with or without colon",
+      "description": "Vorgangsnummer nach dem Label Vorgangsnummer",
       "category": "account_number",
       "regex": "(?:(?<=\\bVorgangsnummer:\\s)|(?<=\\bVorgangsnummer\\s))\\d{6,}\\b"
     },
     {
       "id": "telefon_labeled",
-      "description": "Domestic phone number value anchored on a Telefon/Tel label",
+      "description": "Telefonnummer nach Telefon- oder Tel-Label",
       "category": "private_phone",
       "regex": "(?im)(?:(?<=\\bTelefon:\\s)|(?<=\\bTelefon\\s)|(?<=\\bTel\\.:\\s)|(?<=\\bTel\\.\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
     },
     {
       "id": "mobil_labeled",
-      "description": "Domestic mobile number value anchored on a Mobil/Handy label",
+      "description": "Mobilnummer nach Mobil- oder Handy-Label",
       "category": "private_phone",
       "regex": "(?im)(?:(?<=\\bMobil:\\s)|(?<=\\bMobil\\s)|(?<=\\bHandy:\\s)|(?<=\\bHandy\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
     },
     {
       "id": "konto_labeled",
-      "description": "Bank account value anchored on a Konto label, with or without colon and allowing grouped digits",
+      "description": "Kontowert nach dem Label Konto",
       "category": "account_number",
       "regex": "(?:(?<=\\bKonto:\\s)|(?<=\\bKonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "konto_field",
-      "description": "Bank account field anchored on a Konto label, with or without colon and allowing grouped digits",
+      "description": "Komplettes Kontofeld mit Label Konto",
       "category": "account_number",
       "regex": "\\bKonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "kontonummer_labeled",
-      "description": "Bank account value anchored on a Kontonummer label, with or without colon and allowing grouped digits",
+      "description": "Kontonummer nach dem Label Kontonummer",
       "category": "account_number",
       "regex": "(?:(?<=\\bKontonummer:\\s)|(?<=\\bKontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "kontonummer_field",
-      "description": "Bank account field anchored on a Kontonummer label, with or without colon and allowing grouped digits",
+      "description": "Komplettes Feld für Kontonummer",
       "category": "account_number",
       "regex": "\\bKontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "girokonto_labeled",
-      "description": "Bank account value anchored on a Girokonto label, with or without colon and allowing grouped digits",
+      "description": "Girokonto-Wert nach dem Label Girokonto",
       "category": "account_number",
       "regex": "(?:(?<=\\bGirokonto:\\s)|(?<=\\bGirokonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "girokonto_field",
-      "description": "Bank account field anchored on a Girokonto label, with or without colon and allowing grouped digits",
+      "description": "Komplettes Feld für Girokonto",
       "category": "account_number",
       "regex": "\\bGirokonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "girokontonummer_labeled",
-      "description": "Bank account value anchored on a Girokontonummer label, with or without colon and allowing grouped digits",
+      "description": "Girokontonummer nach dem gleichnamigen Label",
       "category": "account_number",
       "regex": "(?:(?<=\\bGirokontonummer:\\s)|(?<=\\bGirokontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "girokontonummer_field",
-      "description": "Bank account field anchored on a Girokontonummer label, with or without colon and allowing grouped digits",
+      "description": "Komplettes Feld für Girokontonummer",
       "category": "account_number",
       "regex": "\\bGirokontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
     },
     {
       "id": "buchungskonto_labeled",
-      "description": "Booking account value anchored on a Buchungskonto label, with or without colon and allowing grouped digits",
+      "description": "Buchungskonto-Wert nach dem Label Buchungskonto",
       "category": "account_number",
       "regex": "(?:(?<=\\bBuchungskonto:\\s)|(?<=\\bBuchungskonto\\s))(?:\\d{2,}(?:\\s\\d{2,})+|[A-Z0-9][A-Z0-9\\- ]{5,})\\b"
     },
     {
       "id": "blz_labeled",
-      "description": "Bank code value anchored on a BLZ label",
+      "description": "BLZ-Wert nach dem Label BLZ",
       "category": "account_number",
       "regex": "(?<=\\bBLZ\\s)\\d{8}\\b"
     },
     {
       "id": "credit_card_16",
-      "description": "16-digit credit card (Visa / MC / Discover / JCB), with optional separators",
+      "description": "16-stellige Kreditkartennummer mit optionalen Trennern",
       "category": "account_number",
       "regex": "\\b\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}\\b"
     },
     {
       "id": "credit_card_amex",
-      "description": "American Express 15-digit credit card",
+      "description": "15-stellige American-Express-Kreditkarte",
       "category": "account_number",
       "regex": "\\b3[47]\\d{2}[\\s\\-]?\\d{6}[\\s\\-]?\\d{5}\\b"
     },
     {
       "id": "credit_card_labeled",
-      "description": "Credit card number anchored on an explicit credit card label",
+      "description": "Kreditkartennummer nach einem expliziten Karten-Label",
       "category": "account_number",
       "regex": "(?i)\\b(?:Kreditkarten(?:nummer|nr\\.?|num(?:mer)?)|Kartennummer|Kartennr\\.?|Karten(?:nr\\.?|nummer)|Credit\\s*Card\\s*Number|Card\\s*Number|Kreditkarte)[:\\s-]+(?:[\\d*][\\s\\-*]?){12,22}[\\d*]\\b"
     },
     {
       "id": "german_honorific_name_slash",
-      "description": "German honorific with surname/forename slash format, e.g. Herr Knobel/Helmut",
+      "description": "Deutscher Name mit Anrede im Format Nachname/Vorname",
       "category": "private_person",
       "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
     },
     {
       "id": "ipv4",
-      "description": "IPv4 address (octet-bounded)",
+      "description": "IPv4-Adresse mit oktettgenauer Begrenzung",
       "category": "secret",
       "regex": "\\b(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)(?:\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)){3}\\b"
     },
     {
       "id": "mrz",
-      "description": "Passport machine-readable zone (15+ uppercase / digit / < chars)",
+      "description": "Maschinenlesbare Passzone mit Großbuchstaben, Ziffern und Kleiner-als-Zeichen",
       "category": "secret",
       "regex": "\\b(?=[A-Z0-9<]{15,}\\b)(?=[A-Z0-9<]*[0-9<])[A-Z0-9<]{15,}\\b"
     },
     {
       "id": "polish_zip",
-      "description": "Polish postal code (NN-NNN)",
+      "description": "Polnische Postleitzahl im Format NN-NNN",
       "category": "private_address",
       "regex": "\\b\\d{2}-\\d{3}\\b"
     },
     {
       "id": "german_postal_city",
-      "description": "German postal code with up to three city tokens, tolerating one line break between zip and city and filtering obvious document terms",
+      "description": "Deutsche PLZ-Stadt-Kombination mit bis zu drei Ortswörtern",
       "category": "private_address",
       "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse|Seite|Steuer(?:-Nr)?|Vorsitzender|Datum|Ersetzt)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}\\b(?!<)"
     },
     {
       "id": "german_honorific_name",
-      "description": "German honorific with a likely full person name, e.g. Frau Nina Weber",
+      "description": "Deutscher Personenname mit Anrede",
       "category": "private_person",
       "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+){1,2}\\b"
     },
     {
       "id": "german_couple_name_shared_surname",
-      "description": "Two likely person names joined by 'und' with a shared surname, e.g. Jonas und Nina Weber",
+      "description": "Zwei Personennamen mit gemeinsamem Nachnamen und 'und'",
       "category": "private_person",
       "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
     },
     {
       "id": "german_street_house_number",
-      "description": "German-style street name with house number, including multi-word street names such as Berliner Platz 1, An der Allee 3, or Weinbergsteige 2",
+      "description": "Deutsche Straßenadresse mit Hausnummer",
       "category": "private_address",
       "regex": "(?i)\\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*\\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*(?:straße|str\\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\\s*\\d+[A-Za-z]?\\b"
     },
     {
       "id": "date_eu_dotted",
-      "description": "European-style date such as 01.10.1938, tolerant to OCR punctuation and spacing",
+      "description": "Europäisches Datum mit Punkten, Kommas oder Schrägstrichen",
       "category": "private_date",
       "regex": "[\"'`´’‚]?(?:0?[1-9]|[12]\\d|3[01])\\s*[\\.,/]\\s*(?:0?[1-9]|1[0-2])\\s*[\\.,/]\\s*(?:18|19|20)?\\d{2}\\b"
     },
     {
       "id": "polish_nrb",
-      "description": "Polish bank account (NRB, 26 digits, optionally grouped 2-4-4-4-4-4-4 with spaces or dashes)",
+      "description": "Polnisches NRB-Konto mit 26 Ziffern und optionalen Trennern",
       "category": "account_number",
       "regex": "\\b\\d{2}(?:[\\s\\-]?\\d{4}){6}\\b"
     },
     {
       "id": "polish_street",
-      "description": "Polish street address with ul./al./pl./os. prefix, optional honorific (Ks./Św.), and house/apartment number",
+      "description": "Polnische Straßenadresse mit ul./al./pl./os.-Präfix",
       "category": "private_address",
       "regex": "\\b(?:ul|al|pl|os)\\.\\s+[^\\d]{1,80}\\d+[A-Za-z]?(?:\\s*/\\s*\\d+)?(?:\\s+m\\s*\\.?\\s*\\d+)?"
     },
     {
       "id": "polish_id_card",
-      "description": "Polish ID card serial (3 uppercase letters + 6 digits, with optional 'nr' infix)",
+      "description": "Polnische Ausweisnummer mit drei Buchstaben und sechs Ziffern",
       "category": "secret",
       "regex": "\\b[A-Z]{3}\\s+(?:nr\\s+)?\\d{6}\\b"
     },
     {
       "id": "polish_nip",
-      "description": "Polish tax ID (NIP) — 10 digits with optional space/dash separators, anchored on 'NIP' label",
+      "description": "Polnische Steuer-ID nach dem Label NIP",
       "category": "secret",
       "regex": "(?i)\\bNIP[:.\\s\\-]+(?:\\d[\\s\\-]?){9}\\d\\b"
     },
     {
       "id": "polish_krs",
-      "description": "Polish court register number (KRS) — 10 digits, anchored on 'KRS' label",
+      "description": "Polnische KRS-Nummer nach dem Label KRS",
       "category": "secret",
       "regex": "(?i)\\bKRS[:.\\s\\-]+\\d{10}\\b"
     },
     {
       "id": "polish_pesel",
-      "description": "Polish national ID (PESEL) — 11 digits, anchored on 'PESEL' label",
+      "description": "Polnische PESEL nach dem Label PESEL",
       "category": "secret",
       "regex": "(?i)\\bPESEL[:.\\s\\-]+\\d{11}\\b"
     },
     {
       "id": "us_ssn",
-      "description": "US Social Security Number (XXX-XX-XXXX with dashes)",
+      "description": "US-Sozialversicherungsnummer im Format XXX-XX-XXXX",
       "category": "secret",
       "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b"
     },
     {
       "id": "mac_address",
-      "description": "MAC address (6 hex pairs separated by ':' or '-')",
+      "description": "MAC-Adresse mit Doppelpunkt oder Bindestrich",
       "category": "secret",
       "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b"
     },
     {
       "id": "ipv6",
-      "description": "IPv6 address (uncompressed and partial-compressed forms)",
+      "description": "IPv6-Adresse in unkomprimierter oder teilweise komprimierter Form",
       "category": "secret",
       "regex": "\\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\\b"
     },
     {
       "id": "uk_nino",
-      "description": "UK National Insurance Number (e.g. AB 12 34 56 C)",
+      "description": "Britische National-Insurance-Nummer",
       "category": "secret",
       "regex": "\\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\\s?\\d{2}\\s?\\d{2}\\s?\\d{2}\\s?[A-D]\\b"
     },
     {
       "id": "jwt",
-      "description": "JSON Web Token (eyJ-prefixed, three base64url segments)",
+      "description": "JSON Web Token mit drei Base64url-Segmenten",
       "category": "secret",
       "regex": "\\beyJ[\\w\\-]+\\.[\\w\\-]+\\.[\\w\\-]+\\b"
     },
     {
       "id": "aws_access_key",
-      "description": "AWS access key ID (AKIA prefix, 20 chars total)",
+      "description": "AWS-Access-Key mit AKIA-Präfix",
       "category": "secret",
       "regex": "\\bAKIA[0-9A-Z]{16}\\b"
     },
     {
       "id": "github_token",
-      "description": "GitHub personal/OAuth/server/user token (ghp_/gho_/ghs_/ghu_)",
+      "description": "GitHub-Token mit ghp_/gho_/ghs_/ghu_-Präfix",
       "category": "secret",
       "regex": "\\bgh[opsu]_[A-Za-z0-9]{36,}\\b"
     },
     {
       "id": "stripe_live_key",
-      "description": "Stripe live secret key (sk_live_*)",
+      "description": "Stripe-Live-Secret-Key mit sk_live_-Präfix",
       "category": "secret",
       "regex": "\\bsk_live_[A-Za-z0-9]{20,}\\b"
     },
     {
       "id": "crypto_eth",
-      "description": "Ethereum / EVM address (0x + 40 hex)",
+      "description": "Ethereum- oder EVM-Adresse mit 0x und 40 Hex-Zeichen",
       "category": "account_number",
       "regex": "\\b0x[a-fA-F0-9]{40}\\b"
     },
     {
       "id": "crypto_btc",
-      "description": "Bitcoin address (legacy P2PKH/P2SH or bech32 bc1)",
+      "description": "Bitcoin-Adresse als Legacy- oder Bech32-Format",
       "category": "account_number",
       "regex": "\\b(?:bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\\b"
     },
     {
       "id": "crypto_dash",
-      "description": "Dash address (X-prefixed, 34 chars base58)",
+      "description": "Dash-Adresse mit X-Präfix",
       "category": "account_number",
       "regex": "\\bX[1-9A-HJ-NP-Za-km-z]{33}\\b"
     },
     {
       "id": "crypto_xmr",
-      "description": "Monero address (4/8-prefixed, 95 chars base58)",
+      "description": "Monero-Adresse mit 4- oder 8-Präfix",
       "category": "account_number",
       "regex": "\\b[48][1-9A-HJ-NP-Za-km-z]{94}\\b"
     },
     {
       "id": "crypto_xrp",
-      "description": "Ripple/XRP address (r-prefixed, 25-35 chars)",
+      "description": "Ripple- oder XRP-Adresse mit r-Präfix",
       "category": "account_number",
       "regex": "\\br[0-9a-zA-Z]{24,34}\\b"
     },
     {
       "id": "crypto_ltc",
-      "description": "Litecoin address (legacy L/M or bech32 ltc1)",
+      "description": "Litecoin-Adresse als Legacy- oder Bech32-Format",
       "category": "account_number",
       "regex": "\\b(?:ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[LM][a-km-zA-HJ-NP-Z1-9]{26,34})\\b"
     },
     {
       "id": "crypto_bch",
-      "description": "Bitcoin Cash address (bitcoincash: prefix)",
+      "description": "Bitcoin-Cash-Adresse mit bitcoincash:-Präfix",
       "category": "account_number",
       "regex": "\\bbitcoincash:q[a-z0-9]{41}\\b"
     },
     {
       "id": "crypto_doge",
-      "description": "Dogecoin address (D-prefixed, 34 chars base58)",
+      "description": "Dogecoin-Adresse mit D-Präfix",
       "category": "account_number",
       "regex": "\\bD[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}\\b"
     },
     {
       "id": "crypto_trx",
-      "description": "Tron address (T-prefixed, 34 chars base58)",
+      "description": "Tron-Adresse mit T-Präfix",
       "category": "account_number",
       "regex": "\\bT[1-9A-HJ-NP-Za-km-z]{33}\\b"
     },
     {
       "id": "crypto_ada",
-      "description": "Cardano address (addr1/stake1/Ae2/DdzFF)",
+      "description": "Cardano-Adresse in addr1-, stake1-, Ae2- oder DdzFF-Form",
       "category": "account_number",
       "regex": "\\b(?:addr1[a-z0-9]{53,}|stake1[a-z0-9]{50,}|Ae2[1-9A-HJ-NP-Za-km-z]{50,}|DdzFF[1-9A-HJ-NP-Za-km-z]{50,})\\b"
     },
     {
       "id": "crypto_ton",
-      "description": "TON address (raw 0:hex64 or user-friendly EQ/UQ base64url)",
+      "description": "TON-Adresse als Raw- oder userfreundliches EQ/UQ-Format",
       "category": "account_number",
       "regex": "\\b(?:0:[a-f0-9]{64}|[EU]Q[a-zA-Z0-9_\\-]{46})\\b"
     },
     {
       "id": "crypto_labeled",
-      "description": "Crypto address fallback — anchored on a ticker label (catches USDC/USDT/BNB/SOL where we have no specific regex)",
+      "description": "Krypto-Adress-Fallback nach einem Ticker-Label",
       "category": "account_number",
       "regex": "(?i)(?:Digital\\s+Currency\\s+Address:?\\s*)?\\b(?:ETH|BTC|XBT|BNB|USDT|USDC|TRX|SOL|XRP|LTC|DASH|XMR|BCH|DOGE|ADA|TON)[:\\s]+[A-Za-z0-9]{26,}\\b"
     }

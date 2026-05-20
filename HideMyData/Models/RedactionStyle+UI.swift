@@ -3,8 +3,10 @@ import Foundation
 extension RedactionStyle {
     var systemImage: String {
         switch self {
-        case .blackRectangle: "square.fill"
-        case .blur: "camera.filters"
+        case .blackRectangle:
+            return "square.fill"
+        case .blur:
+            return "camera.filters"
         }
     }
 }

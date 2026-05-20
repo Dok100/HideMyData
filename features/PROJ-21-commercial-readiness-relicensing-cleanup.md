@@ -119,7 +119,10 @@ Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Al
 
 Aktueller Fortschritt in Phase 4:
 - PDF-spezifische Header-/Absenderblock-Unterdrückung ist in `HideMyData/PDFHeaderSuppressionSupport.swift` ausgelagert
+- PDF-spezifische OCR-Zusatzanalyse fuer Fensterempfaenger-Kontext liegt jetzt in `HideMyData/PDFOCRSupplementalAnalyzer.swift`
 - bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
+- Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
+- Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Bild-Preview-Diagnostik ist in `HideMyData/ImagePreviewDiagnosticsSupport.swift` ausgelagert
 - Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorModelCacheSupport.swift` und `HideMyData/PIIDetectorPlaceholderSupport.swift` verschoben
 - sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert

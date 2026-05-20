@@ -257,7 +257,7 @@ final class PDFRedactor {
                     if rects.isEmpty {
                         unmapped.append(translated)
                     } else {
-                        let expandedRects = expandedContextRects(
+                        let expandedRects = PDFReviewContextSupport.expandedContextRects(
                             for: translated,
                             baseRects: rects,
                             pageText: source.text,
@@ -291,7 +291,7 @@ final class PDFRedactor {
                     let grouped = Dictionary(grouping: recovered, by: \.1.id)
                     for span in unmapped {
                         guard let matches = grouped[span.id], !matches.isEmpty else { continue }
-                        let rects = expandedContextRects(
+                        let rects = PDFReviewContextSupport.expandedContextRects(
                             for: span,
                             baseRects: matches.map(\.0),
                             pageText: source.text,
@@ -331,7 +331,7 @@ final class PDFRedactor {
                             source: span.source,
                             confidence: span.confidence,
                             pageIndex: pageIndex,
-                            rects: deduplicatedRects(rects)
+                            rects: PDFReviewContextSupport.deduplicatedRects(rects)
                         )
                     )
                     pageReviewCandidates.append(
@@ -341,7 +341,7 @@ final class PDFRedactor {
                             source: span.source,
                             confidence: span.confidence,
                             pageIndex: pageIndex,
-                            rects: deduplicatedRects(rects)
+                            rects: PDFReviewContextSupport.deduplicatedRects(rects)
                         )
                     )
                     totalRects += rects.count
@@ -356,7 +356,7 @@ final class PDFRedactor {
                         normalizedText: entry.normalizedText,
                         findings: entry.findings,
                         diagnostics: entry.diagnostics,
-                        previewDiagnostics: previewDiagnosticsLines(for: pageReviewCandidates)
+                        previewDiagnostics: PDFReviewContextSupport.previewDiagnosticsLines(for: pageReviewCandidates)
                     )
                 }
             }
@@ -454,123 +454,7 @@ final class PDFRedactor {
     }
 
     private func supplementalOCRContextSpans(in page: OCRPage) -> ([DetectedSpan], [String]) {
-        var spans: [DetectedSpan] = []
-        var diagnostics: [String] = []
-        let lines = page.lines.map(\.text)
-
-        func appendLine(_ index: Int, category: String) {
-            guard let span = page.lineSpan(at: index, category: category) else { return }
-            spans.append(span)
-        }
-
-        for (index, line) in page.lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { continue }
-            guard DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned),
-                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: index),
-                  let candidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
-                    in: lines,
-                    nameIndex: index,
-                    allowDotsInCityTokens: true
-                  )
-            else { continue }
-
-            diagnostics.append("PDF OCR supplemental recipient block at line \(index): \(cleaned)")
-            for candidate in candidates {
-                appendLine(candidate.lineIndex, category: candidate.category)
-            }
-        }
-
-        return (deduplicatedSpans(spans), diagnostics)
-    }
-
-    private func previewDiagnosticsLines(for candidates: [ReviewFindingCandidate]) -> [String] {
-        guard !candidates.isEmpty else {
-            return ["Preview candidates: 0", "Preview detail: <none>"]
-        }
-
-        var lines: [String] = []
-        lines.append("Preview candidates: \(candidates.count)")
-        for candidate in candidates {
-            let rectSummary = candidate.rects.enumerated().map { index, rect in
-                "\(index): x=\(Int(rect.minX)) y=\(Int(rect.minY)) w=\(Int(rect.width)) h=\(Int(rect.height))"
-            }.joined(separator: " | ")
-            lines.append("[\(candidate.category)] \(candidate.snippet)")
-            lines.append("  Source: \(candidate.source.label) · \(Int(candidate.confidence * 100))%")
-            lines.append("  Rects: \(rectSummary.isEmpty ? "<none>" : rectSummary)")
-        }
-        return lines
-    }
-
-    private func expandedContextRects(
-        for span: DetectedSpan,
-        baseRects: [CGRect],
-        pageText: String,
-        on page: PDFPage
-    ) -> [CGRect] {
-        guard span.category == "private_person" || span.category == "private_address" else {
-            return baseRects
-        }
-
-        var expanded = baseRects
-        expanded.append(contentsOf: contextualRedactionLabelRects(for: span, in: pageText, on: page))
-        return deduplicatedRects(expanded)
-    }
-
-    private func contextualRedactionLabelRects(
-        for span: DetectedSpan,
-        in pageText: String,
-        on page: PDFPage
-    ) -> [CGRect] {
-        var matches: [CGRect] = []
-        for line in PDFTextContextSupport.contextualRedactionLabelLines(for: span, in: pageText) {
-            matches.append(contentsOf: rects(for: line, on: page))
-        }
-
-        return deduplicatedRects(matches)
-    }
-
-    private func rects(for line: NativePDFPageTextLine, on page: PDFPage) -> [CGRect] {
-        guard let selection = page.selection(for: line.range) else {
-            let occurrence = PDFTextRectResolver.occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
-            return PDFTextRectResolver.rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
-        }
-        let directRects = PDFTextRectResolver.perLineRects(of: selection, on: page)
-        if !directRects.isEmpty {
-            return directRects
-        }
-        let occurrence = PDFTextRectResolver.occurrenceIndex(of: line.text, in: page.string ?? "", start: line.range.location)
-        return PDFTextRectResolver.rectsByTextSearch(needle: line.text, occurrenceIndex: occurrence, on: page)
-    }
-
-    private func deduplicatedRects(_ rects: [CGRect]) -> [CGRect] {
-        var unique: [CGRect] = []
-        for rect in rects {
-            let standardized = rect.standardized
-            guard standardized.width > 0.5, standardized.height > 0.5 else { continue }
-            let alreadyPresent = unique.contains { existing in
-                abs(existing.minX - standardized.minX) < 0.5 &&
-                abs(existing.minY - standardized.minY) < 0.5 &&
-                abs(existing.width - standardized.width) < 0.5 &&
-                abs(existing.height - standardized.height) < 0.5
-            }
-            if !alreadyPresent {
-                unique.append(standardized)
-            }
-        }
-        return unique
-    }
-
-    private func deduplicatedSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        var seen = Set<String>()
-        var unique: [DetectedSpan] = []
-        for span in spans {
-            let key = "\(span.category)::\(span.start)::\(span.end)::\(span.text)"
-            if seen.insert(key).inserted {
-                unique.append(span)
-            }
-        }
-        return unique
+        PDFOCRSupplementalAnalyzer.analyze(page: page)
     }
 
     private func matches(for pattern: String, in text: String) -> Int {

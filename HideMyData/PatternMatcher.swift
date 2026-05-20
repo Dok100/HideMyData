@@ -712,32 +712,11 @@ nonisolated enum PatternMatcher {
         }
     }
 
-    private struct Spec: Decodable {
-        let id: String
-        let description: String
-        let category: String
-        let regex: String
-    }
-
-    private struct Manifest: Decodable {
-        let patterns: [Spec]
-    }
-
     private static let builtinPatterns: [Pattern] = loadPatterns()
 
     private static func loadPatterns() -> [Pattern] {
-        guard let url = Bundle.main.url(forResource: "patterns", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let manifest = try? JSONDecoder().decode(Manifest.self, from: data)
-        else {
-            return []
-        }
-        return manifest.patterns.compactMap { spec in
-            guard let re = try? NSRegularExpression(pattern: spec.regex) else {
-                print("PatternMatcher: failed to compile pattern '\(spec.id)'")
-                return nil
-            }
-            return Pattern(id: spec.id, category: spec.category, source: .regex(re))
+        PatternMatcherBuiltinSupport.loadCompiledBuiltinPatterns().map { pattern in
+            Pattern(id: pattern.id, category: pattern.category, source: .regex(pattern.regex))
         }
     }
 

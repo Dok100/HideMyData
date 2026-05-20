@@ -60,20 +60,16 @@
 
 ### ⚠️ Manual cleanup for users on v0.1.0
 
-Because of the notarization and because I changed the app bundle ID, a one-timemanual reinstall is needed.
+Because of notarization and early distribution changes, some users moving from `v0.1.0` may have needed a one-time reinstall.
 
-* If you use Raycast or AppCleaner - you're good, just uninstall there.
+* If you use Raycast or AppCleaner, uninstalling there was usually sufficient.
 
 Manually:
 
 * Drag the app to trash
-* The old sandbox container at `~/Library/Containers/com.maciejonos.HideMyData/` is left behind. To reclaim the disk space:
+* Older prerelease data containers may remain on disk and can be removed if no longer needed.
 
-```bash
-rm -rf ~/Library/Containers/com.maciejonos.HideMyData
-```
-
-No further bundle ID changes are planned — future versions update in place via Sparkle.
+Future versions are intended to update in place via Sparkle.
 
 # 0.1.0
 

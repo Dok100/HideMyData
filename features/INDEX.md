@@ -22,3 +22,4 @@
 | [PROJ-18](PROJ-18-manuelle-nacharbeit-beschleunigen.md) | Manuelle Nacharbeit beschleunigen | Abgeschlossen |
 | [PROJ-19](PROJ-19-export-zusammenfassung.md) | Menschliche Export-Zusammenfassung | Abgeschlossen |
 | [PROJ-20](PROJ-20-regel-assistenz.md) | Regel-Assistenz und Vorlagen | Abgeschlossen |
+| [PROJ-21](PROJ-21-commercial-readiness-relicensing-cleanup.md) | Commercial Readiness und Re-Licensing Cleanup | In Arbeit |

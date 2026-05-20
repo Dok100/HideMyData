@@ -2,32 +2,25 @@ import SwiftUI
 
 struct FirstRunPhase: View {
     @Bindable var detector: PIIDetector
-    @State private var downloadStartedAt: Date = .now
+    @State private var progressStartedAt: Date = .now
 
     var body: some View {
-        switch detector.phase {
-        case .needsDownload:
-            DownloadCTA(start: startDownload)
-        case .downloading(let downloaded, let total):
-            DownloadProgress(downloaded: downloaded, total: total, startedAt: downloadStartedAt)
-        case .failed(let msg):
-            DownloadFailure(message: msg, retry: startDownload)
-        default:
-            EmptyView()
+        Group {
+            switch detector.phase {
+            case .needsDownload:
+                downloadAction
+            case .downloading(let downloaded, let total):
+                downloadProgress(downloaded: downloaded, total: total)
+            case .failed(let message):
+                downloadFailure(message: message)
+            default:
+                EmptyView()
+            }
         }
     }
 
-    private func startDownload() {
-        downloadStartedAt = .now
-        Task { await detector.startDownload() }
-    }
-}
-
-private struct DownloadCTA: View {
-    let start: () -> Void
-
-    var body: some View {
-        Button(action: start) {
+    private var downloadAction: some View {
+        Button(action: beginDownload) {
             Label("Modell herunterladen", systemImage: "arrow.down.circle.fill")
                 .frame(minWidth: 220)
                 .padding(.vertical, 4)
@@ -36,27 +29,23 @@ private struct DownloadCTA: View {
         .buttonStyle(.glassProminent)
         .keyboardShortcut(.defaultAction)
     }
-}
 
-private struct DownloadProgress: View {
-    let downloaded: Int64
-    let total: Int64
-    let startedAt: Date
-
-    var body: some View {
+    private func downloadProgress(downloaded: Int64, total: Int64) -> some View {
         VStack(spacing: 10) {
             if total > 0 {
                 ProgressView(value: Double(downloaded), total: Double(total))
                     .progressViewStyle(.linear)
                     .frame(width: 320)
-                TimelineView(.periodic(from: startedAt, by: 1)) { context in
-                    Text(progressLabel(now: context.date))
+
+                TimelineView(.periodic(from: progressStartedAt, by: 1)) { context in
+                    Text(progressText(downloaded: downloaded, total: total, now: context.date))
                         .font(.footnote.monospaced())
                         .foregroundStyle(.secondary)
                         .contentTransition(.numericText())
                 }
             } else {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
                 Text("Download wird vorbereitet…")
                     .font(.footnote.monospaced())
                     .foregroundStyle(.secondary)
@@ -64,30 +53,32 @@ private struct DownloadProgress: View {
         }
     }
 
-    private func progressLabel(now: Date) -> String {
-        let downloadedGB = (Double(downloaded) / 1_000_000_000)
-            .formatted(.number.precision(.fractionLength(1)))
-        let totalGB = (Double(total) / 1_000_000_000)
-            .formatted(.number.precision(.fractionLength(1)))
-        let elapsed = Duration.seconds(now.timeIntervalSince(startedAt))
-            .formatted(.time(pattern: .minuteSecond))
-        return "\(downloadedGB) / \(totalGB) GB  ·  \(elapsed)"
-    }
-}
-
-private struct DownloadFailure: View {
-    let message: String
-    let retry: () -> Void
-
-    var body: some View {
+    private func downloadFailure(message: String) -> some View {
         VStack(spacing: 10) {
             Text(message)
                 .font(.callout)
                 .foregroundStyle(.red)
                 .multilineTextAlignment(.center)
-            Button("Erneut versuchen", systemImage: "arrow.clockwise", action: retry)
+
+            Button("Erneut versuchen", systemImage: "arrow.clockwise", action: beginDownload)
                 .buttonStyle(.glass)
                 .controlSize(.large)
         }
+    }
+
+    private func beginDownload() {
+        progressStartedAt = .now
+        Task {
+            await detector.startDownload()
+        }
+    }
+
+    private func progressText(downloaded: Int64, total: Int64, now: Date) -> String {
+        let downloadedGB = Double(downloaded) / 1_000_000_000
+        let totalGB = Double(total) / 1_000_000_000
+        let elapsed = Duration.seconds(now.timeIntervalSince(progressStartedAt))
+            .formatted(.time(pattern: .minuteSecond))
+
+        return "\(downloadedGB.formatted(.number.precision(.fractionLength(1)))) / \(totalGB.formatted(.number.precision(.fractionLength(1)))) GB  ·  \(elapsed)"
     }
 }

@@ -3,85 +3,106 @@ import SwiftUI
 struct IntroView: View {
     let onContinue: () -> Void
 
-    @State private var heroIn = false
-    @State private var ctaIn = false
+    @State private var headerVisible = false
+    @State private var benefitsVisible = false
+    @State private var actionVisible = false
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 32)
+            Spacer(minLength: 36)
 
-            VStack(spacing: 16) {
-                AppLogo()
+            introHeader
+                .opacity(headerVisible ? 1 : 0)
+                .offset(y: headerVisible ? 0 : 12)
 
-                VStack(spacing: 10) {
-                    Text("Willkommen bei Inkognito")
-                        .font(.system(size: 32, weight: .bold))
-                        .tracking(-0.6)
+            Spacer(minLength: 40)
 
-                    Text("Lokal anonymisieren. Direkt auf deinem Mac.\nVertrauliches bleibt auf deinem Gerät.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .opacity(heroIn ? 1 : 0)
-            .offset(y: heroIn ? 0 : 10)
+            benefitList
+                .opacity(benefitsVisible ? 1 : 0)
+                .offset(y: benefitsVisible ? 0 : 12)
 
-            Spacer(minLength: 44)
+            Spacer(minLength: 40)
 
-            VStack(alignment: .leading, spacing: 26) {
-                FeatureRow(
-                    icon: "lock.shield.fill",
-                    tint: .green,
-                    title: "Lokal und privat",
-                    subtitle: "Erkennung und Schwärzung laufen vollständig auf deinem Mac. Keine Konten, keine Server, keine Cloud — deine Dokumente bleiben auf dem Gerät.",
-                    delay: 0.10
-                )
-                FeatureRow(
-                    icon: "sparkles",
-                    tint: .indigo,
-                    title: "Erkennt sensible Inhalte",
-                    subtitle: "Ein lokales Sprachmodell findet Namen, E-Mails, Telefonnummern, Adressen, Daten und Kennungen in PDFs und gescannten Bildern.",
-                    delay: 0.20
-                )
-                FeatureRow(
-                    icon: "rectangle.dashed",
-                    tint: .pink,
-                    title: "Geschützt exportieren",
-                    subtitle: "Beim Speichern werden Schwärzungen fest in den Export eingebrannt — nicht nur als überdeckende Markierung.",
-                    delay: 0.30
-                )
-            }
-            .frame(maxWidth: 560, alignment: .leading)
-            .padding(.horizontal, 40)
-
-            Spacer(minLength: 44)
-
-            Button(action: onContinue) {
-                Text("Weiter")
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(minWidth: 220)
-                    .padding(.vertical, 4)
-            }
-            .buttonStyle(.glassProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
-            .opacity(ctaIn ? 1 : 0)
-            .offset(y: ctaIn ? 0 : 8)
+            primaryAction
+                .opacity(actionVisible ? 1 : 0)
+                .offset(y: actionVisible ? 0 : 10)
 
             Spacer(minLength: 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            withAnimation(.smooth(duration: 0.55)) { heroIn = true }
-            withAnimation(.smooth(duration: 0.55).delay(0.45)) { ctaIn = true }
+        .padding(.horizontal, 32)
+        .onAppear(perform: runEntranceAnimation)
+    }
+
+    private var introHeader: some View {
+        VStack(spacing: 18) {
+            IntroAppLogo()
+
+            VStack(spacing: 10) {
+                Text("Willkommen bei Inkognito")
+                    .font(.system(size: 32, weight: .bold))
+                    .tracking(-0.6)
+
+                Text("Anonymisieren. Direkt auf deinem Mac.\nVertrauliche Inhalte bleiben auf deinem Gerät.")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var benefitList: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            IntroBenefit(
+                icon: "lock.shield.fill",
+                tint: .green,
+                title: "Lokal und privat",
+                text: "Erkennung, Review und Export laufen vollständig auf deinem Mac. Keine Konten, keine Server, keine Cloud."
+            )
+            IntroBenefit(
+                icon: "sparkles",
+                tint: .indigo,
+                title: "Sensible Inhalte erkennen",
+                text: "Inkognito findet Namen, E-Mail-Adressen, Telefonnummern, Adressen, Daten und Kennungen in PDFs und Bildern."
+            )
+            IntroBenefit(
+                icon: "rectangle.on.rectangle.angled",
+                tint: .orange,
+                title: "Sicher exportieren",
+                text: "Vor dem Speichern prüfst du die Treffer. Beim Export werden bestätigte Schwärzungen fest eingebrannt."
+            )
+        }
+        .frame(maxWidth: 580, alignment: .leading)
+    }
+
+    private var primaryAction: some View {
+        Button(action: onContinue) {
+            Text("Weiter")
+                .font(.system(size: 14, weight: .semibold))
+                .frame(minWidth: 220)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(.glassProminent)
+        .controlSize(.large)
+        .keyboardShortcut(.defaultAction)
+    }
+
+    private func runEntranceAnimation() {
+        withAnimation(.smooth(duration: 0.55)) {
+            headerVisible = true
+        }
+        withAnimation(.smooth(duration: 0.55).delay(0.14)) {
+            benefitsVisible = true
+        }
+        withAnimation(.smooth(duration: 0.55).delay(0.28)) {
+            actionVisible = true
         }
     }
 }
 
-private struct AppLogo: View {
+private struct IntroAppLogo: View {
     @ScaledMetric(relativeTo: .largeTitle) private var size: CGFloat = 104
 
     var body: some View {
@@ -95,14 +116,11 @@ private struct AppLogo: View {
     }
 }
 
-private struct FeatureRow: View {
+private struct IntroBenefit: View {
     let icon: String
     let tint: Color
     let title: String
-    let subtitle: String
-    let delay: Double
-
-    @State private var appeared = false
+    let text: String
 
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
@@ -110,23 +128,19 @@ private struct FeatureRow: View {
                 .font(.system(size: 22, weight: .semibold))
                 .symbolRenderingMode(.hierarchical)
                 .foregroundStyle(tint)
-                .frame(width: 32, height: 32, alignment: .center)
+                .frame(width: 32, height: 32)
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
-                Text(subtitle)
+
+                Text(text)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .lineSpacing(1.5)
                     .fixedSize(horizontal: false, vertical: true)
             }
-        }
-        .opacity(appeared ? 1 : 0)
-        .offset(x: appeared ? 0 : -6)
-        .onAppear {
-            withAnimation(.smooth(duration: 0.5).delay(delay)) { appeared = true }
         }
     }
 }

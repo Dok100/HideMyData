@@ -1,8 +1,8 @@
-import Foundation
 import AppKit
-import PDFKit
-import ImageIO
 import CoreGraphics
+import Foundation
+import ImageIO
+import PDFKit
 internal import UniformTypeIdentifiers
 
 struct RecentItem: Identifiable, Codable, Equatable {
@@ -14,7 +14,8 @@ struct RecentItem: Identifiable, Codable, Equatable {
     let addedAt: Date
 
     enum Kind: String, Codable {
-        case pdf, image
+        case pdf
+        case image
     }
 }
 
@@ -38,49 +39,35 @@ final class RecentsStore {
         load()
     }
 
-    // MARK: - Public API
-
     @discardableResult
     func add(url: URL, kind: RecentItem.Kind) -> Bool {
         guard isEnabled else { return false }
-        guard let bookmark = try? url.bookmarkData(options: [.withSecurityScope]) else { return false }
-        let thumbName = "\(UUID().uuidString).png"
-        let thumbPath = Self.thumbsDir().appendingPathComponent(thumbName)
-        guard generateThumbnail(for: url, kind: kind, savingTo: thumbPath) else { return false }
+        guard let bookmarkData = try? url.bookmarkData(options: [.withSecurityScope]) else { return false }
 
-        // Dedupe by resolved path: remove any existing entry pointing at the same file.
-        items.removeAll { existing in
-            guard let existingURL = resolveURL(from: existing.bookmarkData) else { return false }
-            if existingURL.path == url.path {
-                deleteThumbnail(filename: existing.thumbnailFilename)
-                return true
-            }
-            return false
-        }
+        let thumbnailFilename = "\(UUID().uuidString).png"
+        let thumbnailURL = Self.thumbnailDirectory().appendingPathComponent(thumbnailFilename)
+        guard generateThumbnail(for: url, kind: kind, destination: thumbnailURL) else { return false }
+
+        removeExistingEntries(forResolvedPath: url.path)
 
         let item = RecentItem(
             id: UUID(),
             kind: kind,
             title: url.lastPathComponent,
-            bookmarkData: bookmark,
-            thumbnailFilename: thumbName,
+            bookmarkData: bookmarkData,
+            thumbnailFilename: thumbnailFilename,
             addedAt: Date()
         )
-        items.insert(item, at: 0)
 
-        if items.count > Self.maxItems {
-            for stale in items.suffix(items.count - Self.maxItems) {
-                deleteThumbnail(filename: stale.thumbnailFilename)
-            }
-            items = Array(items.prefix(Self.maxItems))
-        }
+        items.insert(item, at: 0)
+        trimToLimitIfNeeded()
         persist()
         return true
     }
 
     func remove(_ item: RecentItem) {
         items.removeAll { $0.id == item.id }
-        deleteThumbnail(filename: item.thumbnailFilename)
+        deleteThumbnail(named: item.thumbnailFilename)
         persist()
     }
 
@@ -90,9 +77,11 @@ final class RecentsStore {
 
     func setEnabled(_ enabled: Bool) {
         guard enabled != isEnabled else { return }
+
         isEnabled = enabled
         UserDefaults.standard.set(enabled, forKey: Self.enabledKey)
         UserDefaults.standard.removeObject(forKey: Self.legacyEnabledKey)
+
         if enabled {
             load()
         } else {
@@ -100,32 +89,31 @@ final class RecentsStore {
         }
     }
 
-    /// Resolve to (url, didStartScope, dataLoadedFromScope).
-    /// Caller must call `stopAccessingSecurityScopedResource()` if `didStartScope` is true.
     func resolve(_ item: RecentItem) -> (url: URL, didStartScope: Bool)? {
-        guard let url = resolveURL(from: item.bookmarkData) else { return nil }
-        let didStart = url.startAccessingSecurityScopedResource()
-        return (url, didStart)
+        guard let url = resolvedURL(from: item.bookmarkData) else { return nil }
+        let startedScope = url.startAccessingSecurityScopedResource()
+        return (url, startedScope)
     }
 
     func thumbnailURL(for item: RecentItem) -> URL {
-        Self.thumbsDir().appendingPathComponent(item.thumbnailFilename)
+        Self.thumbnailDirectory().appendingPathComponent(item.thumbnailFilename)
     }
-
-    // MARK: - Persistence
 
     private func load() {
         guard isEnabled else {
             items = []
             return
         }
+
         let defaults = UserDefaults.standard
-        guard let data =
-                defaults.data(forKey: Self.storageKey) ??
-                defaults.data(forKey: Self.legacyStorageKey),
-              let decoded = try? JSONDecoder().decode([RecentItem].self, from: data) else { return }
-        let fm = FileManager.default
-        items = decoded.filter { fm.fileExists(atPath: thumbnailURL(for: $0).path) }
+        guard let data = defaults.data(forKey: Self.storageKey) ?? defaults.data(forKey: Self.legacyStorageKey),
+              let decoded = try? JSONDecoder().decode([RecentItem].self, from: data) else {
+            items = []
+            return
+        }
+
+        let fileManager = FileManager.default
+        items = decoded.filter { fileManager.fileExists(atPath: thumbnailURL(for: $0).path) }
         persist()
     }
 
@@ -138,98 +126,134 @@ final class RecentsStore {
 
     private func clearAll() {
         for item in items {
-            deleteThumbnail(filename: item.thumbnailFilename)
+            deleteThumbnail(named: item.thumbnailFilename)
         }
         items = []
+
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: Self.storageKey)
         defaults.removeObject(forKey: Self.legacyStorageKey)
     }
 
-    private func resolveURL(from bookmark: Data) -> URL? {
-        var stale = false
-        return try? URL(
-            resolvingBookmarkData: bookmark,
-            options: [.withSecurityScope],
-            bookmarkDataIsStale: &stale
-        )
-    }
-
-    // MARK: - Thumbnails
-
-    private static func thumbsDir() -> URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        migrateLegacyThumbsIfNeeded(base: support)
-        let dir = support.appendingPathComponent("Inkognito/RecentsThumbs", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }
-
-    private static func migrateLegacyThumbsIfNeeded(base: URL) {
-        let fm = FileManager.default
-        let legacyDir = base.appendingPathComponent("HideMyData/RecentsThumbs", isDirectory: true)
-        let newParent = base.appendingPathComponent("Inkognito", isDirectory: true)
-        let newDir = newParent.appendingPathComponent("RecentsThumbs", isDirectory: true)
-
-        guard fm.fileExists(atPath: legacyDir.path),
-              !fm.fileExists(atPath: newDir.path) else { return }
-
-        try? fm.createDirectory(at: newParent, withIntermediateDirectories: true)
-        try? fm.moveItem(at: legacyDir, to: newDir)
-    }
-
-    private func deleteThumbnail(filename: String) {
-        let path = Self.thumbsDir().appendingPathComponent(filename)
-        try? FileManager.default.removeItem(at: path)
-    }
-
-    private func generateThumbnail(for url: URL, kind: RecentItem.Kind, savingTo path: URL) -> Bool {
-        switch kind {
-        case .pdf: return generatePDFThumbnail(url: url, to: path)
-        case .image: return generateImageThumbnail(url: url, to: path)
+    private func removeExistingEntries(forResolvedPath path: String) {
+        items.removeAll { item in
+            guard let existingURL = resolvedURL(from: item.bookmarkData) else { return false }
+            guard existingURL.path == path else { return false }
+            deleteThumbnail(named: item.thumbnailFilename)
+            return true
         }
     }
 
-    private func generatePDFThumbnail(url: URL, to path: URL) -> Bool {
-        guard let doc = PDFDocument(url: url),
-              let page = doc.page(at: 0) else { return false }
-        let bounds = page.bounds(for: .mediaBox)
-        let maxDim: CGFloat = 320
-        let scale = maxDim / max(bounds.width, bounds.height)
-        let pw = Int(bounds.width * scale)
-        let ph = Int(bounds.height * scale)
-        guard pw > 0, ph > 0 else { return false }
-        let cs = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil, width: pw, height: ph,
-            bitsPerComponent: 8, bytesPerRow: 0, space: cs,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return false }
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.fill(CGRect(x: 0, y: 0, width: pw, height: ph))
-        ctx.scaleBy(x: scale, y: scale)
-        page.draw(with: .mediaBox, to: ctx)
-        guard let image = ctx.makeImage() else { return false }
-        return savePNG(image, to: path)
+    private func trimToLimitIfNeeded() {
+        guard items.count > Self.maxItems else { return }
+        for staleItem in items.suffix(items.count - Self.maxItems) {
+            deleteThumbnail(named: staleItem.thumbnailFilename)
+        }
+        items = Array(items.prefix(Self.maxItems))
     }
 
-    private func generateImageThumbnail(url: URL, to path: URL) -> Bool {
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
-        let opts: [CFString: Any] = [
+    private func resolvedURL(from bookmarkData: Data) -> URL? {
+        var isStale = false
+        return try? URL(
+            resolvingBookmarkData: bookmarkData,
+            options: [.withSecurityScope],
+            bookmarkDataIsStale: &isStale
+        )
+    }
+
+    private static func thumbnailDirectory() -> URL {
+        let applicationSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        migrateLegacyThumbsIfNeeded(base: applicationSupport)
+
+        let directory = applicationSupport.appendingPathComponent("Inkognito/RecentsThumbs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
+    private static func migrateLegacyThumbsIfNeeded(base: URL) {
+        let fileManager = FileManager.default
+        let legacyDirectory = base.appendingPathComponent("HideMyData/RecentsThumbs", isDirectory: true)
+        let newParent = base.appendingPathComponent("Inkognito", isDirectory: true)
+        let newDirectory = newParent.appendingPathComponent("RecentsThumbs", isDirectory: true)
+
+        guard fileManager.fileExists(atPath: legacyDirectory.path),
+              !fileManager.fileExists(atPath: newDirectory.path) else { return }
+
+        try? fileManager.createDirectory(at: newParent, withIntermediateDirectories: true)
+        try? fileManager.moveItem(at: legacyDirectory, to: newDirectory)
+    }
+
+    private func deleteThumbnail(named filename: String) {
+        let fileURL = Self.thumbnailDirectory().appendingPathComponent(filename)
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    private func generateThumbnail(for url: URL, kind: RecentItem.Kind, destination: URL) -> Bool {
+        switch kind {
+        case .pdf:
+            return generatePDFThumbnail(for: url, destination: destination)
+        case .image:
+            return generateImageThumbnail(for: url, destination: destination)
+        }
+    }
+
+    private func generatePDFThumbnail(for url: URL, destination: URL) -> Bool {
+        guard let document = PDFDocument(url: url),
+              let page = document.page(at: 0) else { return false }
+
+        let pageBounds = page.bounds(for: .mediaBox)
+        let maxDimension: CGFloat = 320
+        let scale = maxDimension / max(pageBounds.width, pageBounds.height)
+        let width = Int(pageBounds.width * scale)
+        let height = Int(pageBounds.height * scale)
+
+        guard width > 0, height > 0 else { return false }
+
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return false }
+
+        context.setFillColor(NSColor.white.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: scale, y: scale)
+        page.draw(with: .mediaBox, to: context)
+
+        guard let image = context.makeImage() else { return false }
+        return savePNG(image, to: destination)
+    }
+
+    private func generateImageThumbnail(for url: URL, destination: URL) -> Bool {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceShouldCacheImmediately: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
             kCGImageSourceThumbnailMaxPixelSize: 320
         ]
-        guard let thumb = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return false }
-        return savePNG(thumb, to: path)
+
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return false
+        }
+
+        return savePNG(thumbnail, to: destination)
     }
 
-    private func savePNG(_ image: CGImage, to path: URL) -> Bool {
-        guard let dest = CGImageDestinationCreateWithURL(
-            path as CFURL, UTType.png.identifier as CFString, 1, nil
+    private func savePNG(_ image: CGImage, to destination: URL) -> Bool {
+        guard let imageDestination = CGImageDestinationCreateWithURL(
+            destination as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
         ) else { return false }
-        CGImageDestinationAddImage(dest, image, nil)
-        return CGImageDestinationFinalize(dest)
+
+        CGImageDestinationAddImage(imageDestination, image, nil)
+        return CGImageDestinationFinalize(imageDestination)
     }
 }

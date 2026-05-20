@@ -8,32 +8,49 @@ struct ContentView: View {
     @State private var customPatterns = CustomPatternStore()
     @State private var inputMode: InputMode = .pdf
 
-    @AppStorage("hasSeenIntro") private var hasSeenIntro: Bool = false
+    @AppStorage("hasSeenIntro") private var hasSeenIntro = false
 
     var body: some View {
-        Group {
-            if !hasSeenIntro {
-                IntroView(onContinue: { hasSeenIntro = true })
-            } else {
-                switch detector.phase {
-                case .needsDownload, .downloading, .failed:
-                    FirstRunView(detector: detector)
-                default:
-                    MainView(
-                        detector: detector,
-                        pdfRedactor: pdfRedactor,
-                        imageRedactor: imageRedactor,
-                        recents: recents,
-                        customPatterns: customPatterns,
-                        inputMode: $inputMode
-                    )
-                }
+        rootScreen
+            .frame(minWidth: 980, minHeight: 760)
+            .background(AmbientBackdrop())
+            .background(WindowGlassConfigurator())
+            .task {
+                await detector.loadIfCached()
             }
+    }
+
+    @ViewBuilder
+    private var rootScreen: some View {
+        if shouldShowIntro {
+            IntroView {
+                hasSeenIntro = true
+            }
+        } else if needsModelPreparation {
+            FirstRunView(detector: detector)
+        } else {
+            MainView(
+                detector: detector,
+                pdfRedactor: pdfRedactor,
+                imageRedactor: imageRedactor,
+                recents: recents,
+                customPatterns: customPatterns,
+                inputMode: $inputMode
+            )
         }
-        .frame(minWidth: 980, minHeight: 760)
-        .background(AmbientBackdrop())
-        .background(WindowGlassConfigurator())
-        .task { await detector.loadIfCached() }
+    }
+
+    private var shouldShowIntro: Bool {
+        !hasSeenIntro
+    }
+
+    private var needsModelPreparation: Bool {
+        switch detector.phase {
+        case .needsDownload, .downloading, .failed:
+            true
+        default:
+            false
+        }
     }
 }
 

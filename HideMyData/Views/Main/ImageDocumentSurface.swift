@@ -1,5 +1,5 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 struct ImageDocumentSurface: View {
     @Bindable var redactor: ImageRedactor
@@ -8,26 +8,17 @@ struct ImageDocumentSurface: View {
 
     var body: some View {
         if let image = redactor.image {
-            GeometryReader { geo in
-                let pixelSize = redactor.pixelSize
-                let scale = min(geo.size.width / pixelSize.width,
-                                geo.size.height / pixelSize.height,
-                                1.0)
-                let displaySize = CGSize(width: pixelSize.width * scale,
-                                         height: pixelSize.height * scale)
+            GeometryReader { geometry in
+                let layout = ImageSurfaceLayout(containerSize: geometry.size, pixelSize: redactor.pixelSize)
 
                 ZStack(alignment: .topLeading) {
-                    Image(decorative: image, scale: 1, orientation: .up)
-                        .resizable()
-                        .interpolation(.high)
-                        .frame(width: displaySize.width, height: displaySize.height)
+                    baseImage(image: image, displaySize: layout.displaySize)
+                    previewLayer(scale: layout.scale)
+                    redactionsLayer(image: image, scale: layout.scale, displaySize: layout.displaySize)
+                    focusOverlay(scale: layout.scale)
 
-                    previewLayer(scale: scale)
-                    redactionsLayer(image: image, scale: scale, displaySize: displaySize)
-                    focusOverlay(scale: scale)
-
-                    if redactor.editingMode == .add, let s = dragStart, let c = dragCurrent {
-                        DragPreview(start: s, end: c)
+                    if redactor.editingMode == .add, let dragStart, let dragCurrent {
+                        DragPreview(start: dragStart, end: dragCurrent)
                     }
 
                     if let notice = redactor.detectionNotice {
@@ -35,64 +26,22 @@ struct ImageDocumentSurface: View {
                             .padding(18)
                     }
                 }
-                .frame(width: displaySize.width, height: displaySize.height)
+                .frame(width: layout.displaySize.width, height: layout.displaySize.height)
                 .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 5, coordinateSpace: .local)
-                        .onChanged { value in
-                            guard redactor.editingMode == .add else { return }
-                            dragStart = value.startLocation
-                            dragCurrent = value.location
-                        }
-                        .onEnded { value in
-                            defer { dragStart = nil; dragCurrent = nil }
-                            guard redactor.editingMode == .add else { return }
-                            let r = displayRect(from: value.startLocation, to: value.location)
-                            let inImage = CGRect(
-                                x: r.minX / scale,
-                                y: r.minY / scale,
-                                width: r.width / scale,
-                                height: r.height / scale
-                            ).intersection(CGRect(origin: .zero, size: pixelSize))
-                            if inImage.width > 4 && inImage.height > 4 {
-                                redactor.addRedaction(rect: inImage)
-                            }
-                        }
-                )
-                .onTapGesture(coordinateSpace: .local) { loc in
-                    let p = CGPoint(x: loc.x / scale, y: loc.y / scale)
-                    switch redactor.editingMode {
-                    case .view:
-                        if let findingID = redactor.findingID(at: p) {
-                            redactor.selectFinding(findingID)
-                        }
-                    case .remove:
-                        if let idx = redactor.redactionRects.firstIndex(where: { $0.contains(p) }) {
-                            redactor.removeRedaction(at: idx)
-                        }
-                    case .add:
-                        break
-                    }
+                .gesture(addGesture(scale: layout.scale, pixelSize: redactor.pixelSize))
+                .onTapGesture(coordinateSpace: .local) { location in
+                    handleTap(at: location, scale: layout.scale)
                 }
                 .onContinuousHover(coordinateSpace: .local) { phase in
-                    switch phase {
-                    case .active:
-                        switch redactor.editingMode {
-                        case .view: NSCursor.arrow.set()
-                        case .add: NSCursor.crosshair.set()
-                        case .remove: NSCursor.disappearingItem.set()
-                        }
-                    case .ended:
-                        NSCursor.arrow.set()
-                    }
+                    updateCursor(for: phase)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipShape(.rect(cornerRadius: 18))
                 .background(.white.opacity(0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .strokeBorder(.white.opacity(0.38), lineWidth: 1)
-                )
+                }
                 .shadow(color: .black.opacity(0.08), radius: 20, y: 8)
             }
             .padding(.horizontal, 24)
@@ -101,19 +50,89 @@ struct ImageDocumentSurface: View {
         }
     }
 
+    private func baseImage(image: CGImage, displaySize: CGSize) -> some View {
+        Image(decorative: image, scale: 1, orientation: .up)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: displaySize.width, height: displaySize.height)
+    }
+
+    private func addGesture(scale: CGFloat, pixelSize: CGSize) -> some Gesture {
+        DragGesture(minimumDistance: 5, coordinateSpace: .local)
+            .onChanged { value in
+                guard redactor.editingMode == .add else { return }
+                dragStart = value.startLocation
+                dragCurrent = value.location
+            }
+            .onEnded { value in
+                defer {
+                    dragStart = nil
+                    dragCurrent = nil
+                }
+
+                guard redactor.editingMode == .add else { return }
+
+                let displayRect = rectBetween(value.startLocation, value.location)
+                let imageRect = CGRect(
+                    x: displayRect.minX / scale,
+                    y: displayRect.minY / scale,
+                    width: displayRect.width / scale,
+                    height: displayRect.height / scale
+                ).intersection(CGRect(origin: .zero, size: pixelSize))
+
+                if imageRect.width > 4, imageRect.height > 4 {
+                    redactor.addRedaction(rect: imageRect)
+                }
+            }
+    }
+
+    private func handleTap(at location: CGPoint, scale: CGFloat) {
+        let pixelPoint = CGPoint(x: location.x / scale, y: location.y / scale)
+
+        switch redactor.editingMode {
+        case .view:
+            if let findingID = redactor.findingID(at: pixelPoint) {
+                redactor.selectFinding(findingID)
+            }
+        case .remove:
+            if let index = redactor.redactionRects.firstIndex(where: { $0.contains(pixelPoint) }) {
+                redactor.removeRedaction(at: index)
+            }
+        case .add:
+            break
+        }
+    }
+
+    private func updateCursor(for phase: HoverPhase) {
+        switch phase {
+        case .active:
+            switch redactor.editingMode {
+            case .view:
+                NSCursor.arrow.set()
+            case .add:
+                NSCursor.crosshair.set()
+            case .remove:
+                NSCursor.disappearingItem.set()
+            }
+        case .ended:
+            NSCursor.arrow.set()
+        }
+    }
+
     @ViewBuilder
     private func previewLayer(scale: CGFloat) -> some View {
         ForEach(Array(redactor.previewRectEntries.enumerated()), id: \.offset) { _, entry in
-            let scaled = scaledRect(entry.rect, scale: scale)
+            let scaledRect = scaledRect(entry.rect, scale: scale)
             let accent = Color(nsColor: redactor.findingColor(for: entry.findingID))
+
             ZStack {
                 Rectangle()
                     .fill(accent.opacity(0.18))
                 Rectangle()
                     .strokeBorder(accent.opacity(0.88), lineWidth: 2)
             }
-            .frame(width: scaled.width, height: scaled.height)
-            .offset(x: scaled.minX, y: scaled.minY)
+            .frame(width: scaledRect.width, height: scaledRect.height)
+            .offset(x: scaledRect.minX, y: scaledRect.minY)
         }
     }
 
@@ -122,12 +141,13 @@ struct ImageDocumentSurface: View {
         switch redactor.redactionStyle {
         case .blackRectangle:
             ForEach(Array(redactor.redactionRects.enumerated()), id: \.offset) { _, rect in
-                let scaled = scaledRect(rect, scale: scale)
+                let scaledRect = scaledRect(rect, scale: scale)
                 Rectangle()
                     .fill(Color.black)
-                    .frame(width: scaled.width, height: scaled.height)
-                    .offset(x: scaled.minX, y: scaled.minY)
+                    .frame(width: scaledRect.width, height: scaledRect.height)
+                    .offset(x: scaledRect.minX, y: scaledRect.minY)
             }
+
         case .blur:
             Image(decorative: image, scale: 1, orientation: .up)
                 .resizable()
@@ -137,10 +157,10 @@ struct ImageDocumentSurface: View {
                 .mask(alignment: .topLeading) {
                     ZStack(alignment: .topLeading) {
                         ForEach(Array(redactor.redactionRects.enumerated()), id: \.offset) { _, rect in
-                            let scaled = scaledRect(rect, scale: scale)
+                            let scaledRect = scaledRect(rect, scale: scale)
                             Rectangle()
-                                .frame(width: scaled.width, height: scaled.height)
-                                .offset(x: scaled.minX, y: scaled.minY)
+                                .frame(width: scaledRect.width, height: scaledRect.height)
+                                .offset(x: scaledRect.minX, y: scaledRect.minY)
                         }
                     }
                     .frame(width: displaySize.width, height: displaySize.height, alignment: .topLeading)
@@ -150,13 +170,16 @@ struct ImageDocumentSurface: View {
 
     @ViewBuilder
     private func focusOverlay(scale: CGFloat) -> some View {
-        if let focused = redactor.focusedFindingID {
-            ForEach(Array(redactor.findingRects(for: focused).enumerated()), id: \.offset) { _, rect in
-                let scaled = scaledRect(rect, scale: scale)
+        if let focusedFindingID = redactor.focusedFindingID {
+            ForEach(Array(redactor.findingRects(for: focusedFindingID).enumerated()), id: \.offset) { _, rect in
+                let scaledRect = scaledRect(rect, scale: scale)
                 Rectangle()
-                    .strokeBorder(Color(nsColor: redactor.findingColor(for: focused)).opacity(0.95), lineWidth: 2.4)
-                    .frame(width: scaled.width, height: scaled.height)
-                    .offset(x: scaled.minX, y: scaled.minY)
+                    .strokeBorder(
+                        Color(nsColor: redactor.findingColor(for: focusedFindingID)).opacity(0.95),
+                        lineWidth: 2.4
+                    )
+                    .frame(width: scaledRect.width, height: scaledRect.height)
+                    .offset(x: scaledRect.minX, y: scaledRect.minY)
             }
         }
     }
@@ -170,7 +193,7 @@ struct ImageDocumentSurface: View {
         )
     }
 
-    private func displayRect(from start: CGPoint, to end: CGPoint) -> CGRect {
+    private func rectBetween(_ start: CGPoint, _ end: CGPoint) -> CGRect {
         CGRect(
             x: min(start.x, end.x),
             y: min(start.y, end.y),
@@ -178,7 +201,21 @@ struct ImageDocumentSurface: View {
             height: abs(end.y - start.y)
         )
     }
+}
 
+private struct ImageSurfaceLayout {
+    let scale: CGFloat
+    let displaySize: CGSize
+
+    init(containerSize: CGSize, pixelSize: CGSize) {
+        let scale = min(
+            containerSize.width / pixelSize.width,
+            containerSize.height / pixelSize.height,
+            1.0
+        )
+        self.scale = scale
+        self.displaySize = CGSize(width: pixelSize.width * scale, height: pixelSize.height * scale)
+    }
 }
 
 private struct DragPreview: View {
@@ -186,16 +223,20 @@ private struct DragPreview: View {
     let end: CGPoint
 
     var body: some View {
-        let r = CGRect(
+        let rect = CGRect(
             x: min(start.x, end.x),
             y: min(start.y, end.y),
             width: abs(end.x - start.x),
             height: abs(end.y - start.y)
         )
+
         Rectangle()
-            .strokeBorder(FindingVisualSemantics.previewStrokeColor(for: FindingVisualSemantics.manualPreviewCategory), lineWidth: 1.5)
+            .strokeBorder(
+                FindingVisualSemantics.previewStrokeColor(for: FindingVisualSemantics.manualPreviewCategory),
+                lineWidth: 1.5
+            )
             .background(FindingVisualSemantics.previewFillColor(for: FindingVisualSemantics.manualPreviewCategory))
-            .frame(width: r.width, height: r.height)
-            .offset(x: r.minX, y: r.minY)
+            .frame(width: rect.width, height: rect.height)
+            .offset(x: rect.minX, y: rect.minY)
     }
 }

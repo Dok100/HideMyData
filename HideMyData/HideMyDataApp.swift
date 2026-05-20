@@ -103,6 +103,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct AppSettingsView: View {
     @AppStorage(AppPreferencesKeys.appearanceMode) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
     @AppStorage(AppPreferencesKeys.recentsEnabled) private var recentsEnabled = true
+    @State private var cleanupStatusMessage: String?
+    @State private var isCleaningUpModelVersions = false
 
     private var selectedAppearance: Binding<AppAppearanceMode> {
         Binding(
@@ -136,10 +138,77 @@ struct AppSettingsView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Modellspeicher") {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Alte Modellversionen entfernen")
+                            .font(.body.weight(.medium))
+                        Text(modelCleanupDescription)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 16)
+
+                    Button {
+                        removeLegacyModelVersions()
+                    } label: {
+                        if isCleaningUpModelVersions {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Bereinigen")
+                        }
+                    }
+                    .disabled(isCleaningUpModelVersions || legacyModelVersionCount == 0)
+                }
+
+                if let cleanupStatusMessage {
+                    Text(cleanupStatusMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .padding(20)
         .frame(width: 460)
+    }
+
+    private var legacyModelVersionCount: Int {
+        PIIDetector.legacyModelVersionCount()
+    }
+
+    private var modelCleanupDescription: String {
+        if legacyModelVersionCount == 0 {
+            return "Aktuell liegt nur die verwendete Modellversion lokal vor."
+        }
+
+        if legacyModelVersionCount == 1 {
+            return "Eine ältere lokal gespeicherte Modellversion kann entfernt werden. Die aktuelle Version bleibt erhalten."
+        }
+
+        return "\(legacyModelVersionCount) ältere lokal gespeicherte Modellversionen können entfernt werden. Die aktuelle Version bleibt erhalten."
+    }
+
+    private func removeLegacyModelVersions() {
+        isCleaningUpModelVersions = true
+        defer { isCleaningUpModelVersions = false }
+
+        do {
+            let removed = try PIIDetector.cleanupLegacyModelVersions()
+
+            if removed == 0 {
+                cleanupStatusMessage = "Es waren keine älteren Modellversionen zum Entfernen vorhanden."
+            } else if removed == 1 {
+                cleanupStatusMessage = "Eine ältere Modellversion wurde entfernt."
+            } else {
+                cleanupStatusMessage = "\(removed) ältere Modellversionen wurden entfernt."
+            }
+        } catch {
+            cleanupStatusMessage = "Die Bereinigung konnte nicht abgeschlossen werden. Details: \(error.localizedDescription)"
+        }
     }
 }
 

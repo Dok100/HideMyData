@@ -812,26 +812,49 @@ final class PIIDetector {
     static let modelRepoID = "OpenMed/privacy-filter-mlx-8bit"
     static let modelRevision = "4c9836d"
     static let modelURL = URL(string: "https://huggingface.co/\(modelRepoID)/tree/\(modelRevision)")!
+    private static let modelCacheSchemaVersion = "v2"
 
     private static func defaultCacheRoot() -> URL {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        migrateLegacyCacheIfNeeded(base: support)
-        return support
+        let cacheBase = support
             .appendingPathComponent("Inkognito", isDirectory: true)
             .appendingPathComponent("ModelCache", isDirectory: true)
+        migrateLegacyCacheIfNeeded(base: support, cacheBase: cacheBase)
+        return cacheBase
+            .appendingPathComponent(modelCacheSchemaVersion, isDirectory: true)
     }
 
-    private static func migrateLegacyCacheIfNeeded(base: URL) {
+    private static func migrateLegacyCacheIfNeeded(base: URL, cacheBase: URL) {
         let fm = FileManager.default
         let legacyDir = base.appendingPathComponent("HideMyData/ModelCache", isDirectory: true)
-        let newParent = base.appendingPathComponent("Inkognito", isDirectory: true)
-        let newDir = newParent.appendingPathComponent("ModelCache", isDirectory: true)
+        let versionedDir = cacheBase.appendingPathComponent(modelCacheSchemaVersion, isDirectory: true)
 
         guard fm.fileExists(atPath: legacyDir.path),
-              !fm.fileExists(atPath: newDir.path) else { return }
+              !fm.fileExists(atPath: cacheBase.path),
+              !fm.fileExists(atPath: versionedDir.path) else {
+            migrateSchemaCacheIfNeeded(cacheBase: cacheBase, versionedDir: versionedDir)
+            return
+        }
+        try? fm.createDirectory(at: cacheBase.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? fm.moveItem(at: legacyDir, to: cacheBase)
+        migrateSchemaCacheIfNeeded(cacheBase: cacheBase, versionedDir: versionedDir)
+    }
 
-        try? fm.createDirectory(at: newParent, withIntermediateDirectories: true)
-        try? fm.moveItem(at: legacyDir, to: newDir)
+    private static func migrateSchemaCacheIfNeeded(cacheBase: URL, versionedDir: URL) {
+        let fm = FileManager.default
+
+        guard fm.fileExists(atPath: cacheBase.path),
+              !fm.fileExists(atPath: versionedDir.path) else { return }
+
+        try? fm.createDirectory(at: versionedDir, withIntermediateDirectories: true)
+
+        guard let contents = try? fm.contentsOfDirectory(at: cacheBase, includingPropertiesForKeys: nil) else { return }
+
+        for item in contents where item.lastPathComponent != modelCacheSchemaVersion {
+            let destination = versionedDir.appendingPathComponent(item.lastPathComponent, isDirectory: true)
+            guard !fm.fileExists(atPath: destination.path) else { continue }
+            try? fm.moveItem(at: item, to: destination)
+        }
     }
 
     private static func modelDirectory(in cacheRoot: URL) -> URL {
@@ -842,6 +865,54 @@ final class PIIDetector {
 
     private static func readyMarkerURL(in cacheRoot: URL) -> URL {
         modelDirectory(in: cacheRoot).appendingPathComponent(".openmed-artifact-ready")
+    }
+
+    private static func sanitizedModelRepoComponent() -> String {
+        modelRepoID.replacingOccurrences(of: "/", with: "__")
+    }
+
+    static func cleanupLegacyModelVersions() throws -> Int {
+        let fm = FileManager.default
+        let repoRoot = defaultCacheRoot().appendingPathComponent(sanitizedModelRepoComponent(), isDirectory: true)
+
+        guard fm.fileExists(atPath: repoRoot.path) else { return 0 }
+
+        let revisions = try fm.contentsOfDirectory(
+            at: repoRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        var removedCount = 0
+        for revisionDir in revisions {
+            let values = try revisionDir.resourceValues(forKeys: [.isDirectoryKey])
+            guard values.isDirectory == true else { continue }
+            guard revisionDir.lastPathComponent != modelRevision else { continue }
+            try fm.removeItem(at: revisionDir)
+            removedCount += 1
+        }
+
+        return removedCount
+    }
+
+    static func legacyModelVersionCount() -> Int {
+        let fm = FileManager.default
+        let repoRoot = defaultCacheRoot().appendingPathComponent(sanitizedModelRepoComponent(), isDirectory: true)
+
+        guard let revisions = try? fm.contentsOfDirectory(
+            at: repoRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+
+        return revisions.reduce(into: 0) { count, url in
+            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
+                  values.isDirectory == true,
+                  url.lastPathComponent != modelRevision else { return }
+            count += 1
+        }
     }
 
     private var cacheRoot: URL { Self.defaultCacheRoot() }

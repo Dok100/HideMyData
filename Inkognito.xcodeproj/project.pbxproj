@@ -15,7 +15,15 @@
 		19BF714BC3F64EB78FEE35FC /* OCRContextAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19BF714AC3F64EB78FEE35FC /* OCRContextAnalyzer.swift */; };
 		1DB9E0B6D6144FF5A773D0A6 /* NativePDFContextAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DB9E0B5D6144FF5A773D0A6 /* NativePDFContextAnalyzer.swift */; };
 		1F8BA0D242B54516A444E4AF /* PDFTextContextSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F8BA0D142B54516A444E4AF /* PDFTextContextSupport.swift */; };
+		26F9E9D49774474B872B58DE /* ImageOCRSupplementalAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26F9E9D39774474B872B58DE /* ImageOCRSupplementalAnalyzer.swift */; };
+		E11C1F324D9A4BB0BF9D1267 /* ImagePreviewDiagnosticsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11C1F314D9A4BB0BF9D1267 /* ImagePreviewDiagnosticsSupport.swift */; };
+		E8C7F95632834F6984BCA9E1 /* PIIDetectorModelCacheSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8C7F95532834F6984BCA9E1 /* PIIDetectorModelCacheSupport.swift */; };
+		8843A2C63A0D4C3B90A71F93 /* PIIDetectorPlaceholderSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8843A2C53A0D4C3B90A71F93 /* PIIDetectorPlaceholderSupport.swift */; };
+		4F8CC86569B9489EA4E2902E /* PIIDetectorPatternDiagnosticsSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F8CC86469B9489EA4E2902E /* PIIDetectorPatternDiagnosticsSupport.swift */; };
+		A6B1D38B88A04B59A1AC0F3E /* PIIDetectorSpanSanitizationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6B1D38A88A04B59A1AC0F3E /* PIIDetectorSpanSanitizationSupport.swift */; };
+		C42DCE5204814F5BAA3DEACD /* PIIDetectorSupplementalClipboardSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42DCE5104814F5BAA3DEACD /* PIIDetectorSupplementalClipboardSupport.swift */; };
 		27F3BE4AE3D44285B977683A /* PDFTextRectResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27F3BE49E3D44285B977683A /* PDFTextRectResolver.swift */; };
+		2A27057D4F0245A7BCFDB7F5 /* PDFHeaderSuppressionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A27057C4F0245A7BCFDB7F5 /* PDFHeaderSuppressionSupport.swift */; };
 		1A9AC8A4B9719BF4C6907CA8 /* InputTabSegmented.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED509B4A7F683F1ABDA9141A /* InputTabSegmented.swift */; };
 		1BA6D8765C8A41EBA4E43612 /* DocumentTextHeuristics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA6D8755C8A41EBA4E43612 /* DocumentTextHeuristics.swift */; };
 		20A1B55D0E84D7B0A1D14F01 /* EditingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20A1B55C0E84D7B0A1D14F01 /* EditingMode.swift */; };
@@ -67,7 +75,15 @@
 		19BF714AC3F64EB78FEE35FC /* OCRContextAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRContextAnalyzer.swift; sourceTree = "<group>"; };
 		1DB9E0B5D6144FF5A773D0A6 /* NativePDFContextAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativePDFContextAnalyzer.swift; sourceTree = "<group>"; };
 		1F8BA0D142B54516A444E4AF /* PDFTextContextSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFTextContextSupport.swift; sourceTree = "<group>"; };
+		26F9E9D39774474B872B58DE /* ImageOCRSupplementalAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageOCRSupplementalAnalyzer.swift; sourceTree = "<group>"; };
+		E11C1F314D9A4BB0BF9D1267 /* ImagePreviewDiagnosticsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePreviewDiagnosticsSupport.swift; sourceTree = "<group>"; };
+		E8C7F95532834F6984BCA9E1 /* PIIDetectorModelCacheSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIIDetectorModelCacheSupport.swift; sourceTree = "<group>"; };
+		8843A2C53A0D4C3B90A71F93 /* PIIDetectorPlaceholderSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIIDetectorPlaceholderSupport.swift; sourceTree = "<group>"; };
+		4F8CC86469B9489EA4E2902E /* PIIDetectorPatternDiagnosticsSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIIDetectorPatternDiagnosticsSupport.swift; sourceTree = "<group>"; };
+		A6B1D38A88A04B59A1AC0F3E /* PIIDetectorSpanSanitizationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIIDetectorSpanSanitizationSupport.swift; sourceTree = "<group>"; };
+		C42DCE5104814F5BAA3DEACD /* PIIDetectorSupplementalClipboardSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIIDetectorSupplementalClipboardSupport.swift; sourceTree = "<group>"; };
 		27F3BE49E3D44285B977683A /* PDFTextRectResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFTextRectResolver.swift; sourceTree = "<group>"; };
+		2A27057C4F0245A7BCFDB7F5 /* PDFHeaderSuppressionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PDFHeaderSuppressionSupport.swift; sourceTree = "<group>"; };
 		1AA1FC025034419BA2801F30 /* ImageDocumentSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageDocumentSurface.swift; sourceTree = "<group>"; };
 		20A1B55C0E84D7B0A1D14F01 /* EditingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditingMode.swift; sourceTree = "<group>"; };
 		252B40872BB8CAC016980CB3 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -190,6 +206,8 @@
 				E09D912BEB75B1C5145E3548 /* ExportOptions.swift */,
 				C8A76A95C746EA3B02F41B34 /* HideMyData.entitlements */,
 				7FD9BFDBDCC4E109D5B64106 /* HideMyDataApp.swift */,
+				26F9E9D39774474B872B58DE /* ImageOCRSupplementalAnalyzer.swift */,
+				E11C1F314D9A4BB0BF9D1267 /* ImagePreviewDiagnosticsSupport.swift */,
 				DEAC294E583A1CD61B3783D7 /* ImageRedactor.swift */,
 				90F9F75F8D210057CB761037 /* ModelDownloader.swift */,
 				1DB9E0B5D6144FF5A773D0A6 /* NativePDFContextAnalyzer.swift */,
@@ -200,10 +218,16 @@
 				AD0EE103BF3E1A344CDFAD04 /* PatternMatcher.swift */,
 				4E53332C7DAD6261578813D1 /* patterns.json */,
 				5E3294B05CF992F5592F0190 /* PDFKitView.swift */,
+				2A27057C4F0245A7BCFDB7F5 /* PDFHeaderSuppressionSupport.swift */,
 				3869EEB40A00C03732A0D344 /* PDFRedactor.swift */,
 				1F8BA0D142B54516A444E4AF /* PDFTextContextSupport.swift */,
 				27F3BE49E3D44285B977683A /* PDFTextRectResolver.swift */,
 				5682A395E7604FC095E7FB84 /* PIIDetector.swift */,
+				E8C7F95532834F6984BCA9E1 /* PIIDetectorModelCacheSupport.swift */,
+				4F8CC86469B9489EA4E2902E /* PIIDetectorPatternDiagnosticsSupport.swift */,
+				8843A2C53A0D4C3B90A71F93 /* PIIDetectorPlaceholderSupport.swift */,
+				A6B1D38A88A04B59A1AC0F3E /* PIIDetectorSpanSanitizationSupport.swift */,
+				C42DCE5104814F5BAA3DEACD /* PIIDetectorSupplementalClipboardSupport.swift */,
 				8D91AF0D1A5C4A0AA819A0D4 /* RedactionRendering.swift */,
 				08435884DD0FB255AC929867 /* RecentsStore.swift */,
 				405F6E1491A99DCC488D7F1F /* Models */,
@@ -330,9 +354,17 @@
 				1BA6D8765C8A41EBA4E43612 /* DocumentTextHeuristics.swift in Sources */,
 				FB315673A56F0632AA65524C /* DocumentSurface.swift in Sources */,
 				1DB9E0B6D6144FF5A773D0A6 /* NativePDFContextAnalyzer.swift in Sources */,
+				26F9E9D49774474B872B58DE /* ImageOCRSupplementalAnalyzer.swift in Sources */,
+				E11C1F324D9A4BB0BF9D1267 /* ImagePreviewDiagnosticsSupport.swift in Sources */,
 				19BF714BC3F64EB78FEE35FC /* OCRContextAnalyzer.swift in Sources */,
+				E8C7F95632834F6984BCA9E1 /* PIIDetectorModelCacheSupport.swift in Sources */,
+				4F8CC86569B9489EA4E2902E /* PIIDetectorPatternDiagnosticsSupport.swift in Sources */,
+				8843A2C63A0D4C3B90A71F93 /* PIIDetectorPlaceholderSupport.swift in Sources */,
+				A6B1D38B88A04B59A1AC0F3E /* PIIDetectorSpanSanitizationSupport.swift in Sources */,
+				C42DCE5204814F5BAA3DEACD /* PIIDetectorSupplementalClipboardSupport.swift in Sources */,
 				1F8BA0D242B54516A444E4AF /* PDFTextContextSupport.swift in Sources */,
 				27F3BE4AE3D44285B977683A /* PDFTextRectResolver.swift in Sources */,
+				2A27057D4F0245A7BCFDB7F5 /* PDFHeaderSuppressionSupport.swift in Sources */,
 				16B5B5D0EF6A41ED98BB4472 /* OCRRecipientHeuristics.swift in Sources */,
 				20A1B55D0E84D7B0A1D14F01 /* EditingMode.swift in Sources */,
 				2B7F3622FB1689F1668387AE /* EditingMode+UI.swift in Sources */,

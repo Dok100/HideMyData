@@ -13,11 +13,6 @@ final class ImageRedactor {
         case failure(String)
     }
 
-    private struct SupplementalOCRCandidate {
-        let span: DetectedSpan
-        let rects: [CGRect]
-    }
-
     private struct RedactionEntry {
         let rect: CGRect
         let findingID: UUID?
@@ -245,7 +240,7 @@ final class ImageRedactor {
                             source: span.source,
                             confidence: span.confidence,
                             pageIndex: nil,
-                            rects: supplementalCandidate.rects
+                            rects: supplementalCandidate.normalizedRects.map(pixelRect(fromNormalized:))
                         )
                     )
                     continue
@@ -301,160 +296,14 @@ final class ImageRedactor {
         }
     }
 
-    private func supplementalOCRContextAnalysis(in page: OCRPage, modelInput: String) -> (candidates: [SupplementalOCRCandidate], diagnostics: [String]) {
-        var candidates: [SupplementalOCRCandidate] = []
-        var diagnostics: [String] = []
-        let lines = page.lines.map(\.text)
-
-        func appendCandidate(lineIndex: Int, category: String) {
-            guard let span = page.lineSpan(at: lineIndex, category: category),
-                  let normalizedRect = page.normalizedLineBox(at: lineIndex)
-            else { return }
-
-            candidates.append(
-                SupplementalOCRCandidate(
-                    span: span,
-                    rects: [pixelRect(fromNormalized: normalizedRect)]
-                )
-            )
-        }
-
-        func appendCandidate(lineIndex: Int, matchedText: String, category: String) {
-            guard let match = page.lineMatch(at: lineIndex, matchedText: matchedText, category: category) else { return }
-            candidates.append(
-                SupplementalOCRCandidate(
-                    span: match.span,
-                    rects: [pixelRect(fromNormalized: match.rect)]
-                )
-            )
-        }
-
-        func appendRecipientBlock(nameIndex: Int, sourceLabel: String) {
-            guard let recipientCandidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
-                in: lines,
-                nameIndex: nameIndex,
-                allowDotsInCityTokens: false
-            ) else { return }
-
-            let cleanedName = page.lines[nameIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let streetIndices = recipientCandidates
-                .filter { $0.category == "private_address" }
-                .dropLast()
-                .map(\.lineIndex)
-            let postalCityIndex = recipientCandidates.last?.lineIndex ?? nameIndex
-            diagnostics.append(
-                "Supplemental OCR hit: \(sourceLabel) at line \(nameIndex) -> '\(cleanedName)' | streets='\(streetIndices.map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " | "))' | city='\(page.lines[postalCityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines))'"
-            )
-            for candidate in recipientCandidates {
-                appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
-            }
-        }
-
-        func appendLabeledFormAddressBlock(startingAt index: Int) {
-            var labelLineIndices: [Int] = []
-            var cursor = index
-            while cursor < lines.count,
-                  DocumentTextHeuristics.standaloneFieldLabelKey(in: lines[cursor]) != nil {
-                labelLineIndices.append(cursor)
-                cursor += 1
-            }
-            let labelSummary = labelLineIndices.map { page.lines[$0].text }.joined(separator: " | ")
-            diagnostics.append("Supplemental OCR hit: labeled form block at line \(index) -> '\(labelSummary)'")
-            for candidate in OCRContextAnalyzer.labeledFormAddressCandidates(in: lines, startingAt: index) {
-                appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
-            }
-        }
-
-        diagnostics.append("Supplemental OCR candidates: start")
-        for (index, line) in page.lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { continue }
-
-            if cleaned.localizedCaseInsensitiveContains("Lieferadresse:") ||
-                cleaned.localizedCaseInsensitiveContains("Lieferanschrift:") {
-                diagnostics.append("Supplemental OCR hit: delivery-address block at line \(index) -> '\(cleaned)'")
-                for candidate in OCRContextAnalyzer.labeledAddressBlockCandidates(
-                    in: lines,
-                    startingAt: index,
-                    allowDotsInCityTokens: false
-                ) {
-                    appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
-                }
-                continue
-            }
-
-            if OCRContextAnalyzer.looksLikeLabeledFormBlockStart(cleaned),
-               index == 0 || DocumentTextHeuristics.standaloneFieldLabelKey(in: lines[index - 1]) == nil {
-                appendLabeledFormAddressBlock(startingAt: index)
-                continue
-            }
-
-            if let salutationName = DocumentTextHeuristics.salutationPersonName(in: cleaned) {
-                diagnostics.append("Supplemental OCR hit: salutation at line \(index) -> '\(salutationName)'")
-                appendCandidate(lineIndex: index, matchedText: salutationName, category: "private_person")
-                continue
-            }
-
-            let looksLikeRecipientName = DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned)
-            guard looksLikeRecipientName else { continue }
-
-            let hasHeaderContext = OCRRecipientHeuristics.hasNearbyOrganizationHeader(
-                in: lines,
-                before: index
-            )
-            guard hasHeaderContext else { continue }
-            appendRecipientBlock(nameIndex: index, sourceLabel: "window recipient block")
-        }
-
-        let rawPatternSpans = PatternMatcher.detectWithDiagnostics(modelInput).spans
-        for span in rawPatternSpans {
-            guard span.category == "custom_identifier",
-                  span.confidence >= 0.95,
-                  DocumentTextHeuristics.strongCustomIdentifierText(span.text),
-                  let lineIndex = page.lineIndex(containing: span.start)
-            else { continue }
-
-            guard lineIndex < 12,
-                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: lineIndex)
-            else { continue }
-
-            appendRecipientBlock(nameIndex: lineIndex, sourceLabel: "custom recipient fallback")
-        }
-
-        if !page.lines.isEmpty {
-            let topLines = page.lines.prefix(8).enumerated().map { offset, line in
-                let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return "\(offset): \(cleaned)"
-            }.joined(separator: " | ")
-            diagnostics.append("Supplemental OCR top lines: \(topLines)")
-        }
-
-        var unique: [String: SupplementalOCRCandidate] = [:]
-        var order: [String] = []
-        for candidate in candidates {
-            let span = candidate.span
-            let key = "\(span.category)::\(span.start)::\(span.end)::\(span.text)"
-            if unique[key] == nil {
-                order.append(key)
-                unique[key] = candidate
-            }
-        }
-        let deduplicated = order.compactMap { unique[$0] }
-        diagnostics.append("Supplemental OCR candidates: \(deduplicated.count)")
-        if deduplicated.isEmpty {
-            diagnostics.append("Supplemental OCR candidates detail: <none>")
-        } else {
-            let detail = deduplicated.map { candidate in
-                "[\(candidate.span.category)] \(candidate.span.text)"
-            }.joined(separator: " | ")
-            diagnostics.append("Supplemental OCR candidates detail: \(detail)")
-        }
-        return (deduplicated, diagnostics)
+    private func supplementalOCRContextAnalysis(in page: OCRPage, modelInput: String) -> (candidates: [ImageSupplementalOCRCandidate], diagnostics: [String]) {
+        ImageOCRSupplementalAnalyzer.analyze(page: page, modelInput: modelInput)
     }
 
-    private func restoreMissingSupplementalCandidates(_ candidates: [SupplementalOCRCandidate]) {
+    private func restoreMissingSupplementalCandidates(_ candidates: [ImageSupplementalOCRCandidate]) {
         for candidate in candidates {
-            let alreadyVisible = candidate.rects.contains { rect in
+            let pixelRects = candidate.normalizedRects.map(pixelRect(fromNormalized:))
+            let alreadyVisible = pixelRects.contains { rect in
                 isRectMostlyVisible(rect)
             }
             guard !alreadyVisible else { continue }
@@ -467,29 +316,24 @@ final class ImageRedactor {
                 pageIndex: nil
             )
             reviewFindings.append(finding)
-            for rect in candidate.rects {
+            for rect in pixelRects {
                 addPreview(rect: rect, findingID: finding.id)
             }
         }
     }
 
     private func restoreMissingWindowRecipientPrelude(in page: OCRPage) {
-        let lines = page.lines.map(\.text)
-        let recoveredCandidates = OCRContextAnalyzer.recoveredWindowRecipientPreludeCandidates(
-            in: lines,
-            searchLimit: 12,
-            allowDotsInCityTokens: false,
-            isLineVisible: { index in
-                guard let rect = page.normalizedLineBox(at: index).map(pixelRect(fromNormalized:)) else { return false }
-                return isRectMostlyVisible(rect)
+        let recoveredCandidates = ImageOCRSupplementalAnalyzer.recoveredWindowRecipientPreludeCandidates(
+            in: page,
+            isNormalizedRectVisible: { normalizedRect in
+                isRectMostlyVisible(pixelRect(fromNormalized: normalizedRect))
             }
         )
 
         for candidate in recoveredCandidates {
-            guard let rect = page.normalizedLineBox(at: candidate.lineIndex).map(pixelRect(fromNormalized:)),
-                  let span = page.lineSpan(at: candidate.lineIndex, category: candidate.category)
-            else { continue }
-            appendRecoveredPreview(span: span, rect: rect)
+            for rect in candidate.normalizedRects.map(pixelRect(fromNormalized:)) {
+                appendRecoveredPreview(span: candidate.span, rect: rect)
+            }
         }
     }
 
@@ -517,43 +361,12 @@ final class ImageRedactor {
     }
 
     private func makePreviewDiagnostics(in page: OCRPage) -> [String] {
-        var lines: [String] = []
-        lines.append("Preview candidates: \(reviewFindings.count)")
-        lines.append("Preview rects: \(previewEntries.count)")
-
-        if reviewFindings.isEmpty {
-            lines.append("Preview detail: <none>")
-            return lines
-        }
-
-        for finding in reviewFindings {
-            let rects = previewEntries.filter { $0.findingID == finding.id }.map(\.rect)
-            let rectSummary = rects.enumerated().map { index, rect in
-                "\(index): x=\(Int(rect.minX)) y=\(Int(rect.minY)) w=\(Int(rect.width)) h=\(Int(rect.height))"
-            }.joined(separator: " | ")
-
-            let matchedLineIndices = page.lines.enumerated().compactMap { index, line -> Int? in
-                guard let normalizedRect = page.normalizedLineBox(at: index) else { return nil }
-                let lineRect = pixelRect(fromNormalized: normalizedRect)
-                return rects.contains(where: { rect in
-                    let overlap = rect.intersection(lineRect)
-                    guard !overlap.isNull else { return false }
-                    let lineArea = max(lineRect.width * lineRect.height, 1)
-                    return (overlap.width * overlap.height) / lineArea >= 0.4
-                }) ? index : nil
-            }
-
-            let lineSummary = matchedLineIndices.map { index in
-                "\(index): \(page.lines[index].text)"
-            }.joined(separator: " | ")
-
-            lines.append("[\(finding.category)] \(finding.snippet)")
-            lines.append("  Source: \(finding.source.label) · \(Int(finding.confidence * 100))%")
-            lines.append("  Rects: \(rectSummary.isEmpty ? "<none>" : rectSummary)")
-            lines.append("  OCR lines: \(lineSummary.isEmpty ? "<none>" : lineSummary)")
-        }
-
-        return lines
+        ImagePreviewDiagnosticsSupport.lines(
+            for: reviewFindings,
+            previewRectEntries: previewRectEntries,
+            page: page,
+            pixelRectFromNormalized: pixelRect(fromNormalized:)
+        )
     }
 
     func clearRedactions() {

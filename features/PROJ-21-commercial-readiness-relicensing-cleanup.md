@@ -117,6 +117,15 @@ Technische Altbausteine kontrolliert neu aufsetzen, ohne das Produktversprechen 
 Ziel:
 Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Altblöcke mehr auf Drittautor-Beiträgen beruhen.
 
+Aktueller Fortschritt in Phase 4:
+- PDF-spezifische Header-/Absenderblock-Unterdrückung ist in `HideMyData/PDFHeaderSuppressionSupport.swift` ausgelagert
+- bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
+- Bild-Preview-Diagnostik ist in `HideMyData/ImagePreviewDiagnosticsSupport.swift` ausgelagert
+- Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorModelCacheSupport.swift` und `HideMyData/PIIDetectorPlaceholderSupport.swift` verschoben
+- sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert
+- der größere Span-Sanitizing-/Suppression-Block aus `PIIDetector.swift` liegt jetzt in `HideMyData/PIIDetectorSpanSanitizationSupport.swift`
+- Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorSupplementalClipboardSupport.swift`
+
 ## Bekannte Ausgangslage
 
 - sehr geringer Altanteil:
@@ -154,3 +163,4 @@ Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Al
 - Der verbleibende native PDF-Kontextblock fuer Empfaenger-, Kontakt- und Adressmuster wurde ebenfalls entkoppelt und liegt jetzt in `NativePDFContextAnalyzer.swift` statt direkt in `PDFRedactor`.
 - Die kleineren PDF-Textkontext-Helfer fuer Recipient-Marker und Label-Kontextlinien liegen nun zusaetzlich in `PDFTextContextSupport.swift`, sodass `PDFRedactor` an diesen Stellen nur noch Rects aus PDFKit ableitet.
 - Auch die reine PDF-Textsuche und Rect-Aufloesung fuer Treffer-Fallbacks liegt jetzt separat in `PDFTextRectResolver.swift` statt weiterhin direkt in `PDFRedactor`.
+- Die PDF-spezifische Header-/Senderblock-Suppression fuer Fehlmarkierungen liegt nun ebenfalls in `PDFHeaderSuppressionSupport.swift`, sodass `PDFRedactor` diese Regeln nicht mehr selbst traegt.

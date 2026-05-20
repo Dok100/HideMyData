@@ -815,104 +815,43 @@ final class PIIDetector {
     private static let modelCacheSchemaVersion = "v2"
 
     private static func defaultCacheRoot() -> URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let cacheBase = support
-            .appendingPathComponent("Inkognito", isDirectory: true)
-            .appendingPathComponent("ModelCache", isDirectory: true)
-        migrateLegacyCacheIfNeeded(base: support, cacheBase: cacheBase)
-        return cacheBase
-            .appendingPathComponent(modelCacheSchemaVersion, isDirectory: true)
-    }
-
-    private static func migrateLegacyCacheIfNeeded(base: URL, cacheBase: URL) {
-        let fm = FileManager.default
-        let legacyDir = base.appendingPathComponent("HideMyData/ModelCache", isDirectory: true)
-        let versionedDir = cacheBase.appendingPathComponent(modelCacheSchemaVersion, isDirectory: true)
-
-        guard fm.fileExists(atPath: legacyDir.path),
-              !fm.fileExists(atPath: cacheBase.path),
-              !fm.fileExists(atPath: versionedDir.path) else {
-            migrateSchemaCacheIfNeeded(cacheBase: cacheBase, versionedDir: versionedDir)
-            return
-        }
-        try? fm.createDirectory(at: cacheBase.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? fm.moveItem(at: legacyDir, to: cacheBase)
-        migrateSchemaCacheIfNeeded(cacheBase: cacheBase, versionedDir: versionedDir)
-    }
-
-    private static func migrateSchemaCacheIfNeeded(cacheBase: URL, versionedDir: URL) {
-        let fm = FileManager.default
-
-        guard fm.fileExists(atPath: cacheBase.path),
-              !fm.fileExists(atPath: versionedDir.path) else { return }
-
-        try? fm.createDirectory(at: versionedDir, withIntermediateDirectories: true)
-
-        guard let contents = try? fm.contentsOfDirectory(at: cacheBase, includingPropertiesForKeys: nil) else { return }
-
-        for item in contents where item.lastPathComponent != modelCacheSchemaVersion {
-            let destination = versionedDir.appendingPathComponent(item.lastPathComponent, isDirectory: true)
-            guard !fm.fileExists(atPath: destination.path) else { continue }
-            try? fm.moveItem(at: item, to: destination)
-        }
+        PIIDetectorModelCacheSupport.defaultCacheRoot(schemaVersion: modelCacheSchemaVersion)
     }
 
     private static func modelDirectory(in cacheRoot: URL) -> URL {
-        cacheRoot
-            .appendingPathComponent(Self.modelRepoID.replacingOccurrences(of: "/", with: "__"), isDirectory: true)
-            .appendingPathComponent(Self.modelRevision, isDirectory: true)
+        PIIDetectorModelCacheSupport.modelDirectory(
+            in: cacheRoot,
+            modelRepoID: Self.modelRepoID,
+            modelRevision: Self.modelRevision
+        )
     }
 
     private static func readyMarkerURL(in cacheRoot: URL) -> URL {
-        modelDirectory(in: cacheRoot).appendingPathComponent(".openmed-artifact-ready")
+        PIIDetectorModelCacheSupport.readyMarkerURL(
+            in: cacheRoot,
+            modelRepoID: Self.modelRepoID,
+            modelRevision: Self.modelRevision
+        )
     }
 
     private static func sanitizedModelRepoComponent() -> String {
-        modelRepoID.replacingOccurrences(of: "/", with: "__")
+        PIIDetectorModelCacheSupport.sanitizedModelRepoComponent(modelRepoID)
     }
 
     static func cleanupLegacyModelVersions() throws -> Int {
-        let fm = FileManager.default
-        let repoRoot = defaultCacheRoot().appendingPathComponent(sanitizedModelRepoComponent(), isDirectory: true)
-
-        guard fm.fileExists(atPath: repoRoot.path) else { return 0 }
-
-        let revisions = try fm.contentsOfDirectory(
-            at: repoRoot,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
+        try PIIDetectorModelCacheSupport.cleanupLegacyModelVersions(
+            schemaVersion: modelCacheSchemaVersion,
+            modelRepoID: modelRepoID,
+            modelRevision: modelRevision
         )
-
-        var removedCount = 0
-        for revisionDir in revisions {
-            let values = try revisionDir.resourceValues(forKeys: [.isDirectoryKey])
-            guard values.isDirectory == true else { continue }
-            guard revisionDir.lastPathComponent != modelRevision else { continue }
-            try fm.removeItem(at: revisionDir)
-            removedCount += 1
-        }
-
-        return removedCount
     }
 
     static func legacyModelVersionCount() -> Int {
-        let fm = FileManager.default
-        let repoRoot = defaultCacheRoot().appendingPathComponent(sanitizedModelRepoComponent(), isDirectory: true)
-
-        guard let revisions = try? fm.contentsOfDirectory(
-            at: repoRoot,
-            includingPropertiesForKeys: [.isDirectoryKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return 0
-        }
-
-        return revisions.reduce(into: 0) { count, url in
-            guard let values = try? url.resourceValues(forKeys: [.isDirectoryKey]),
-                  values.isDirectory == true,
-                  url.lastPathComponent != modelRevision else { return }
-            count += 1
-        }
+        PIIDetectorModelCacheSupport.legacyModelVersionCount(
+            schemaVersion: modelCacheSchemaVersion,
+            modelRepoID: modelRepoID,
+            modelRevision: modelRevision
+        )
     }
 
     private var cacheRoot: URL { Self.defaultCacheRoot() }
@@ -943,12 +882,7 @@ final class PIIDetector {
     }
 
     private static func downloadStatus(downloaded: Int64, total: Int64) -> String {
-        let downloadedStr = downloaded.formatted(.byteCount(style: .file))
-        guard total > 0 else { return "Wird heruntergeladen… bisher \(downloadedStr)" }
-        let totalStr = total.formatted(.byteCount(style: .file))
-        let pct = (Double(downloaded) / Double(total))
-            .formatted(.percent.precision(.fractionLength(0)))
-        return "Wird heruntergeladen… \(downloadedStr) / \(totalStr) (\(pct))"
+        PIIDetectorModelCacheSupport.downloadStatus(downloaded: downloaded, total: total)
     }
 
     var isReady: Bool {
@@ -1090,7 +1024,7 @@ final class PIIDetector {
     nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
         let detection = PatternMatcher.detectWithDiagnostics(text)
         let postProcessed = postProcessSpans(detection.spans, in: text)
-        return patternDiagnosticsLines(
+        return PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
             detection.diagnostics,
             postProcessed: postProcessed,
             in: text
@@ -1104,64 +1038,7 @@ final class PIIDetector {
     }
 
     nonisolated static func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
-        let normalized = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        var scores: [DetectionDocumentClass: Int] = [
-            .invoice: 0,
-            .taxNotice: 0,
-            .contactBankPage: 0,
-            .standardizedForm: 0
-        ]
-
-        let invoiceMarkers = [
-            "rechnung", "rechnungsanschrift", "lieferanschrift", "lieferadresse",
-            "bestellt durch", "kundennummer", "vertragsnummer", "zahlernummer",
-            "zaehlernummer", "lieferstelle", "nutzungsadresse", "rechnungs-nr",
-            "rechnungsdatum", "lieferdatum", "gesamtbetrag brutto",
-            "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
-            "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
-            "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
-            "swift-code"
-        ]
-        let taxMarkers = [
-            "finanzamt", "steuerbescheid", "einkommensteuer", "kirchensteuer",
-            "solidaritatszuschlag", "steuernummer", "idnr", "bescheid"
-        ]
-        let contactBankMarkers = [
-            "iban", "bic", "kontoinhaber", "kontonummer", "girokonto",
-            "girokontonummer", "buchungskonto", "bankverbindung", "ansprechpartner",
-            "kontakt", "telefon", "mobil"
-        ]
-
-        for marker in invoiceMarkers where normalized.contains(marker) {
-            scores[.invoice, default: 0] += 2
-        }
-        for marker in taxMarkers where normalized.contains(marker) {
-            scores[.taxNotice, default: 0] += 2
-        }
-        for marker in contactBankMarkers where normalized.contains(marker) {
-            scores[.contactBankPage, default: 0] += 2
-        }
-
-        if normalized.contains("vorname"),
-           normalized.contains("name"),
-           normalized.contains("plz"),
-           normalized.contains("ort") {
-            scores[.standardizedForm, default: 0] += 4
-        }
-
-        if looksLikeStandaloneFieldSequence(in: text) {
-            scores[.standardizedForm, default: 0] += 5
-        }
-
-        let best = scores.max { lhs, rhs in
-            if lhs.value == rhs.value {
-                return lhs.key.rawValue > rhs.key.rawValue
-            }
-            return lhs.value < rhs.value
-        }
-
-        guard let best, best.value > 0 else { return .general }
-        return best.key
+        PIIDetectorSupplementalClipboardSupport.classifyDocumentText(text)
     }
 
     nonisolated private static func postProcessSpans(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
@@ -1174,1125 +1051,184 @@ final class PIIDetector {
         return suppressContainedCustomIdentifierSpans(withoutLegalBoilerplate)
     }
 
-    private struct ClipboardTextLine {
-        let text: String
-        let range: NSRange
-    }
-
     nonisolated private static func supplementalClipboardSpans(in text: String) -> [DetectedSpan] {
-        var spans: [DetectedSpan] = []
-        let lines = clipboardTextLines(in: text)
-        let documentClass = classifyDocumentText(text)
-        let addressLabels = addressBlockLabels(for: documentClass)
-        let personFieldLabels = personFieldLabels(for: documentClass)
-        let streetFieldLabels = streetFieldLabels(for: documentClass)
-        let houseNumberFieldLabels = houseNumberFieldLabels(for: documentClass)
-        let postalCodeFieldLabels = postalCodeFieldLabels(for: documentClass)
-        let cityFieldLabels = cityFieldLabels(for: documentClass)
-
-        func appendSpan(for line: ClipboardTextLine, category: String) {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { return }
-            spans.append(
-                DetectedSpan(
-                    category: category,
-                    text: cleaned,
-                    start: line.range.location,
-                    end: line.range.location + line.range.length,
-                    confidence: 0.99,
-                    source: .pattern
-                )
-            )
-        }
-
-        func appendStandaloneFieldValueBlock(startingAt index: Int) {
-            let fieldOrder = ["vorname", "name", "strasse", "hausnr", "plz", "ort"]
-            var labelKeys: [String] = []
-            var cursor = index
-
-            while cursor < lines.count,
-                  let key = standaloneFieldLabelKey(in: lines[cursor].text) {
-                labelKeys.append(key)
-                cursor += 1
-            }
-
-            let orderedKeys = fieldOrder.filter { labelKeys.contains($0) }
-            guard orderedKeys.count >= 3 else { return }
-
-            var valueLines: [ClipboardTextLine] = []
-            var scan = cursor
-            while scan < lines.count, valueLines.count < orderedKeys.count {
-                let cleaned = lines[scan].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                if cleaned.isEmpty {
-                    scan += 1
-                    continue
-                }
-                if standaloneFieldLabelKey(in: cleaned) != nil {
-                    break
-                }
-                valueLines.append(lines[scan])
-                scan += 1
-            }
-
-            for (pairIndex, key) in orderedKeys.enumerated() {
-                guard valueLines.indices.contains(pairIndex) else { continue }
-                let valueLine = valueLines[pairIndex]
-                switch key {
-                case "vorname", "name":
-                    appendSpan(for: valueLine, category: "private_person")
-                case "strasse", "hausnr", "plz", "ort":
-                    appendSpan(for: valueLine, category: "private_address")
-                default:
-                    break
-                }
-            }
-        }
-
-        if documentClass == .standardizedForm {
-            for (index, line) in lines.enumerated() {
-                let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty,
-                      looksLikeLabeledFormBlockStart(cleaned),
-                      (index == 0 || standaloneFieldLabelKey(in: lines[index - 1].text) == nil)
-                else { continue }
-                appendStandaloneFieldValueBlock(startingAt: index)
-            }
-        }
-
-        for (index, line) in lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard addressLabels.contains(where: { cleaned.localizedCaseInsensitiveContains($0) }) else { continue }
-
-            var previousComparable = ""
-            let searchEnd = min(lines.count, index + 8)
-            for nextIndex in (index + 1)..<searchEnd {
-                let nextLine = lines[nextIndex]
-                let nextCleaned = nextLine.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !nextCleaned.isEmpty else { continue }
-
-                let comparable = normalizedComparableText(nextCleaned)
-                if !comparable.isEmpty && comparable == previousComparable { continue }
-                previousComparable = comparable
-
-                if nextCleaned.compare("Deutschland", options: .caseInsensitive) == .orderedSame {
-                    break
-                }
-
-                if looksLikeHonorificOnlyLine(nextCleaned) || looksLikeNameishWord(nextCleaned) {
-                    appendSpan(for: nextLine, category: "private_person")
-                    continue
-                }
-
-                if looksLikeGermanStreetAddress(nextCleaned) ||
-                    looksLikeStreetNameOnlyLine(nextCleaned) ||
-                    looksLikeHouseNumberOnlyLine(nextCleaned) ||
-                    looksLikePostalCity(nextCleaned) {
-                    appendSpan(for: nextLine, category: "private_address")
-                    if looksLikePostalCity(nextCleaned) { break }
-                }
-            }
-        }
-
-        for (index, line) in lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let compactLabel = cleaned.replacingOccurrences(of: ":", with: "")
-
-            guard !compactLabel.isEmpty else { continue }
-            guard let valueLine = nextNonEmptyClipboardLine(after: index, in: lines) else { continue }
-
-            let value = valueLine.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty else { continue }
-
-            if personFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
-                if looksLikeHonorificOnlyLine(value) || looksLikeNameishWord(value) {
-                    appendSpan(for: valueLine, category: "private_person")
-                }
-                continue
-            }
-
-            if streetFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
-                if looksLikeGermanStreetAddress(value) || looksLikeStreetNameOnlyLine(value) {
-                    appendSpan(for: valueLine, category: "private_address")
-                }
-                continue
-            }
-
-            if houseNumberFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
-                if looksLikeHouseNumberOnlyLine(value) {
-                    appendSpan(for: valueLine, category: "private_address")
-                }
-                continue
-            }
-
-            if postalCodeFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
-                if looksLikePostalCodeOnlyLine(value) {
-                    appendSpan(for: valueLine, category: "private_address")
-                }
-                continue
-            }
-
-            if cityFieldLabels.contains(where: { compactLabel.localizedCaseInsensitiveContains($0) }) {
-                if looksLikeCityNameOnlyLine(value) {
-                    appendSpan(for: valueLine, category: "private_address")
-                }
-            }
-        }
-
-        spans.append(contentsOf: supplementalInlinePersonSpans(in: text))
-
-        return spans
+        PIIDetectorSupplementalClipboardSupport.supplementalClipboardSpans(in: text)
     }
 
     nonisolated private static func supplementalInlinePersonSpans(in text: String) -> [DetectedSpan] {
-        let inlinePatterns = [
-            #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
-            #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
-            #"\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?)\b"#
-        ]
-
-        var spans: [DetectedSpan] = []
-        var seenRanges: Set<String> = []
-
-        for pattern in inlinePatterns {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
-            let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
-
-            for match in regex.matches(in: text, options: [], range: nsRange) {
-                guard match.numberOfRanges > 1 else { continue }
-                let range = match.range(at: 1)
-                guard range.location != NSNotFound,
-                      let swiftRange = Range(range, in: text) else { continue }
-
-                let snippet = String(text[swiftRange]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
-                guard !snippet.isEmpty,
-                      !looksLikeOrganizationSnippet(snippet),
-                      !personSpanContainsAddressOrContactTail(snippet)
-                else { continue }
-
-                let key = "\(range.location):\(range.length):\(normalizedComparableText(snippet))"
-                guard seenRanges.insert(key).inserted else { continue }
-
-                spans.append(
-                    DetectedSpan(
-                        category: "private_person",
-                        text: snippet,
-                        start: range.location,
-                        end: range.location + range.length,
-                        confidence: 0.93,
-                        source: .pattern
-                    )
-                )
-            }
-        }
-
-        return spans
-    }
-
-    nonisolated private static func addressBlockLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .invoice:
-            return [
-                "Rechnungsanschrift", "Lieferanschrift", "Lieferadresse", "Rechnungsadresse",
-                "Postanschrift", "Korrespondenzanschrift", "Lieferstelle", "Nutzungsadresse",
-                "Objektanschrift"
-            ]
-        case .taxNotice:
-            return ["Postanschrift", "Korrespondenzanschrift", "Anschrift", "Steuerpflichtige Person"]
-        case .contactBankPage:
-            return ["Postanschrift", "Korrespondenzanschrift", "Objektanschrift", "Nutzungsadresse"]
-        case .standardizedForm:
-            return ["Postanschrift", "Korrespondenzanschrift", "Anschrift"]
-        case .general:
-            return ["Rechnungsanschrift", "Lieferanschrift", "Postanschrift", "Korrespondenzanschrift"]
-        }
-    }
-
-    nonisolated private static func personFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .invoice:
-            return ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kundin"]
-        case .taxNotice:
-            return ["Vorname", "Name", "Nachname", "Steuerpflichtige Person", "Steuerpflichtiger"]
-        case .contactBankPage:
-            return ["Vorname", "Name", "Nachname", "Kontoinhaber", "Versicherungsnehmer", "Darlehensnehmer", "Anschlussinhaber", "Ansprechpartner"]
-        case .standardizedForm:
-            return ["Vorname", "Name", "Nachname", "Kunde", "Kundin", "Kontoinhaber"]
-        case .general:
-            return ["Vorname", "Name", "Nachname", "Bestellt durch", "Kunde", "Kontoinhaber"]
-        }
-    }
-
-    nonisolated private static func streetFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
-            return ["Straße", "Strasse"]
-        }
-    }
-
-    nonisolated private static func houseNumberFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
-            return ["Hausnr", "Hausnummer"]
-        }
-    }
-
-    nonisolated private static func postalCodeFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
-            return ["PLZ", "Postleitzahl"]
-        }
-    }
-
-    nonisolated private static func cityFieldLabels(for documentClass: DetectionDocumentClass) -> [String] {
-        switch documentClass {
-        case .general, .invoice, .taxNotice, .contactBankPage, .standardizedForm:
-            return ["Ort", "Stadt"]
-        }
-    }
-
-    nonisolated private static func clipboardTextLines(in text: String) -> [ClipboardTextLine] {
-        let nsText = text as NSString
-        var lines: [ClipboardTextLine] = []
-        nsText.enumerateSubstrings(in: NSRange(location: 0, length: nsText.length), options: [.byLines, .substringNotRequired]) { _, substringRange, _, _ in
-            lines.append(ClipboardTextLine(text: nsText.substring(with: substringRange), range: substringRange))
-        }
-        return lines
-    }
-
-    nonisolated private static func looksLikeHonorificOnlyLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.range(of: #"(?i)^(?:frau|herr)$"#, options: .regularExpression) != nil
-    }
-
-    nonisolated private static func nextNonEmptyClipboardLine(after index: Int, in lines: [ClipboardTextLine]) -> ClipboardTextLine? {
-        guard index < lines.count - 1 else { return nil }
-        for nextIndex in (index + 1)..<lines.count {
-            let cleaned = lines[nextIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !cleaned.isEmpty {
-                return lines[nextIndex]
-            }
-        }
-        return nil
-    }
-
-    nonisolated private static func looksLikeLabeledFormBlockStart(_ text: String) -> Bool {
-        guard let key = standaloneFieldLabelKey(in: text) else { return false }
-        return key == "vorname" || key == "name"
-    }
-
-    nonisolated private static func standaloneFieldLabelKey(in text: String) -> String? {
-        let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-        let mappings: [(label: String, key: String)] = [
-            ("Vorname", "vorname"),
-            ("Name", "name"),
-            ("Nachname", "name"),
-            ("Straße", "strasse"),
-            ("Strasse", "strasse"),
-            ("Strae", "strasse"),
-            ("Street", "strasse"),
-            ("Hausnr.", "hausnr"),
-            ("Hausnr", "hausnr"),
-            ("Hausnummer", "hausnr"),
-            ("PLZ", "plz"),
-            ("Postleitzahl", "plz"),
-            ("Ort", "ort"),
-            ("Stadt", "ort")
-        ]
-
-        for mapping in mappings {
-            let pattern = #"(?i)^\#(NSRegularExpression.escapedPattern(for: mapping.label))\s*:\s*$"#
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
-            if regex.firstMatch(in: normalized, options: [], range: nsRange) != nil {
-                return mapping.key
-            }
-        }
-        return nil
+        PIIDetectorSupplementalClipboardSupport.supplementalInlinePersonSpans(in: text)
     }
 
     nonisolated private static func looksLikeStandaloneFieldSequence(in text: String) -> Bool {
-        let lines = text.components(separatedBy: .newlines)
-        var consecutiveCount = 0
-
-        for line in lines {
-            if standaloneFieldLabelKey(in: line) != nil {
-                consecutiveCount += 1
-                if consecutiveCount >= 3 {
-                    return true
-                }
-            } else if !line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                consecutiveCount = 0
-            }
-        }
-
-        return false
+        PIIDetectorSupplementalClipboardSupport.looksLikeStandaloneFieldSequence(in: text)
     }
 
     nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        spans.compactMap { span in
-            let cleanedText = sanitizedSpanText(span.text, category: span.category)
-            guard !shouldDropSpan(category: span.category, text: cleanedText, source: span.source) else {
-                return nil
-            }
-            let category = sanitizedCategory(for: span.category, text: cleanedText)
-            return DetectedSpan(
-                category: category,
-                text: cleanedText,
-                start: span.start,
-                end: span.end,
-                confidence: span.confidence,
-                source: span.source
-            )
-        }
+        PIIDetectorSpanSanitizationSupport.sanitizeSpans(spans)
     }
 
     nonisolated private static func cleanedSpanText(_ text: String) -> String {
-        OCRNormalizer.normalize(text, mode: .native).text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        PIIDetectorSpanSanitizationSupport.cleanedSpanText(text)
     }
 
     nonisolated private static func sanitizedSpanText(_ text: String, category: String) -> String {
-        let cleaned = cleanedSpanText(text)
-        guard category == "private_address" else { return cleaned }
-        return sanitizeAddressFieldArtifacts(in: cleaned)
+        PIIDetectorSpanSanitizationSupport.sanitizedSpanText(text, category: category)
     }
 
     nonisolated private static func sanitizeAddressFieldArtifacts(in text: String) -> String {
-        var cleaned = text
-
-        let leadingFieldPatterns = [
-            #"(?i)^(?:straße|strasse|hausnr\.?|hausnummer|plz|ort|stadt):\s*"#,
-            #"(?i)^(?:vorname|name|nachname):\s*"#
-        ]
-
-        for pattern in leadingFieldPatterns {
-            cleaned = cleaned.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
-        }
-
-        cleaned = cleaned.replacingOccurrences(
-            of: #"(?i)^(\d{5})\s+(?:ort|stadt):?$"#,
-            with: "$1",
-            options: .regularExpression
-        )
-
-        return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        PIIDetectorSpanSanitizationSupport.sanitizeAddressFieldArtifacts(in: text)
     }
 
     nonisolated private static func sanitizedCategory(for category: String, text: String) -> String {
-        if category == "custom_identifier" {
-            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeAddressBlock(text) {
-                return "private_address"
-            }
-        }
-        guard category == "account_number" else { return category }
-        return looksLikePostalCity(text) ? "private_address" : category
+        PIIDetectorSpanSanitizationSupport.sanitizedCategory(for: category, text: text)
     }
 
     nonisolated private static func shouldDropSpan(category: String, text: String, source: DetectionSource) -> Bool {
-        guard !text.isEmpty else { return true }
-
-        switch category {
-        case "private_person":
-            if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
-                return true
-            }
-            if normalizedComparableText(text) == "eheleute" {
-                return true
-            }
-            if looksLikeOrganizationSnippet(text) || personSpanContainsAddressOrContactTail(text) {
-                return true
-            }
-            if source == .model, text.count <= 4, !looksLikeNameishWord(text) {
-                return true
-            }
-            if source == .model, text.rangeOfCharacter(from: .decimalDigits) != nil, !text.contains(" ") {
-                return true
-            }
-            return false
-
-        case "private_address":
-            if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
-                return true
-            }
-            if looksLikeCompanyAddressBlock(text) {
-                return true
-            }
-            if looksLikeHonorificStreetCombo(text) {
-                return true
-            }
-            if hasLeadingSentenceFragmentBeforeStreetAddress(text) {
-                return true
-            }
-            if looksLikePostalCity(text) ||
-                looksLikeGermanStreetAddress(text) ||
-                looksLikeAddressBlock(text) ||
-                looksLikeStreetNameOnlyLine(text) ||
-                looksLikeHouseNumberOnlyLine(text) ||
-                looksLikePostalCodeOnlyLine(text) ||
-                looksLikeCityNameOnlyLine(text) {
-                return false
-            }
-            if source == .model {
-                return true
-            }
-            if source == .pattern {
-                return true
-            }
-            return text.count < 8
-
-        case "account_number":
-            if normalizedComparableText(text).contains("bic") {
-                return true
-            }
-            if source != .model {
-                return false
-            }
-            if looksLikePostalCity(text) || looksLikeGermanStreetAddress(text) || looksLikeTaxOfficeHeader(text) {
-                return true
-            }
-            let digitsOnly = text.replacingOccurrences(of: "\\D+", with: "", options: .regularExpression)
-            let hasLetters = text.rangeOfCharacter(from: .letters) != nil
-            if !hasLetters && digitsOnly.count < 12 {
-                return true
-            }
-            return false
-
-        case "secret":
-            return looksLikeLegalBoilerplateHeading(text)
-
-        default:
-            return false
-        }
+        PIIDetectorSpanSanitizationSupport.shouldDropSpan(category: category, text: text, source: source)
     }
 
     nonisolated private static func looksLikePostalCity(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedText = normalizedComparableText(cleaned)
-        if normalizedText.hasSuffix("seite") {
-            return false
-        }
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikePostalCity(text)
     }
 
     nonisolated private static func looksLikeGermanStreetAddress(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeGermanStreetAddress(text)
     }
 
     nonisolated private static func looksLikeStreetNameOnlyLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty,
-              cleaned.rangeOfCharacter(from: .decimalDigits) == nil
-        else { return false }
-
-        let pattern = #"(?i)^(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeStreetNameOnlyLine(text)
     }
 
     nonisolated private static func looksLikeHouseNumberOnlyLine(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.range(of: #"^\d+[A-Za-z]?$"#, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeHouseNumberOnlyLine(text)
     }
 
     nonisolated private static func looksLikePostalCodeOnlyLine(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.range(of: #"^\d{5}$"#, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikePostalCodeOnlyLine(text)
     }
 
     nonisolated private static func looksLikeCityNameOnlyLine(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty,
-              cleaned.rangeOfCharacter(from: .decimalDigits) == nil
-        else { return false }
-
-        let pattern = #"(?i)^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+(?:\s+(?:bei|an|am|im|der|den|dem|von|vor|hinter|unter|ober|sankt|st\.))?(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß.\-]+){0,3}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeCityNameOnlyLine(text)
     }
 
     nonisolated private static func looksLikeAddressBlock(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if looksLikePostalCity(cleaned) || looksLikeGermanStreetAddress(cleaned) {
-            return true
-        }
-        let pattern = #"(?i)\b(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+.+\d{5}\s+[A-ZÄÖÜa-zäöüß]"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeAddressBlock(text)
     }
 
     nonisolated private static func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard looksLikeGermanStreetAddress(cleaned) else { return false }
-
-        let pattern = #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.hasLeadingSentenceFragmentBeforeStreetAddress(text)
     }
 
     nonisolated private static func looksLikeCompanyAddressBlock(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard looksLikeOrganizationSnippet(cleaned) else { return false }
-        return looksLikeGermanStreetAddress(cleaned) ||
-            looksLikePostalCity(cleaned) ||
-            cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeCompanyAddressBlock(text)
     }
 
     nonisolated private static func personSpanContainsAddressOrContactTail(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedText = normalizedComparableText(cleaned)
-        guard normalizedText.contains("frau") || normalizedText.contains("herr") else { return false }
-
-        if looksLikeGermanStreetAddress(cleaned) {
-            return true
-        }
-
-        let bannedFragments = [
-            "email", "telefon", "mobil", "kontakt", "ansprechpartner",
-            "strasse", "straße", "str", "weg", "allee", "platz", "gasse", "ring", "ufer", "steig", "steige"
-        ]
-        return bannedFragments.contains { fragment in
-            cleaned.localizedCaseInsensitiveContains(fragment) || normalizedText.contains(normalizedComparableText(fragment))
-        }
+        PIIDetectorSpanSanitizationSupport.personSpanContainsAddressOrContactTail(text)
     }
 
     nonisolated private static func looksLikeHonorificStreetCombo(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !looksLikePostalCity(cleaned),
-              looksLikeGermanStreetAddress(cleaned)
-        else { return false }
-
-        let pattern = #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeHonorificStreetCombo(text)
     }
 
     nonisolated private static func looksLikeLeadingConjunctionAddressTail(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard looksLikeGermanStreetAddress(cleaned) else { return false }
-
-        let pattern = #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}\s+"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeLeadingConjunctionAddressTail(text)
     }
 
     nonisolated private static func looksLikeConjoinedCoupleName(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeConjoinedCoupleName(text)
     }
 
     nonisolated private static func looksLikeNameishWord(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
-        let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeNameishWord(text)
     }
 
     nonisolated private static func looksLikeTaxOfficeHeader(_ text: String) -> Bool {
-        let normalizedText = normalizedComparableText(text)
-        return normalizedText.contains("finanzamt") ||
-            normalizedText.contains("finanzkasse") ||
-            normalizedText.contains("steuernummer") ||
-            normalizedText.contains("idnr") ||
-            normalizedText.contains("bescheid")
+        PIIDetectorSpanSanitizationSupport.looksLikeTaxOfficeHeader(text)
     }
 
     nonisolated private static func looksLikeOrganizationSnippet(_ text: String) -> Bool {
-        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let pattern = #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#
-        return cleaned.range(of: pattern, options: .regularExpression) != nil
+        PIIDetectorSpanSanitizationSupport.looksLikeOrganizationSnippet(text)
     }
 
     nonisolated private static func isDocumentNoise(_ text: String) -> Bool {
-        let normalizedText = normalizedComparableText(text)
-        let bannedFragments = [
-            "eink", "einkommensteuer", "kirchensteuer", "solidaritatszuschlag",
-            "fortsotzung", "fortsetzung", "nachsteseite", "nachsteselte",
-            "selto", "luszetch", "reste", "ruckfragen", "angeben"
-        ]
-        return bannedFragments.contains { normalizedText.contains($0) }
+        PIIDetectorSpanSanitizationSupport.isDocumentNoise(text)
     }
 
     nonisolated private static func looksLikeTermsAndConditionsDocument(_ text: String) -> Bool {
-        let normalizedText = normalizedComparableText(text)
-        let markers = [
-            "allgemeinegeschaftsbedingungen", "geltungsbereich", "vertragsschluss",
-            "eigentumsvorbehalt", "schlussbestimmungen", "streitbeilegung",
-            "vertragsbestandteil", "mitwirkungspflichten", "nacherfullung"
-        ]
-        let hitCount = markers.reduce(into: 0) { count, marker in
-            if normalizedText.contains(marker) {
-                count += 1
-            }
-        }
-        return hitCount >= 3 || normalizedText.contains("allgemeinegeschaftsbedingungen")
+        PIIDetectorSpanSanitizationSupport.looksLikeTermsAndConditionsDocument(text)
     }
 
     nonisolated private static func looksLikeLegalBoilerplateHeading(_ text: String) -> Bool {
-        let normalizedText = normalizedComparableText(text)
-        let headings: Set<String> = [
-            "geltungsbereich", "vertragsschluss", "eigentumsvorbehalt",
-            "schlussbestimmungen", "streitbeilegung", "widerrufsrecht",
-            "gewahrleistung", "haftung", "zahlungsbedingungen", "datenschutz"
-        ]
-        return headings.contains(normalizedText)
+        PIIDetectorSpanSanitizationSupport.looksLikeLegalBoilerplateHeading(text)
     }
 
     nonisolated private static func looksLikePlausiblePersonName(_ text: String) -> Bool {
-        let cleaned = text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleaned.isEmpty else { return false }
-
-        let patterns = [
-            #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#,
-            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
-            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
-            #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
-        ]
-
-        return patterns.contains { pattern in
-            cleaned.range(of: pattern, options: .regularExpression) != nil
-        }
+        PIIDetectorSpanSanitizationSupport.looksLikePlausiblePersonName(text)
     }
 
     nonisolated private static func deduplicateExactSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        var bestByKey: [String: DetectedSpan] = [:]
-        var order: [String] = []
-
-        for span in spans {
-            let key = exactSpanKey(span)
-            if let existing = bestByKey[key] {
-                if span.confidence > existing.confidence {
-                    bestByKey[key] = span
-                }
-            } else {
-                bestByKey[key] = span
-                order.append(key)
-            }
-        }
-
-        return order.compactMap { bestByKey[$0] }
+        PIIDetectorSpanSanitizationSupport.deduplicateExactSpans(spans)
     }
 
     nonisolated private static func suppressConjoinedNameFragments(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        spans.filter { candidate in
-            guard candidate.category == "private_person" else { return true }
-
-            let normalizedCandidate = normalizedComparableText(candidate.text)
-            guard !normalizedCandidate.isEmpty,
-                  !looksLikeConjoinedCoupleName(candidate.text)
-            else { return true }
-
-            let candidateLength = max(candidate.end - candidate.start, 1)
-            return !spans.contains { other in
-                guard other.id != candidate.id,
-                      other.category == "private_person",
-                      looksLikeConjoinedCoupleName(other.text)
-                else { return false }
-
-                let normalizedOther = normalizedComparableText(other.text)
-                guard normalizedOther.count > normalizedCandidate.count,
-                      normalizedOther.contains(normalizedCandidate)
-                else { return false }
-
-                if other.start <= candidate.start && other.end >= candidate.end {
-                    return true
-                }
-
-                let overlapStart = max(candidate.start, other.start)
-                let overlapEnd = min(candidate.end, other.end)
-                guard overlapEnd > overlapStart else { return false }
-
-                let overlapRatio = Double(overlapEnd - overlapStart) / Double(candidateLength)
-                return overlapRatio >= 0.7
-            }
-        }
+        PIIDetectorSpanSanitizationSupport.suppressConjoinedNameFragments(spans)
     }
 
     nonisolated private static func suppressLeadingConjunctionAddressSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        spans.filter { candidate in
-            guard candidate.category == "private_address" else { return true }
-            return !looksLikeLeadingConjunctionAddressTail(candidate.text)
-        }
+        PIIDetectorSpanSanitizationSupport.suppressLeadingConjunctionAddressSpans(spans)
     }
 
     nonisolated private static func suppressLegalBoilerplateFalsePositives(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
-        let suppressPersonNoise = looksLikeTermsAndConditionsDocument(text)
-
-        return spans.filter { candidate in
-            if candidate.category == "secret",
-               looksLikeLegalBoilerplateHeading(candidate.text) {
-                return false
-            }
-
-            if suppressPersonNoise,
-               candidate.category == "private_person",
-               !looksLikePlausiblePersonName(candidate.text) {
-                return false
-            }
-
-            return true
-        }
+        PIIDetectorSpanSanitizationSupport.suppressLegalBoilerplateFalsePositives(spans, in: text)
     }
 
     nonisolated private static func suppressContainedCustomIdentifierSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        spans.filter { candidate in
-            guard candidate.category == "custom_identifier" else {
-                return true
-            }
-
-            let normalizedCandidate = normalizedComparableText(candidate.text)
-            guard !normalizedCandidate.isEmpty else { return false }
-
-            let candidateLength = candidate.end - candidate.start
-            return !spans.contains { other in
-                guard other.id != candidate.id,
-                      other.end > other.start
-                else { return false }
-
-                let otherLength = other.end - other.start
-                guard otherLength > candidateLength else { return false }
-
-                if other.start <= candidate.start && other.end >= candidate.end {
-                    return true
-                }
-
-                let overlapStart = max(candidate.start, other.start)
-                let overlapEnd = min(candidate.end, other.end)
-                guard overlapEnd > overlapStart else { return false }
-
-                let overlapLength = overlapEnd - overlapStart
-                let overlapRatio = Double(overlapLength) / Double(candidateLength)
-                guard overlapRatio >= 0.75 else { return false }
-
-                if other.category != "custom_identifier" {
-                    if shouldPreserveStrongCustomIdentifier(candidate, inside: other) {
-                        return false
-                    }
-                    return true
-                }
-
-                return normalizedComparableText(other.text).contains(normalizedCandidate)
-            }
-        }
+        PIIDetectorSpanSanitizationSupport.suppressContainedCustomIdentifierSpans(spans)
     }
 
     nonisolated private static func shouldPreserveStrongCustomIdentifier(_ candidate: DetectedSpan, inside other: DetectedSpan) -> Bool {
-        let normalizedCandidate = normalizedComparableText(candidate.text)
-        guard !normalizedCandidate.isEmpty else { return false }
-
-        if candidate.text.rangeOfCharacter(from: .decimalDigits) != nil {
-            return false
-        }
-
-        let candidateTokenCount = candidate.text
-            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .split(whereSeparator: \.isWhitespace)
-            .count
-
-        guard candidateTokenCount >= 2 else { return false }
-
-        if other.category == "private_person",
-           isHonorificWrappedPerson(candidate: normalizedCandidate, wrapper: other.text) {
-            return true
-        }
-
-        return false
+        PIIDetectorSpanSanitizationSupport.shouldPreserveStrongCustomIdentifier(candidate, inside: other)
     }
 
     nonisolated private static func isHonorificWrappedPerson(candidate: String, wrapper: String) -> Bool {
-        let normalizedWrapper = normalizedComparableText(wrapper)
-        guard normalizedWrapper.count > candidate.count,
-              normalizedWrapper.contains(candidate)
-        else { return false }
-
-        let pattern = #"^(frau|herr)\s+"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
-            return false
-        }
-
-        let fullRange = NSRange(normalizedWrapper.startIndex..<normalizedWrapper.endIndex, in: normalizedWrapper)
-        guard let match = regex.firstMatch(in: normalizedWrapper, options: [], range: fullRange),
-              match.range.location != NSNotFound,
-              let matchRange = Range(match.range, in: normalizedWrapper)
-        else {
-            return false
-        }
-
-        let stripped = String(normalizedWrapper[matchRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return stripped == candidate
+        PIIDetectorSpanSanitizationSupport.isHonorificWrappedPerson(candidate: candidate, wrapper: wrapper)
     }
 
     nonisolated private static func mergeEquivalentSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        var groups: [String: [DetectedSpan]] = [:]
-        var order: [String] = []
-
-        for span in spans {
-            let key = equivalentSpanKey(span)
-            if groups[key] == nil {
-                groups[key] = []
-                order.append(key)
-            }
-            groups[key, default: []].append(span)
-        }
-
-        return order.compactMap { key in
-            guard let group = groups[key], let primary = preferredSpan(in: group) else { return nil }
-            let mergedSource = mergedSource(for: group)
-            let mergedConfidence = group.map(\.confidence).max() ?? primary.confidence
-            return DetectedSpan(
-                category: primary.category,
-                text: primary.text,
-                start: primary.start,
-                end: primary.end,
-                confidence: mergedConfidence,
-                source: mergedSource
-            )
-        }
+        PIIDetectorSpanSanitizationSupport.mergeEquivalentSpans(spans)
     }
 
     nonisolated private static func preferredSpan(in group: [DetectedSpan]) -> DetectedSpan? {
-        group.max { lhs, rhs in
-            spanRank(lhs) < spanRank(rhs)
-        }
+        PIIDetectorSpanSanitizationSupport.preferredSpan(in: group)
     }
 
     nonisolated private static func spanRank(_ span: DetectedSpan) -> Int {
-        var rank = 0
-        if span.category != "custom_identifier" { rank += 100 }
-        switch span.source {
-        case .model: rank += 30
-        case .mixed: rank += 20
-        case .pattern: rank += 10
-        }
-        rank += Int(span.confidence * 10)
-        return rank
+        PIIDetectorSpanSanitizationSupport.spanRank(span)
     }
 
     nonisolated private static func mergedSource(for group: [DetectedSpan]) -> DetectionSource {
-        let sources = Set(group.map(\.source))
-        if sources.count > 1 || sources.contains(.mixed) {
-            return .mixed
-        }
-        return group.first?.source ?? .pattern
+        PIIDetectorSpanSanitizationSupport.mergedSource(for: group)
     }
 
     nonisolated private static func exactSpanKey(_ span: DetectedSpan) -> String {
-        let textKey = span.text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        return [
-            span.category,
-            span.source.rawValue,
-            "\(span.start)",
-            "\(span.end)",
-            textKey
-        ].joined(separator: "::")
+        PIIDetectorSpanSanitizationSupport.exactSpanKey(span)
     }
 
     nonisolated private static func equivalentSpanKey(_ span: DetectedSpan) -> String {
-        let textKey = span.text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-        return [
-            "\(span.start)",
-            "\(span.end)",
-            textKey
-        ].joined(separator: "::")
+        PIIDetectorSpanSanitizationSupport.equivalentSpanKey(span)
     }
 
     nonisolated private static func normalizedComparableText(_ text: String) -> String {
-        text
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .filter { $0.isLetter || $0.isNumber }
+        PIIDetectorSpanSanitizationSupport.normalizedComparableText(text)
     }
 
     nonisolated private static func placeholderize(text: String, spans: [DetectedSpan]) -> TextAnonymizationResult {
-        let selectedSpans = selectNonOverlappingSpans(spans)
-
-        var assignedPlaceholders: [String: String] = [:]
-        var placeholderByKey: [String: String] = [:]
-        var placeholderCounters: [String: Int] = [:]
-        var anonymizedText = text
-
-        for span in selectedSpans.sorted(by: { lhs, rhs in
-            if lhs.start == rhs.start { return lhs.end > rhs.end }
-            return lhs.start > rhs.start
-        }) {
-            guard span.start >= 0, span.end <= anonymizedText.count, span.end > span.start else { continue }
-
-            let categoryBase = placeholderBase(for: span.category)
-            let mappingKey = placeholderMappingKey(for: span)
-            let placeholder: String
-
-            if let existing = placeholderByKey[mappingKey] {
-                placeholder = existing
-            } else {
-                let nextIndex = (placeholderCounters[categoryBase] ?? 0) + 1
-                placeholderCounters[categoryBase] = nextIndex
-                placeholder = "[\(categoryBase)_\(nextIndex)]"
-                placeholderByKey[mappingKey] = placeholder
-                assignedPlaceholders[placeholder] = span.text
-            }
-
-            let startIndex = anonymizedText.index(anonymizedText.startIndex, offsetBy: span.start)
-            let endIndex = anonymizedText.index(anonymizedText.startIndex, offsetBy: span.end)
-            anonymizedText.replaceSubrange(startIndex..<endIndex, with: placeholder)
-        }
-
-        return TextAnonymizationResult(
-            anonymizedText: anonymizedText,
-            replacementCount: selectedSpans.count,
-            placeholders: assignedPlaceholders
-        )
-    }
-
-    nonisolated private static func selectNonOverlappingSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        let sorted = spans.sorted { lhs, rhs in
-            if lhs.start != rhs.start { return lhs.start < rhs.start }
-            let lhsPriority = placeholderSelectionPriority(for: lhs.category)
-            let rhsPriority = placeholderSelectionPriority(for: rhs.category)
-            if lhsPriority != rhsPriority { return lhsPriority > rhsPriority }
-            let lhsLength = lhs.end - lhs.start
-            let rhsLength = rhs.end - rhs.start
-            if lhsLength != rhsLength { return lhsLength > rhsLength }
-            return lhs.confidence > rhs.confidence
-        }
-
-        var accepted: [DetectedSpan] = []
-        for candidate in sorted {
-            guard candidate.end > candidate.start else { continue }
-            let overlaps = accepted.contains { existing in
-                max(candidate.start, existing.start) < min(candidate.end, existing.end)
-            }
-            if !overlaps {
-                accepted.append(candidate)
-            }
-        }
-        return accepted
-    }
-
-    nonisolated private static func placeholderSelectionPriority(for category: String) -> Int {
-        switch category {
-        case "private_person", "private_address", "private_phone", "private_email", "private_date", "account_number", "secret":
-            return 2
-        case "custom_identifier":
-            return 1
-        default:
-            return 0
-        }
-    }
-
-    nonisolated private static func placeholderBase(for category: String) -> String {
-        switch category {
-        case "private_person": return "NAME"
-        case "private_address": return "ADRESSE"
-        case "private_date": return "DATUM"
-        case "private_email": return "EMAIL"
-        case "private_phone": return "TELEFON"
-        case "account_number": return "NUMMER"
-        case "secret": return "GEHEIM"
-        case "custom_identifier": return "PLATZHALTER"
-        default:
-            let compact = category
-                .uppercased()
-                .folding(options: [.diacriticInsensitive], locale: .current)
-                .replacingOccurrences(of: "PRIVATE_", with: "")
-                .replacingOccurrences(of: "[^A-Z0-9]+", with: "_", options: .regularExpression)
-                .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
-            return compact.isEmpty ? "PII" : compact
-        }
-    }
-
-    nonisolated private static func placeholderMappingKey(for span: DetectedSpan) -> String {
-        let normalizedText = span.text
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(placeholderBase(for: span.category))::\(normalizedText)"
+        PIIDetectorPlaceholderSupport.placeholderize(text: text, spans: spans)
     }
 
     nonisolated private static func restorePlaceholders(in text: String, placeholders: [String: String]) -> TextRestorationResult {
-        guard !placeholders.isEmpty else {
-            return TextRestorationResult(restoredText: text, replacementCount: 0, unresolvedPlaceholders: [], suspiciousTokens: [])
-        }
-
-        var restoredText = text
-        var replacementCount = 0
-
-        let orderedPlaceholders = placeholders.keys.sorted { lhs, rhs in
-            if lhs.count == rhs.count { return lhs < rhs }
-            return lhs.count > rhs.count
-        }
-
-        for placeholder in orderedPlaceholders {
-            guard let originalValue = placeholders[placeholder] else { continue }
-            let pattern = placeholderRegexPattern(for: placeholder)
-
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
-            let range = NSRange(restoredText.startIndex..<restoredText.endIndex, in: restoredText)
-            let matches = regex.matches(in: restoredText, range: range)
-            guard !matches.isEmpty else { continue }
-
-            replacementCount += matches.count
-            restoredText = regex.stringByReplacingMatches(in: restoredText, range: range, withTemplate: originalValue)
-        }
-
-        let unresolved = orderedPlaceholders.filter { placeholder in
-            let pattern = placeholderRegexPattern(for: placeholder)
-            guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
-            let range = NSRange(restoredText.startIndex..<restoredText.endIndex, in: restoredText)
-            return regex.firstMatch(in: restoredText, range: range) != nil
-        }
-
-        let suspiciousTokens = detectSuspiciousPlaceholderTokens(in: restoredText, expectedPlaceholders: orderedPlaceholders)
-
-        return TextRestorationResult(
-            restoredText: restoredText,
-            replacementCount: replacementCount,
-            unresolvedPlaceholders: unresolved,
-            suspiciousTokens: suspiciousTokens
-        )
-    }
-
-    nonisolated private static func placeholderRegexPattern(for placeholder: String) -> String {
-        let rawKey = placeholder.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-        let pieces = rawKey.split(separator: "_", maxSplits: 1, omittingEmptySubsequences: true)
-        guard pieces.count == 2 else {
-            let escaped = NSRegularExpression.escapedPattern(for: rawKey)
-            return "(?i)(?<![A-ZÄÖÜa-zäöüß0-9])\\[?\\s*\(escaped)\\s*\\]?(?![A-ZÄÖÜa-zäöüß0-9])"
-        }
-
-        let category = NSRegularExpression.escapedPattern(for: String(pieces[0]))
-        let index = NSRegularExpression.escapedPattern(for: String(pieces[1]))
-        return "(?i)(?<![A-ZÄÖÜa-zäöüß0-9])\\[?\\s*\(category)\\s*[-_ ]\\s*\(index)\\s*\\]?(?![A-ZÄÖÜa-zäöüß0-9])"
-    }
-
-    nonisolated private static func canonicalPlaceholderToken(_ token: String) -> String {
-        token
-            .uppercased()
-            .replacingOccurrences(of: "[\\[\\]\\s-]+", with: "_", options: .regularExpression)
-            .replacingOccurrences(of: "_+", with: "_", options: .regularExpression)
-            .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
+        PIIDetectorPlaceholderSupport.restorePlaceholders(in: text, placeholders: placeholders)
     }
 
     nonisolated private static func printPatternDiagnostics(
@@ -2300,9 +1236,11 @@ final class PIIDetector {
         postProcessed: [DetectedSpan],
         in text: String
     ) {
-        for line in patternDiagnosticsLines(diagnostics, postProcessed: postProcessed, in: text) {
-            print(line)
-        }
+        PIIDetectorPatternDiagnosticsSupport.printPatternDiagnostics(
+            diagnostics,
+            postProcessed: postProcessed,
+            in: text
+        )
     }
 
     nonisolated private static func patternDiagnosticsLines(
@@ -2310,88 +1248,11 @@ final class PIIDetector {
         postProcessed: [DetectedSpan],
         in text: String
     ) -> [String] {
-        let storageLine = "PatternMatcher custom rule storage: \(diagnostics.storagePath) [exists=\(diagnostics.storageFileExists)]"
-        let legacyStorageLine = "PatternMatcher legacy custom rule storage: \(diagnostics.legacyStoragePath) [exists=\(diagnostics.legacyStorageFileExists)]"
-
-        guard !diagnostics.loadedCustomPatterns.isEmpty else {
-            return [
-                storageLine,
-                legacyStorageLine,
-                "PatternMatcher custom rules loaded (0): <none>"
-            ]
-        }
-
-        let loadedRules = diagnostics.loadedCustomPatterns.map { descriptor in
-            "\(descriptor.label) [\(descriptor.category)] = \(descriptor.value)"
-        }.joined(separator: " | ")
-
-        let jonasRules = diagnostics.loadedCustomPatterns.filter {
-            $0.value.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
-            $0.label.localizedCaseInsensitiveContains("Jonas Weber")
-        }
-
-        let rawCustomSpans = diagnostics.rawCustomMatches.map { spanDescription($0) }.joined(separator: " | ")
-
-        let survivingCustomSpans = postProcessed.filter { span in
-            diagnostics.loadedCustomPatterns.contains { descriptor in
-                descriptor.category == span.category &&
-                descriptor.value.compare(span.text, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-            }
-        }
-        let survivingDescriptions = survivingCustomSpans.map { spanDescription($0) }.joined(separator: " | ")
-
-        let jonasInText = text.range(of: "Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) != nil
-        let jonasRaw = diagnostics.rawCustomMatches.filter {
-            $0.text.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }
-        let jonasSurviving = survivingCustomSpans.filter {
-            $0.text.compare("Jonas Weber", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }
-
-        return [
-            storageLine,
-            legacyStorageLine,
-            "PatternMatcher custom rules loaded (\(diagnostics.loadedCustomPatterns.count)): \(loadedRules)",
-            "PatternMatcher custom rule contains 'Jonas Weber': \(jonasRules.isEmpty ? "no" : "yes")",
-            "PatternMatcher raw custom matches: \(rawCustomSpans.isEmpty ? "<none>" : rawCustomSpans)",
-            "PatternMatcher surviving custom matches: \(survivingDescriptions.isEmpty ? "<none>" : survivingDescriptions)",
-            "PatternMatcher Jonas Weber diagnostics: textContains=\(jonasInText) rawCustomSpan=\(!jonasRaw.isEmpty) survivingCustomSpan=\(!jonasSurviving.isEmpty)"
-        ]
-    }
-
-    nonisolated private static func spanDescription(_ span: DetectedSpan) -> String {
-        "[\(detectionSourceLabel(span.source))] \(span.category) '\(span.text)' @ \(span.start)-\(span.end)"
-    }
-
-    nonisolated private static func detectionSourceLabel(_ source: DetectionSource) -> String {
-        switch source {
-        case .model: return "Modell"
-        case .pattern: return "Regex"
-        case .mixed: return "Modell + Regex"
-        }
-    }
-
-    nonisolated private static func detectSuspiciousPlaceholderTokens(in text: String, expectedPlaceholders: [String]) -> [String] {
-        let expectedCanonical = Set(expectedPlaceholders.map {
-            canonicalPlaceholderToken($0.trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
-        })
-
-        let pattern = "(?i)\\[?\\s*[A-ZÄÖÜa-zäöü]+\\s*[-_ ]\\s*\\d+\\s*\\]?"
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
-        let range = NSRange(text.startIndex..<text.endIndex, in: text)
-
-        var suspicious: [String] = []
-        var seen = Set<String>()
-
-        for match in regex.matches(in: text, range: range) {
-            guard let tokenRange = Range(match.range, in: text) else { continue }
-            let token = String(text[tokenRange])
-            let canonical = canonicalPlaceholderToken(token)
-            guard expectedCanonical.contains(canonical), seen.insert(token).inserted else { continue }
-            suspicious.append(token)
-        }
-
-        return suspicious.sorted()
+        PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
+            diagnostics,
+            postProcessed: postProcessed,
+            in: text
+        )
     }
 
     private func ensureCacheDirectoryExists() {

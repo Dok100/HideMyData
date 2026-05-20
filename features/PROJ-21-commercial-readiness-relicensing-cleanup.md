@@ -127,6 +127,7 @@ Aktueller Fortschritt in Phase 4:
 - seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
+- Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFBoundingRectSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageExportLifecycleSupport.swift`
 - OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageDetectionLifecycleSupport.swift`
 - Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
@@ -179,3 +180,4 @@ Aktueller Fortschritt in Phase 4:
 - Die kleineren PDF-Textkontext-Helfer fuer Recipient-Marker und Label-Kontextlinien liegen nun zusaetzlich in `PDFTextContextSupport.swift`, sodass `PDFRedactor` an diesen Stellen nur noch Rects aus PDFKit ableitet.
 - Auch die reine PDF-Textsuche und Rect-Aufloesung fuer Treffer-Fallbacks liegt jetzt separat in `PDFTextRectResolver.swift` statt weiterhin direkt in `PDFRedactor`.
 - Die PDF-spezifische Header-/Senderblock-Suppression fuer Fehlmarkierungen liegt nun ebenfalls in `PDFHeaderSuppressionSupport.swift`, sodass `PDFRedactor` diese Regeln nicht mehr selbst traegt.
+- Auch der technische Rect-Brueckenblock fuer `boundingRects`, `nsRange` und `rectsViaOCRFallback` liegt jetzt in `PDFBoundingRectSupport.swift`, sodass `PDFRedactor` diese Zuordnungslogik nicht mehr direkt traegt.

@@ -29,6 +29,7 @@ Bereits bereinigt oder ersetzt:
 - Seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionReviewSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report laufen jetzt ueber `PDFExportLifecycleSupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik laufen jetzt ueber `PDFAnnotationReviewLifecycleSupport.swift`
+- Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects fuer PDF-Erkennung laufen jetzt ueber `PDFBoundingRectSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report laufen jetzt ueber `ImageExportLifecycleSupport.swift`
 - OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung fuer Bild-Erkennung laufen jetzt ueber `ImageDetectionLifecycleSupport.swift`
 - Supplemental-Recovery und Sichtbarkeitspruefung fuer Bild-Previews laufen jetzt ueber `ImageReviewRecoverySupport.swift`
@@ -89,7 +90,7 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 ## Naechste konkrete Schritte
 
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
-- den verbleibenden Restkern von `PDFRedactor.swift` und `ImageRedactor.swift` nach den neuen Lifecycle- und Review-Extraktionen erneut klein schneiden
+- den verbleibenden Restkern von `PDFRedactor.swift` und `ImageRedactor.swift` nach den neuen Lifecycle-, Review- und Rect-Extraktionen erneut klein schneiden
 - den verbleibenden Restkern von `PatternMatcher.swift` und den schlankeren Integrationsrest von `PIIDetector.swift` nach den neuen Support-Extraktionen erneut auf verbleibende Altanteile bewerten
 - Sparkle-Historie fuer neue Distribution separat neu aufsetzen
 - Lizenzwechsel erst nach Abschluss der technischen und rechtlichen Bereinigung vorbereiten

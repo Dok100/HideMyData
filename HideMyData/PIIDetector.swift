@@ -216,46 +216,31 @@ final class PIIDetector {
     // MARK: - Lifecycle
 
     func loadIfCached() async {
-        ensureCacheDirectoryExists()
-        if case .loadingModel = phase {
-            await loadCachedModel()
-        }
+        await PIIDetectorModelLifecycleSupport.loadIfCached(
+            phase: phase,
+            cacheRoot: cacheRoot,
+            loadCachedModel: loadCachedModel
+        )
     }
 
     func startDownload() async {
-        ensureCacheDirectoryExists()
-        phase = .downloading(downloaded: 0, total: 0)
-
-        let downloader = ModelDownloader(
-            repoID: Self.modelRepoID,
-            revision: Self.modelRevision,
-            cacheRoot: cacheRoot
+        await PIIDetectorModelLifecycleSupport.startDownload(
+            modelRepoID: Self.modelRepoID,
+            modelRevision: Self.modelRevision,
+            cacheRoot: cacheRoot,
+            updatePhase: { [weak self] in self?.phase = $0 },
+            loadCachedModel: loadCachedModel
         )
-        downloader.onProgress = { [weak self] downloaded, total in
-            guard let self else { return }
-            self.phase = .downloading(downloaded: downloaded, total: total)
-        }
-
-        do {
-            _ = try await downloader.download()
-            await loadCachedModel()
-        } catch {
-            phase = .failed(PIIDetectorLifecycleSupport.modelDownloadFailureMessage(for: error))
-        }
     }
 
     private func loadCachedModel() async {
-        phase = .loadingModel
-        do {
-            guard FileManager.default.fileExists(atPath: readyMarkerURL.path) else {
-                phase = .needsDownload
-                return
-            }
-            openmed = try OpenMed(backend: .mlx(modelDirectoryURL: modelDirectory))
-            await warmUp()
-        } catch {
-            phase = .failed(PIIDetectorLifecycleSupport.modelLoadFailureMessage(for: error))
-        }
+        await PIIDetectorModelLifecycleSupport.loadCachedModel(
+            readyMarkerURL: readyMarkerURL,
+            modelDirectory: modelDirectory,
+            updatePhase: { [weak self] in self?.phase = $0 },
+            assignModel: { [weak self] in self?.openmed = $0 },
+            warmUp: warmUp
+        )
     }
 
     private func warmUp() async {
@@ -279,15 +264,9 @@ final class PIIDetector {
             PIIDetectorInferenceSupport.detect(
                 text,
                 model: model,
-                supplementalSpans: Self.supplementalClipboardSpans(in:),
-                postProcess: Self.postProcessSpans(_:in:),
-                printDiagnostics: { diagnostics, postProcessed, sourceText in
-                    Self.printPatternDiagnostics(
-                        diagnostics,
-                        postProcessed: postProcessed,
-                        in: sourceText
-                    )
-                }
+                supplementalSpans: PIIDetectorSupplementalClipboardSupport.supplementalClipboardSpans(in:),
+                postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
+                printDiagnostics: PIIDetectorPatternDiagnosticsSupport.printPatternDiagnostics(_:postProcessed:in:)
             )
         }
     }
@@ -297,7 +276,7 @@ final class PIIDetector {
         case .failure(let error):
             return .failure(error)
         case .success(let spans):
-            return .success(Self.placeholderize(text: text, spans: spans))
+            return .success(PIIDetectorPlaceholderSupport.placeholderize(text: text, spans: spans))
         }
     }
 
@@ -318,20 +297,14 @@ final class PIIDetector {
 
     func restoreText(_ text: String) -> TextRestorationResult? {
         guard let session = lastClipboardSession else { return nil }
-        return Self.restorePlaceholders(in: text, placeholders: session.placeholders)
+        return PIIDetectorPlaceholderSupport.restorePlaceholders(in: text, placeholders: session.placeholders)
     }
 
     nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
         PIIDetectorInferenceSupport.visiblePatternDiagnostics(
             for: text,
-            postProcess: Self.postProcessSpans(_:in:),
-            diagnosticsLines: { diagnostics, postProcessed, sourceText in
-                PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
-                    diagnostics,
-                    postProcessed: postProcessed,
-                    in: sourceText
-                )
-            }
+            postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
+            diagnosticsLines: PIIDetectorInferenceSupport.patternDiagnosticsLines(_:postProcessed:in:)
         )
     }
 
@@ -343,224 +316,6 @@ final class PIIDetector {
 
     nonisolated static func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
         PIIDetectorSupplementalClipboardSupport.classifyDocumentText(text)
-    }
-
-    nonisolated private static func postProcessSpans(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
-        let sanitized = sanitizeSpans(spans)
-        let deduplicated = deduplicateExactSpans(sanitized)
-        let merged = mergeEquivalentSpans(deduplicated)
-        let withoutConjoinedFragments = suppressConjoinedNameFragments(merged)
-        let withoutLeadingAddressTails = suppressLeadingConjunctionAddressSpans(withoutConjoinedFragments)
-        let withoutLegalBoilerplate = suppressLegalBoilerplateFalsePositives(withoutLeadingAddressTails, in: text)
-        return suppressContainedCustomIdentifierSpans(withoutLegalBoilerplate)
-    }
-
-    nonisolated private static func supplementalClipboardSpans(in text: String) -> [DetectedSpan] {
-        PIIDetectorSupplementalClipboardSupport.supplementalClipboardSpans(in: text)
-    }
-
-    nonisolated private static func supplementalInlinePersonSpans(in text: String) -> [DetectedSpan] {
-        PIIDetectorSupplementalClipboardSupport.supplementalInlinePersonSpans(in: text)
-    }
-
-    nonisolated private static func looksLikeStandaloneFieldSequence(in text: String) -> Bool {
-        PIIDetectorSupplementalClipboardSupport.looksLikeStandaloneFieldSequence(in: text)
-    }
-
-    nonisolated private static func sanitizeSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.sanitizeSpans(spans)
-    }
-
-    nonisolated private static func cleanedSpanText(_ text: String) -> String {
-        PIIDetectorSpanSanitizationSupport.cleanedSpanText(text)
-    }
-
-    nonisolated private static func sanitizedSpanText(_ text: String, category: String) -> String {
-        PIIDetectorSpanSanitizationSupport.sanitizedSpanText(text, category: category)
-    }
-
-    nonisolated private static func sanitizeAddressFieldArtifacts(in text: String) -> String {
-        PIIDetectorSpanSanitizationSupport.sanitizeAddressFieldArtifacts(in: text)
-    }
-
-    nonisolated private static func sanitizedCategory(for category: String, text: String) -> String {
-        PIIDetectorSpanSanitizationSupport.sanitizedCategory(for: category, text: text)
-    }
-
-    nonisolated private static func shouldDropSpan(category: String, text: String, source: DetectionSource) -> Bool {
-        PIIDetectorSpanSanitizationSupport.shouldDropSpan(category: category, text: text, source: source)
-    }
-
-    nonisolated private static func looksLikePostalCity(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikePostalCity(text)
-    }
-
-    nonisolated private static func looksLikeGermanStreetAddress(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeGermanStreetAddress(text)
-    }
-
-    nonisolated private static func looksLikeStreetNameOnlyLine(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeStreetNameOnlyLine(text)
-    }
-
-    nonisolated private static func looksLikeHouseNumberOnlyLine(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeHouseNumberOnlyLine(text)
-    }
-
-    nonisolated private static func looksLikePostalCodeOnlyLine(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikePostalCodeOnlyLine(text)
-    }
-
-    nonisolated private static func looksLikeCityNameOnlyLine(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeCityNameOnlyLine(text)
-    }
-
-    nonisolated private static func looksLikeAddressBlock(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeAddressBlock(text)
-    }
-
-    nonisolated private static func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.hasLeadingSentenceFragmentBeforeStreetAddress(text)
-    }
-
-    nonisolated private static func looksLikeCompanyAddressBlock(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeCompanyAddressBlock(text)
-    }
-
-    nonisolated private static func personSpanContainsAddressOrContactTail(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.personSpanContainsAddressOrContactTail(text)
-    }
-
-    nonisolated private static func looksLikeHonorificStreetCombo(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeHonorificStreetCombo(text)
-    }
-
-    nonisolated private static func looksLikeLeadingConjunctionAddressTail(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeLeadingConjunctionAddressTail(text)
-    }
-
-    nonisolated private static func looksLikeConjoinedCoupleName(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeConjoinedCoupleName(text)
-    }
-
-    nonisolated private static func looksLikeNameishWord(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeNameishWord(text)
-    }
-
-    nonisolated private static func looksLikeTaxOfficeHeader(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeTaxOfficeHeader(text)
-    }
-
-    nonisolated private static func looksLikeOrganizationSnippet(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeOrganizationSnippet(text)
-    }
-
-    nonisolated private static func isDocumentNoise(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.isDocumentNoise(text)
-    }
-
-    nonisolated private static func looksLikeTermsAndConditionsDocument(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeTermsAndConditionsDocument(text)
-    }
-
-    nonisolated private static func looksLikeLegalBoilerplateHeading(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikeLegalBoilerplateHeading(text)
-    }
-
-    nonisolated private static func looksLikePlausiblePersonName(_ text: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.looksLikePlausiblePersonName(text)
-    }
-
-    nonisolated private static func deduplicateExactSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.deduplicateExactSpans(spans)
-    }
-
-    nonisolated private static func suppressConjoinedNameFragments(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.suppressConjoinedNameFragments(spans)
-    }
-
-    nonisolated private static func suppressLeadingConjunctionAddressSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.suppressLeadingConjunctionAddressSpans(spans)
-    }
-
-    nonisolated private static func suppressLegalBoilerplateFalsePositives(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.suppressLegalBoilerplateFalsePositives(spans, in: text)
-    }
-
-    nonisolated private static func suppressContainedCustomIdentifierSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.suppressContainedCustomIdentifierSpans(spans)
-    }
-
-    nonisolated private static func shouldPreserveStrongCustomIdentifier(_ candidate: DetectedSpan, inside other: DetectedSpan) -> Bool {
-        PIIDetectorSpanSanitizationSupport.shouldPreserveStrongCustomIdentifier(candidate, inside: other)
-    }
-
-    nonisolated private static func isHonorificWrappedPerson(candidate: String, wrapper: String) -> Bool {
-        PIIDetectorSpanSanitizationSupport.isHonorificWrappedPerson(candidate: candidate, wrapper: wrapper)
-    }
-
-    nonisolated private static func mergeEquivalentSpans(_ spans: [DetectedSpan]) -> [DetectedSpan] {
-        PIIDetectorSpanSanitizationSupport.mergeEquivalentSpans(spans)
-    }
-
-    nonisolated private static func preferredSpan(in group: [DetectedSpan]) -> DetectedSpan? {
-        PIIDetectorSpanSanitizationSupport.preferredSpan(in: group)
-    }
-
-    nonisolated private static func spanRank(_ span: DetectedSpan) -> Int {
-        PIIDetectorSpanSanitizationSupport.spanRank(span)
-    }
-
-    nonisolated private static func mergedSource(for group: [DetectedSpan]) -> DetectionSource {
-        PIIDetectorSpanSanitizationSupport.mergedSource(for: group)
-    }
-
-    nonisolated private static func exactSpanKey(_ span: DetectedSpan) -> String {
-        PIIDetectorSpanSanitizationSupport.exactSpanKey(span)
-    }
-
-    nonisolated private static func equivalentSpanKey(_ span: DetectedSpan) -> String {
-        PIIDetectorSpanSanitizationSupport.equivalentSpanKey(span)
-    }
-
-    nonisolated private static func normalizedComparableText(_ text: String) -> String {
-        PIIDetectorSpanSanitizationSupport.normalizedComparableText(text)
-    }
-
-    nonisolated private static func placeholderize(text: String, spans: [DetectedSpan]) -> TextAnonymizationResult {
-        PIIDetectorPlaceholderSupport.placeholderize(text: text, spans: spans)
-    }
-
-    nonisolated private static func restorePlaceholders(in text: String, placeholders: [String: String]) -> TextRestorationResult {
-        PIIDetectorPlaceholderSupport.restorePlaceholders(in: text, placeholders: placeholders)
-    }
-
-    nonisolated private static func printPatternDiagnostics(
-        _ diagnostics: PatternMatcher.Diagnostics,
-        postProcessed: [DetectedSpan],
-        in text: String
-    ) {
-        PIIDetectorPatternDiagnosticsSupport.printPatternDiagnostics(
-            diagnostics,
-            postProcessed: postProcessed,
-            in: text
-        )
-    }
-
-    nonisolated private static func patternDiagnosticsLines(
-        _ diagnostics: PatternMatcher.Diagnostics,
-        postProcessed: [DetectedSpan],
-        in text: String
-    ) -> [String] {
-        PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
-            diagnostics,
-            postProcessed: postProcessed,
-            in: text
-        )
-    }
-
-    private func ensureCacheDirectoryExists() {
-        try? FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
     }
 
     private static func persistClipboardSession(_ session: ClipboardAnonymizationSession) {

@@ -1,5 +1,144 @@
 import Foundation
 
+nonisolated enum PatternMatcherDetectionSupport {
+    struct RuntimePattern {
+        let id: String
+        let category: String
+        let source: Source
+
+        enum Source {
+            case regex(NSRegularExpression)
+            case literal(String)
+        }
+    }
+
+    static func loadBuiltinPatterns() -> [RuntimePattern] {
+        PatternMatcherBuiltinSupport.loadCompiledBuiltinPatterns().map { pattern in
+            RuntimePattern(id: pattern.id, category: pattern.category, source: .regex(pattern.regex))
+        }
+    }
+
+    static func loadCustomPatterns() -> [RuntimePattern] {
+        PatternMatcherLiteralSupport.loadCustomPatternDescriptors().map {
+            RuntimePattern(id: $0.label, category: $0.category, source: .literal($0.value))
+        }
+    }
+
+    static func detectWithDiagnostics(
+        text: String,
+        builtinPatterns: [RuntimePattern]
+    ) -> (spans: [DetectedSpan], diagnostics: PatternMatcher.Diagnostics) {
+        var spans: [DetectedSpan] = []
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        let storageURL = PatternStorePersistenceSupport.storageURL()
+        let legacyStorageURL = PatternStorePersistenceSupport.legacyStorageURL()
+        let customPatternDescriptors = PatternMatcherLiteralSupport.loadCustomPatternDescriptors()
+        let customPatterns = customPatternDescriptors.map {
+            RuntimePattern(id: $0.label, category: $0.category, source: .literal($0.value))
+        }
+
+        for pattern in builtinPatterns + customPatterns {
+            spans.append(contentsOf: detectedSpans(in: text, fullRange: fullRange, pattern: pattern))
+        }
+
+        let rawCustomMatches = spans.filter { span in
+            guard span.source == .pattern else { return false }
+            return containsCustomDescriptorMatch(for: span, descriptors: customPatternDescriptors)
+        }
+
+        return (
+            spans,
+            PatternMatcher.Diagnostics(
+                storagePath: storageURL.path,
+                storageFileExists: FileManager.default.fileExists(atPath: storageURL.path),
+                legacyStoragePath: legacyStorageURL.path,
+                legacyStorageFileExists: FileManager.default.fileExists(atPath: legacyStorageURL.path),
+                loadedCustomPatterns: customPatternDescriptors,
+                rawCustomMatches: rawCustomMatches
+            )
+        )
+    }
+
+    private static func detectedSpans(
+        in text: String,
+        fullRange: NSRange,
+        pattern: RuntimePattern
+    ) -> [DetectedSpan] {
+        switch pattern.source {
+        case .regex(let regex):
+            return regexDetectedSpans(in: text, fullRange: fullRange, regex: regex, category: pattern.category)
+        case .literal(let literal):
+            return literalDetectedSpans(in: text, literal: literal, category: pattern.category)
+        }
+    }
+
+    private static func regexDetectedSpans(
+        in text: String,
+        fullRange: NSRange,
+        regex: NSRegularExpression,
+        category: String
+    ) -> [DetectedSpan] {
+        var spans: [DetectedSpan] = []
+        regex.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
+            guard let match, let swiftRange = Range(match.range, in: text) else { return }
+            spans.append(
+                detectedSpan(
+                    in: text,
+                    range: swiftRange,
+                    category: category,
+                    confidence: 0.99
+                )
+            )
+        }
+        return spans
+    }
+
+    private static func literalDetectedSpans(
+        in text: String,
+        literal: String,
+        category: String
+    ) -> [DetectedSpan] {
+        PatternMatcherLiteralSupport.literalMatchRanges(in: text, literal: literal).map { range in
+            detectedSpan(
+                in: text,
+                range: range,
+                category: category,
+                confidence: 1.0
+            )
+        }
+    }
+
+    private static func detectedSpan(
+        in text: String,
+        range: Range<String.Index>,
+        category: String,
+        confidence: Float
+    ) -> DetectedSpan {
+        let matched = String(text[range])
+        let charStart = text.distance(from: text.startIndex, to: range.lowerBound)
+        let charEnd = text.distance(from: text.startIndex, to: range.upperBound)
+        return DetectedSpan(
+            category: category,
+            text: matched,
+            start: charStart,
+            end: charEnd,
+            confidence: confidence,
+            source: .pattern
+        )
+    }
+
+    private static func containsCustomDescriptorMatch(
+        for span: DetectedSpan,
+        descriptors: [PatternMatcher.LoadedCustomPattern]
+    ) -> Bool {
+        descriptors.contains { descriptor in
+            descriptor.category == span.category &&
+            descriptor.value.compare(span.text, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+    }
+}
+
 nonisolated enum PatternMatcherLiteralSupport {
     static func loadCustomPatternDescriptors() -> [PatternMatcher.LoadedCustomPattern] {
         var seenKeys: Set<String> = []
@@ -7,7 +146,8 @@ nonisolated enum PatternMatcherLiteralSupport {
             let trimmed = spec.value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
             let trimmedLabel = spec.label.trimmingCharacters(in: .whitespacesAndNewlines)
-            if isGeneratedPatternLabel(trimmedLabel), !CustomPatternStore.isUsefulGeneratedPattern(trimmed) {
+            if PatternStoreNormalizationSupport.isGeneratedPatternLabel(trimmedLabel),
+               !PatternStoreNormalizationSupport.isUsefulGeneratedPattern(trimmed) {
                 return nil
             }
 
@@ -74,10 +214,6 @@ nonisolated enum PatternMatcherLiteralSupport {
             compactSearchRange = range.upperBound..<compactText.text.endIndex
         }
         return compactRanges
-    }
-
-    static func isGeneratedPatternLabel(_ label: String) -> Bool {
-        label.contains(" – Teil") || label.contains(" – Block")
     }
 
     static func dedupeKey(value: String, category: String) -> String {

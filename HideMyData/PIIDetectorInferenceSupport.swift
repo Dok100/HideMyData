@@ -41,6 +41,31 @@ enum PIIDetectorInferenceSupport {
         return diagnosticsLines(detection.diagnostics, postProcessed, text)
     }
 
+    nonisolated static func postProcessSpans(_ spans: [DetectedSpan], in text: String) -> [DetectedSpan] {
+        let sanitized = PIIDetectorSpanSanitizationSupport.sanitizeSpans(spans)
+        let deduplicated = PIIDetectorSpanSanitizationSupport.deduplicateExactSpans(sanitized)
+        let merged = PIIDetectorSpanSanitizationSupport.mergeEquivalentSpans(deduplicated)
+        let withoutConjoinedFragments = PIIDetectorSpanSanitizationSupport.suppressConjoinedNameFragments(merged)
+        let withoutLeadingAddressTails = PIIDetectorSpanSanitizationSupport.suppressLeadingConjunctionAddressSpans(withoutConjoinedFragments)
+        let withoutLegalBoilerplate = PIIDetectorSpanSanitizationSupport.suppressLegalBoilerplateFalsePositives(
+            withoutLeadingAddressTails,
+            in: text
+        )
+        return PIIDetectorSpanSanitizationSupport.suppressContainedCustomIdentifierSpans(withoutLegalBoilerplate)
+    }
+
+    nonisolated static func patternDiagnosticsLines(
+        _ diagnostics: PatternMatcher.Diagnostics,
+        postProcessed: [DetectedSpan],
+        in text: String
+    ) -> [String] {
+        PIIDetectorPatternDiagnosticsSupport.patternDiagnosticsLines(
+            diagnostics,
+            postProcessed: postProcessed,
+            in: text
+        )
+    }
+
     static func makeClipboardSession(
         originalText: String,
         anonymizationResult: TextAnonymizationResult,

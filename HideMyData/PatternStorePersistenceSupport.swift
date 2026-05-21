@@ -11,7 +11,7 @@ nonisolated enum PatternStorePersistenceSupport {
 
     static func loadPatterns() -> [CustomPattern] {
         guard let decoded = loadDecodedPatterns() else { return [] }
-        return CustomPatternStore.sanitizedPersistedPatterns(decoded)
+        return PatternStoreNormalizationSupport.sanitizedPersistedPatterns(decoded)
     }
 
     static func persist(_ patterns: [CustomPattern]) {

@@ -122,6 +122,7 @@ Aktueller Fortschritt in Phase 4:
 - PDF-spezifische OCR-Zusatzanalyse fuer Fensterempfaenger-Kontext liegt jetzt in `HideMyData/PDFOCRSupplementalAnalyzer.swift`
 - bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
 - Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
+- `Regex-Pattern-Bibliothek.Json` liegt jetzt zusaetzlich als validierte Quellbibliothek vor; die App laedt zur Laufzeit weiterhin nur das kuratierte Manifest `HideMyData/patterns.json`, aus dem die polnischen Regex-Blöcke entfernt wurden, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig mittraegt
 - Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
 - seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
@@ -137,7 +138,9 @@ Aktueller Fortschritt in Phase 4:
 - Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `ImageRedactor.swift` liegt jetzt in `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
 - Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung aus `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternMatcherLiteralSupport.swift`
+- Detection-Loop, Regex-/Literal-Span-Aufbau und Diagnostics-Zusammenstellung aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternMatcherLiteralSupport.swift`
 - Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung aus dem Store-Teil von `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternStorePersistenceSupport.swift` und `HideMyData/PatternStoreManagementSupport.swift`
+- Store-Normalisierung, Preview-Expansion, Persisted-Pattern-Sanitizing und Generated-Pattern-Heuristiken aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternStoreManagementSupport.swift`
 - Bild-Preview-Diagnostik ist in `HideMyData/ImagePreviewDiagnosticsSupport.swift` ausgelagert
 - Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorModelCacheSupport.swift` und `HideMyData/PIIDetectorPlaceholderSupport.swift` verschoben
 - sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert
@@ -145,7 +148,9 @@ Aktueller Fortschritt in Phase 4:
 - Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorSupplementalClipboardSupport.swift`
 - Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `HideMyData/ReviewFindingCompactor.swift`
 - Zustandslogik, Fehlermeldungstexte und Persistenz fuer die letzte Zwischenablage-Sitzung aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorLifecycleSupport.swift` und `HideMyData/PIIDetectorClipboardSessionSupport.swift`
+- Modell-Download, Cache-Load und Ready/Warmup-Orchestrierung aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
 - Modelltreffer-Mapping, Pattern-/Supplemental-Zusammenfuehrung, sichtbare Pattern-Diagnostik und Clipboard-Session-Aufbau aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorInferenceSupport.swift`
+- Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorInferenceSupport.swift`
 
 ## Bekannte Ausgangslage
 

@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import OpenMedKit
 
 enum PIIDetectorLifecycleSupport {
     @MainActor
@@ -49,5 +50,74 @@ enum PIIDetectorLifecycleSupport {
 
     static func modelLoadFailureMessage(for error: Error) -> String {
         "Das lokale Modell konnte nicht geladen werden. Bitte versuche den Download erneut oder starte die App noch einmal. Details: \(error.localizedDescription)"
+    }
+}
+
+enum PIIDetectorModelLifecycleSupport {
+    @MainActor
+    static func loadIfCached(
+        phase: PIIDetector.Phase,
+        cacheRoot: URL,
+        loadCachedModel: @escaping @MainActor () async -> Void
+    ) async {
+        ensureCacheDirectoryExists(at: cacheRoot)
+        if case .loadingModel = phase {
+            await loadCachedModel()
+        }
+    }
+
+    @MainActor
+    static func startDownload(
+        modelRepoID: String,
+        modelRevision: String,
+        cacheRoot: URL,
+        updatePhase: @escaping @MainActor (PIIDetector.Phase) -> Void,
+        loadCachedModel: @escaping @MainActor () async -> Void
+    ) async {
+        ensureCacheDirectoryExists(at: cacheRoot)
+        updatePhase(.downloading(downloaded: 0, total: 0))
+
+        let downloader = ModelDownloader(
+            repoID: modelRepoID,
+            revision: modelRevision,
+            cacheRoot: cacheRoot
+        )
+        downloader.onProgress = { downloaded, total in
+            updatePhase(.downloading(downloaded: downloaded, total: total))
+        }
+
+        do {
+            _ = try await downloader.download()
+            await loadCachedModel()
+        } catch {
+            updatePhase(.failed(PIIDetectorLifecycleSupport.modelDownloadFailureMessage(for: error)))
+        }
+    }
+
+    @MainActor
+    static func loadCachedModel(
+        readyMarkerURL: URL,
+        modelDirectory: URL,
+        updatePhase: @escaping @MainActor (PIIDetector.Phase) -> Void,
+        assignModel: @escaping @MainActor (OpenMed?) -> Void,
+        warmUp: @escaping @MainActor () async -> Void
+    ) async {
+        updatePhase(.loadingModel)
+
+        do {
+            guard FileManager.default.fileExists(atPath: readyMarkerURL.path) else {
+                updatePhase(.needsDownload)
+                return
+            }
+
+            assignModel(try OpenMed(backend: .mlx(modelDirectoryURL: modelDirectory)))
+            await warmUp()
+        } catch {
+            updatePhase(.failed(PIIDetectorLifecycleSupport.modelLoadFailureMessage(for: error)))
+        }
+    }
+
+    private static func ensureCacheDirectoryExists(at cacheRoot: URL) {
+        try? FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
     }
 }

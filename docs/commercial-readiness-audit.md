@@ -46,6 +46,29 @@ Bereits bereinigt oder ersetzt:
 - README-Lizenzhinweis auf den realen Zwischenstand geschaerft
 - `.swiftlint.yml` als schlanke eigene Projektkonfiguration neu aufgebaut
 
+## Audit-Refresh 2026-05-21
+
+Aktuelle Groessen der verbleibenden Fachkern-Dateien:
+
+- `HideMyData/PatternMatcher.swift`: `799` Zeilen
+- `HideMyData/PDFRedactor.swift`: `609` Zeilen
+- `HideMyData/PIIDetector.swift`: `588` Zeilen
+- `HideMyData/ImageRedactor.swift`: `522` Zeilen
+- `HideMyData/patterns.json`: `352` Zeilen
+
+Neue Priorisierung nach den letzten PDF-Extraktionen:
+
+1. `HideMyData/PatternMatcher.swift`
+   Groesster zusammenhaengender Restblock. Enthält weiterhin Store-, Persistenz-, Import-, Cleanup- und Detection-Logik in einer Datei.
+2. `HideMyData/patterns.json`
+   Nicht gross in Zeilen, aber fachlich sensibel. Die Regex-/Datenbasis selbst bleibt ein relevanter Relicensing-Risikoblock.
+3. `HideMyData/PIIDetector.swift`
+   Deutlich schlanker, aber immer noch zentraler Integrations- und Orchestrierungsknoten fuer Inferenz, Cache, Placeholder und Post-Processing.
+4. `HideMyData/PDFRedactor.swift`
+   Nach den neuen Lifecycle-, Rect-, Styling-, Mutations- und Render-Extraktionen inzwischen eher Integrationsklasse mit kleinerem verbleibendem Review-/State-Block.
+5. `HideMyData/ImageRedactor.swift`
+   Noch relevant, aktuell aber weniger dringlich als `PatternMatcher` und der verbleibende Integrationsrest von `PIIDetector`.
+
 ## Rechtlich blockierend
 
 Diese Punkte muessen vor einer proprietaeren oder kommerziellen Umstellung geklaert oder ersetzt sein:
@@ -56,11 +79,11 @@ Diese Punkte muessen vor einer proprietaeren oder kommerziellen Umstellung gekla
   Solange diese nicht sicher ersetzt oder lizenziert sind, darf die GPL nicht einfach entfernt werden.
 - Verbleibende Fachkern-Dateien mit nicht-trivialen Altanteilen
   Vor allem:
+  - [HideMyData/PatternMatcher.swift](../HideMyData/PatternMatcher.swift)
   - [HideMyData/patterns.json](../HideMyData/patterns.json)
+  - der verbleibende Integrationsrest in [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift)
   - [HideMyData/PDFRedactor.swift](../HideMyData/PDFRedactor.swift)
   - [HideMyData/ImageRedactor.swift](../HideMyData/ImageRedactor.swift)
-  - [HideMyData/PatternMatcher.swift](../HideMyData/PatternMatcher.swift)
-  - der verbleibende Integrationsrest in [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift), der nach den Support-Extraktionen erneut neu bewertet werden sollte
 
 ## Vor Release oder Store-Vorbereitung bereinigen
 
@@ -93,8 +116,9 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 
 ## Naechste konkrete Schritte
 
+- `PatternMatcher.swift` als naechsten groessten Fachkern-Block in Store-/Persistenz- und Detection-Verantwortung weiter zerlegen
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
-- den verbleibenden Restkern von `PDFRedactor.swift` und `ImageRedactor.swift` nach den neuen Lifecycle-, Review-, Rect-, Annotation-Styling-, Mutations- und Render-Extraktionen erneut klein schneiden
-- den verbleibenden Restkern von `PatternMatcher.swift` und den schlankeren Integrationsrest von `PIIDetector.swift` nach den neuen Support-Extraktionen erneut auf verbleibende Altanteile bewerten
+- den schlankeren Integrationsrest von `PIIDetector.swift` erneut auf verbleibende Altanteile bewerten
+- `PDFRedactor.swift` und `ImageRedactor.swift` erst nach dem Pattern-/PII-Refresh erneut auf weitere sinnvolle Schnitte pruefen
 - Sparkle-Historie fuer neue Distribution separat neu aufsetzen
 - Lizenzwechsel erst nach Abschluss der technischen und rechtlichen Bereinigung vorbereiten

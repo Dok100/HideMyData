@@ -189,7 +189,7 @@ final class CustomPatternStore {
 
     private func load() {
         guard let decoded = PatternStorePersistenceSupport.loadDecodedPatterns() else { return }
-        let sanitized = sanitizedPersistedPatterns(decoded)
+        let sanitized = Self.sanitizedPersistedPatterns(decoded)
         patterns = sanitized
         if sanitized != decoded {
             persist()
@@ -228,20 +228,12 @@ final class CustomPatternStore {
         deduplicated(importedPatterns.compactMap(normalize(_:)))
     }
 
-    private func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
-        Self.sanitizedPersistedPatterns(persistedPatterns)
-    }
-
     nonisolated static func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
         PatternStoreNormalizationSupport.sanitizedPersistedPatterns(persistedPatterns)
     }
 
     private func deduplicated(_ patterns: [CustomPattern]) -> [CustomPattern] {
         Self.sanitizedPersistedPatterns(patterns)
-    }
-
-    private func baseLabel(for label: String) -> String {
-        Self.baseLabel(for: label)
     }
 
     nonisolated fileprivate static func baseLabel(for label: String) -> String {
@@ -281,10 +273,6 @@ final class CustomPatternStore {
 
     nonisolated static func isUsefulGeneratedPattern(_ value: String) -> Bool {
         PatternStoreNormalizationSupport.isUsefulGeneratedPattern(value)
-    }
-
-    nonisolated fileprivate static func containsStreetIndicator(_ value: String) -> Bool {
-        PatternStoreNormalizationSupport.containsStreetIndicator(value)
     }
 
     private func patternKey(_ pattern: CustomPattern) -> String {

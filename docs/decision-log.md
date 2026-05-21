@@ -58,6 +58,15 @@
 - Eigene Regeln sind jetzt nicht nur editierbar, sondern geben schon vor dem Speichern Rueckmeldung zu Regelqualitaet und moeglichen Treffern im aktuell geoeffneten Dokument.
 - Die erste Dokumentvorschau bleibt bewusst textbasiert und leichtgewichtig, damit der Editor schnell und ohne Eingriff in die eigentliche Erkennungslogik unterstuetzend bleibt.
 
+## 2026-05-21
+
+- `PROJ-21` wird als abgeschlossen gewertet.
+- Das bisherige Fork-Repository bleibt als Nachschlagewerk und historische Referenz bestehen.
+- Das neue Repository `Dok100/Inkognito` ist die kuenftige Produktbasis.
+- Die verbleibenden Kernpfade aus dem Commercial-Readiness-Audit werden im aktuellen Stand bewusst akzeptiert; innerhalb von `PROJ-21` ist keine weitere Reduzierung mehr geplant.
+- Die Lizenz im neuen Repository bleibt vorerst bewusst offen (`No license`), solange die geplante Kommerzialisierung vorbereitet wird.
+- Der Sparkle-/Distributionsreset bleibt als separater Folgeblock in `PROJ-22` ausgelagert.
+
 ## 2026-05-13
 
 - `Inkognito.xcodeproj` ist das aktive Projekt.

@@ -22,6 +22,11 @@
     "breite internationale Telefonnummern ohne Dokument-Label bleiben nur noch in der Quellenbibliothek; in der Runtime bleiben die explizit gelabelten Telefon- und Mobilfelder",
     "weitere Bibliotheksmuster bleiben bis zu einer bewussten Runtime-Aufnahme nur in der Quellenbibliothek"
   ],
+  "retained_runtime_notes": [
+    "die unlabeled E-Mail-Erkennung bleibt in der Runtime, weil E-Mail-Adressen in typischen Dokument- und Formular-Kontexten weiterhin regelmaessig direkt schutzrelevant sind",
+    "der MRZ-Fall bleibt trotz Secret-Kategorie in der Runtime, weil er hochgradig dokumentzentriert ist und fuer Ausweis- und Reisepassfaelle fachlich gewollt bleibt",
+    "das breite europaeische Datumsformat bleibt fuer die aktuelle Desktop-Nutzung bewusst in der Runtime und wird weiter ueber Review- und Dokumentkontext abgesichert"
+  ],
   "patterns": [
     {
       "id": "email",

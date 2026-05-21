@@ -54,7 +54,6 @@ enum PDFAnnotationReviewLifecycleSupport {
         reviewFindings: inout [ReviewFinding],
         focusedFindingID: inout UUID?,
         focusTarget: inout PDFRedactor.FocusTarget?,
-        pageCount: Int,
         currentPageIndex: inout Int,
         requestedPageIndex: inout Int?,
         debugEntries: inout [DetectionDebugEntry],
@@ -104,6 +103,19 @@ enum PDFAnnotationReviewLifecycleSupport {
         dismissedPreviewAnnotations.append(contentsOf: matching)
     }
 
+    static func promotePreviewToRedaction(
+        findingID: UUID,
+        previewAnnotations: inout [PDFRedactor.RedactionEntry]
+    ) -> [PDFRedactor.RedactionEntry] {
+        let matches = previewAnnotations.filter { $0.findingID == findingID }
+        guard !matches.isEmpty else { return [] }
+        for entry in matches {
+            entry.page.removeAnnotation(entry.annotation)
+        }
+        previewAnnotations.removeAll { $0.findingID == findingID }
+        return matches
+    }
+
     static func restoreDismissedPreviews(
         for findingID: UUID,
         previewAnnotations: inout [PDFRedactor.RedactionEntry],
@@ -116,6 +128,19 @@ enum PDFAnnotationReviewLifecycleSupport {
             entry.page.addAnnotation(entry.annotation)
         }
         previewAnnotations.append(contentsOf: matches)
+    }
+
+    static func reopenAcceptedFinding(
+        _ findingID: UUID,
+        redactionAnnotations: inout [PDFRedactor.RedactionEntry]
+    ) -> [PDFRedactor.RedactionEntry] {
+        let matches = redactionAnnotations.filter { $0.findingID == findingID }
+        guard !matches.isEmpty else { return [] }
+        for entry in matches {
+            entry.page.removeAnnotation(entry.annotation)
+        }
+        redactionAnnotations.removeAll { $0.findingID == findingID }
+        return matches
     }
 
     static func updateFinding(

@@ -1,6 +1,6 @@
 # PROJ-21 – Commercial Readiness und Re-Licensing Cleanup
 
-**Status**: In Arbeit
+**Status**: Abgeschlossen
 
 ## Ziel
 
@@ -27,6 +27,27 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 - separates Umstellungskonzept für Lizenz, README, Store-Metadaten und Release-Artefakte
 - dokumentierte Entscheidung, welche Legacy-Migrationen bewusst erhalten bleiben
 - separater Folgeblock fuer die Spaeter-Neuaufsetzung der Sparkle-Historie und Distribution statt einer stillen Umschreibung der Alt-Artefakte
+
+## Definition of Done
+
+`PROJ-21` gilt erst dann als abgeschlossen, wenn alle folgenden Punkte erfuellt sind:
+
+1. Die fachlichen Kernpfade aus Phase 4 sind in ihrem aktuellen Zuschnitt bewusst akzeptiert oder weiter reduziert, und groessere Altbloecke gelten nicht mehr als offener Prioritaetsblock.
+2. Die rechtlich blockierenden Punkte aus `docs/commercial-readiness-audit.md` sind fuer den angestrebten Produktstand entschieden: entweder ersetzt, geklaert oder bewusst als Restblock dokumentiert.
+3. Die Lizenz- und Rechtekettenentscheidung fuer das distribuierte Werk ist dokumentiert; insbesondere wird `LICENSE` nicht mehr nur als offener Platzhalterzustand gefuehrt.
+4. README-, Release- und Store-nahe Metadaten sind auf den realen Produkt- und Distributionsstand abgeglichen, soweit sie nicht bewusst an `PROJ-22` ausgelagert wurden.
+5. Bewusst beibehaltene Legacy-Migrationspfade sind dokumentiert, und ihre Beibehaltung ist fachlich begruendet statt nur historisch gewachsen.
+6. Der getrennte Sparkle-/Distributionsreset ist klar an `PROJ-22` uebergeben und wird nicht mehr als still offener Rest in `PROJ-21` mitgefuehrt.
+7. Audit-, Handoff- und Entscheidungsdokumente spiegeln den Abschlussstand konsistent wider.
+8. Der aktuelle Abschlussstand ist technisch verifiziert oder auf einen bereits verifizierten Stand rueckgebunden; mindestens Build und Detection-Regressionen sind fuer die letzten relevanten Codeaenderungen dokumentiert.
+
+## Abschlussentscheidung
+
+- Das bisherige Fork-Repo bleibt bewusst als Nachschlagewerk und historische Referenz bestehen.
+- Das neue Repository `Dok100/Inkognito` ist die kuenftige Produktbasis.
+- Im neuen Repository bleibt die Lizenz vorerst bewusst offen (`No license`), solange die geplante Kommerzialisierung vorbereitet wird.
+- Die im Audit verbleibenden Kernpfade `HideMyData/patterns.json`, `HideMyData/PDFRedactor.swift`, `HideMyData/ImageRedactor.swift`, `HideMyData/PIIDetector.swift` und `HideMyData/PatternMatcher.swift` werden im aktuellen Stand bewusst akzeptiert; es ist keine weitere Reduzierung innerhalb von `PROJ-21` geplant.
+- Der Sparkle-/Distributionsreset bleibt separat an `PROJ-22` uebergeben.
 
 ## Relevante Dateien
 
@@ -118,7 +139,11 @@ Technische Altbausteine kontrolliert neu aufsetzen, ohne das Produktversprechen 
 Ziel:
 Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Altblöcke mehr auf Drittautor-Beiträgen beruhen.
 
-Aktueller Fortschritt in Phase 4:
+Status Phase 4:
+- inhaltlich abgeschlossen
+- weitere Eingriffe in `HideMyData/PDFRedactor.swift`, `HideMyData/ImageRedactor.swift` oder `HideMyData/patterns.json` nur noch bei klar begruendetem fachlichem Mehrwert
+
+Abschlussstand von Phase 4:
 - PDF-spezifische Header-/Absenderblock-Unterdrückung ist in `HideMyData/PDFHeaderSuppressionSupport.swift` ausgelagert
 - PDF-spezifische OCR-Zusatzanalyse fuer Fensterempfaenger-Kontext liegt jetzt in `HideMyData/PDFOCRSupplementalAnalyzer.swift`
 - bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
@@ -130,12 +155,15 @@ Aktueller Fortschritt in Phase 4:
 - `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
 - `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
 - `HideMyData/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
+- `HideMyData/patterns.json` dokumentiert bewusst behaltene Runtime-Grenzfaelle jetzt zusaetzlich ueber `retained_runtime_notes`, aktuell fuer unlabeled `email`, `mrz` und `date_eu_dotted`
 - Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
 - seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
 - Hit-Testing, Pending-Auswahl sowie Fokus-/Navigationshelfer aus `PDFRedactor.swift` laufen jetzt staerker ueber `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
+- die verbliebenen toten PDF-Review-Wrapper sowie der ungenutzte `pageCount`-Parameter wurden aus dem PDF-Review-Pfad entfernt
+- Preview-zu-Redaction- und Accepted-zu-Pending-Uebergaenge fuer PDF-Review laufen jetzt ebenfalls staerker ueber `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
 - Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFBoundingRectSupport.swift`
 - Annotation-Styling, Preview-Farbgebung und Bounds-Normalisierung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationStyleSupport.swift`
 - Redaction-/Preview-Mutation und Redaction-Restyle aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationMutationSupport.swift`

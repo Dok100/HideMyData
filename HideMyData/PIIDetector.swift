@@ -164,10 +164,6 @@ final class PIIDetector {
         )
     }
 
-    private static func sanitizedModelRepoComponent() -> String {
-        PIIDetectorModelCacheSupport.sanitizedModelRepoComponent(modelRepoID)
-    }
-
     static func cleanupLegacyModelVersions() throws -> Int {
         try PIIDetectorModelCacheSupport.cleanupLegacyModelVersions(
             schemaVersion: modelCacheSchemaVersion,

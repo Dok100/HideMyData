@@ -56,6 +56,8 @@ Bereits bereinigt oder ersetzt:
 - Clipboard-Session-Erzeugung, Persistenz-Verkabelung und Restore-Helfer aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorClipboardSessionSupport.swift`
 - PIIDetector-Inferenzaufbau und die sichtbare Pattern-Diagnostik laufen jetzt zusaetzlich ueber `PIIDetectorInferenceSupport.swift`
 - Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorInferenceSupport.swift`
+- Text-Anonymisierung und Clipboard-Anonymisierungsaufbau aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorAnonymizationSupport.swift`
+- die letzten Facade-Helfer `visiblePatternDiagnostics` und `classifyDocumentText` werden jetzt als `PIIDetector`-Extensions aus den jeweiligen Support-Dateien bereitgestellt statt direkt in `PIIDetector.swift`
 - `LoadedCustomPattern`, `Diagnostics`, Builtin-Konstante und Entry-Points aus `PatternMatcher.swift` liegen jetzt ebenfalls in `PatternMatcherLiteralSupport.swift`, waehrend `PatternMatcher.swift` im Wesentlichen nur noch den `CustomPatternStore` traegt
 - Review-Kompaktierung fuer Trefferprojektionen in `ReviewFindingCompactor.swift` ausgelagert
 - README-Lizenzhinweis auf den realen Zwischenstand geschaerft
@@ -66,7 +68,7 @@ Bereits bereinigt oder ersetzt:
 Aktuelle Groessen der verbleibenden Fachkern-Dateien:
 
 - `HideMyData/PatternMatcher.swift`: `302` Zeilen
-- `HideMyData/PIIDetector.swift`: `326` Zeilen
+- `HideMyData/PIIDetector.swift`: `303` Zeilen
 - `HideMyData/patterns.json`: `183` Zeilen
 - `HideMyData/PDFRedactor.swift`: `609` Zeilen
 - `HideMyData/ImageRedactor.swift`: `522` Zeilen

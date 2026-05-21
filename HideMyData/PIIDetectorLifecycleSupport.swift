@@ -117,6 +117,38 @@ enum PIIDetectorModelLifecycleSupport {
         }
     }
 
+    @MainActor
+    static func warmUp(
+        model: OpenMed?,
+        updatePhase: @escaping @MainActor (PIIDetector.Phase) -> Void
+    ) async {
+        updatePhase(.warmingUp)
+        _ = await runOnBackground {
+            try? model?.extractPII("Aufwärmen.", confidenceThreshold: 0.5, useSmartMerging: false)
+        }
+        updatePhase(.ready)
+    }
+
+    static func runOnBackground<T: Sendable>(_ work: @Sendable @escaping () -> T) async -> T {
+        await Task.detached(priority: .userInitiated) { work() }.value
+    }
+
+    @MainActor
+    static func performDetection<T: Sendable>(
+        model: OpenMed?,
+        currentPhase: PIIDetector.Phase,
+        updatePhase: @escaping @MainActor (PIIDetector.Phase) -> Void,
+        operation: @escaping @MainActor (OpenMed) async -> Result<T, Error>
+    ) async -> Result<T, Error> {
+        guard let model else {
+            return .failure(HMDError.message("Erkennung ist nicht geladen"))
+        }
+
+        updatePhase(.running)
+        defer { updatePhase(currentPhase) }
+        return await operation(model)
+    }
+
     private static func ensureCacheDirectoryExists(at cacheRoot: URL) {
         try? FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
     }

@@ -1,5 +1,38 @@
 import Foundation
 
+struct PatternMatcherLoadedCustomPattern: Sendable {
+    let label: String
+    let value: String
+    let category: String
+}
+
+struct PatternMatcherDiagnostics: Sendable {
+    let storagePath: String
+    let storageFileExists: Bool
+    let legacyStoragePath: String
+    let legacyStorageFileExists: Bool
+    let loadedCustomPatterns: [PatternMatcherLoadedCustomPattern]
+    let rawCustomMatches: [DetectedSpan]
+}
+
+nonisolated enum PatternMatcher {
+    typealias LoadedCustomPattern = PatternMatcherLoadedCustomPattern
+    typealias Diagnostics = PatternMatcherDiagnostics
+
+    private static let builtinPatterns = PatternMatcherDetectionSupport.loadBuiltinPatterns()
+
+    static func detect(_ text: String) -> [DetectedSpan] {
+        detectWithDiagnostics(text).spans
+    }
+
+    static func detectWithDiagnostics(_ text: String) -> (spans: [DetectedSpan], diagnostics: Diagnostics) {
+        PatternMatcherDetectionSupport.detectWithDiagnostics(
+            text: text,
+            builtinPatterns: builtinPatterns
+        )
+    }
+}
+
 nonisolated enum PatternMatcherDetectionSupport {
     struct RuntimePattern {
         let id: String
@@ -99,12 +132,13 @@ nonisolated enum PatternMatcherDetectionSupport {
         literal: String,
         category: String
     ) -> [DetectedSpan] {
-        PatternMatcherLiteralSupport.literalMatchRanges(in: text, literal: literal).map { range in
+        let ranges = PatternMatcherLiteralSupport.literalMatchRanges(in: text, literal: literal)
+        return ranges.map { range in
             detectedSpan(
                 in: text,
                 range: range,
                 category: category,
-                confidence: 1.0
+                confidence: Float(1.0)
             )
         }
     }

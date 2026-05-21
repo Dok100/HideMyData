@@ -300,33 +300,3 @@ final class CustomPatternStore {
     }
 
 }
-
-nonisolated enum PatternMatcher {
-    struct LoadedCustomPattern: Sendable {
-        let label: String
-        let value: String
-        let category: String
-    }
-
-    struct Diagnostics: Sendable {
-        let storagePath: String
-        let storageFileExists: Bool
-        let legacyStoragePath: String
-        let legacyStorageFileExists: Bool
-        let loadedCustomPatterns: [LoadedCustomPattern]
-        let rawCustomMatches: [DetectedSpan]
-    }
-
-    private static let builtinPatterns = PatternMatcherDetectionSupport.loadBuiltinPatterns()
-
-    static func detect(_ text: String) -> [DetectedSpan] {
-        detectWithDiagnostics(text).spans
-    }
-
-    static func detectWithDiagnostics(_ text: String) -> (spans: [DetectedSpan], diagnostics: Diagnostics) {
-        PatternMatcherDetectionSupport.detectWithDiagnostics(
-            text: text,
-            builtinPatterns: builtinPatterns
-        )
-    }
-}

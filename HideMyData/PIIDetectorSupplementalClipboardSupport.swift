@@ -419,3 +419,9 @@ enum PIIDetectorSupplementalClipboardSupport {
         return nil
     }
 }
+
+extension PIIDetector {
+    nonisolated static func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
+        PIIDetectorSupplementalClipboardSupport.classifyDocumentText(text)
+    }
+}

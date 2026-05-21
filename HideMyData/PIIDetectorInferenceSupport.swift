@@ -65,18 +65,14 @@ enum PIIDetectorInferenceSupport {
             in: text
         )
     }
+}
 
-    static func makeClipboardSession(
-        originalText: String,
-        anonymizationResult: TextAnonymizationResult,
-        createdAt: Date = Date()
-    ) -> ClipboardAnonymizationSession {
-        ClipboardAnonymizationSession(
-            originalText: originalText,
-            anonymizedText: anonymizationResult.anonymizedText,
-            replacementCount: anonymizationResult.replacementCount,
-            placeholders: anonymizationResult.placeholders,
-            createdAt: createdAt
+extension PIIDetector {
+    nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
+        PIIDetectorInferenceSupport.visiblePatternDiagnostics(
+            for: text,
+            postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
+            diagnosticsLines: PIIDetectorInferenceSupport.patternDiagnosticsLines(_:postProcessed:in:)
         )
     }
 }

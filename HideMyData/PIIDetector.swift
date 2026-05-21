@@ -195,7 +195,7 @@ final class PIIDetector {
     init() {
         let readyMarkerURL = Self.readyMarkerURL(in: Self.defaultCacheRoot())
         self.phase = PIIDetectorLifecycleSupport.initialPhase(readyMarkerURL: readyMarkerURL)
-        self.lastClipboardSession = Self.loadPersistedClipboardSession(
+        self.lastClipboardSession = PIIDetectorClipboardSessionSupport.loadPersistedClipboardSession(
             key: Self.lastClipboardSessionKey,
             legacyKey: Self.legacyLastClipboardSessionKey
         )
@@ -244,93 +244,53 @@ final class PIIDetector {
     }
 
     private func warmUp() async {
-        phase = .warmingUp
-        let model = openmed
-        _ = await runOnBackground { try? model?.extractPII("Aufwärmen.", confidenceThreshold: 0.5, useSmartMerging: false) }
-        phase = .ready
+        await PIIDetectorModelLifecycleSupport.warmUp(
+            model: openmed,
+            updatePhase: { [weak self] in self?.phase = $0 }
+        )
     }
 
     // MARK: - Inference
 
     func detect(_ text: String) async -> Result<[DetectedSpan], Error> {
-        guard let model = openmed else {
-            return .failure(HMDError.message("Erkennung ist nicht geladen"))
-        }
-        let prevPhase = phase
-        phase = .running
-        defer { phase = prevPhase }
-
-        return await runOnBackground {
-            PIIDetectorInferenceSupport.detect(
-                text,
-                model: model,
-                supplementalSpans: PIIDetectorSupplementalClipboardSupport.supplementalClipboardSpans(in:),
-                postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
-                printDiagnostics: PIIDetectorPatternDiagnosticsSupport.printPatternDiagnostics(_:postProcessed:in:)
-            )
+        await PIIDetectorModelLifecycleSupport.performDetection(
+            model: openmed,
+            currentPhase: phase,
+            updatePhase: { [weak self] in self?.phase = $0 }
+        ) { model in
+            await PIIDetectorModelLifecycleSupport.runOnBackground {
+                PIIDetectorInferenceSupport.detect(
+                    text,
+                    model: model,
+                    supplementalSpans: PIIDetectorSupplementalClipboardSupport.supplementalClipboardSpans(in:),
+                    postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
+                    printDiagnostics: PIIDetectorPatternDiagnosticsSupport.printPatternDiagnostics(_:postProcessed:in:)
+                )
+            }
         }
     }
 
     func anonymizeText(_ text: String) async -> Result<TextAnonymizationResult, Error> {
-        switch await detect(text) {
-        case .failure(let error):
-            return .failure(error)
-        case .success(let spans):
-            return .success(PIIDetectorPlaceholderSupport.placeholderize(text: text, spans: spans))
-        }
+        await PIIDetectorAnonymizationSupport.anonymizeText(text, detect: detect)
     }
 
     func anonymizeClipboardText(_ text: String) async -> Result<ClipboardAnonymizationSession, Error> {
-        switch await anonymizeText(text) {
-        case .failure(let error):
-            return .failure(error)
-        case .success(let result):
-            let session = PIIDetectorInferenceSupport.makeClipboardSession(
-                originalText: text,
-                anonymizationResult: result
-            )
-            lastClipboardSession = session
-            Self.persistClipboardSession(session)
-            return .success(session)
-        }
+        await PIIDetectorAnonymizationSupport.anonymizeClipboardText(
+            text,
+            detect: detect,
+            assignSession: { [weak self] in self?.lastClipboardSession = $0 },
+            persistSession: {
+                PIIDetectorClipboardSessionSupport.persistClipboardSession(
+                    $0,
+                    key: Self.lastClipboardSessionKey,
+                    legacyKey: Self.legacyLastClipboardSessionKey
+                )
+            }
+        )
     }
 
     func restoreText(_ text: String) -> TextRestorationResult? {
-        guard let session = lastClipboardSession else { return nil }
-        return PIIDetectorPlaceholderSupport.restorePlaceholders(in: text, placeholders: session.placeholders)
-    }
-
-    nonisolated static func visiblePatternDiagnostics(for text: String) -> [String] {
-        PIIDetectorInferenceSupport.visiblePatternDiagnostics(
-            for: text,
-            postProcess: PIIDetectorInferenceSupport.postProcessSpans(_:in:),
-            diagnosticsLines: PIIDetectorInferenceSupport.patternDiagnosticsLines(_:postProcessed:in:)
-        )
-    }
-
-    // MARK: - Helpers
-
-    private func runOnBackground<T: Sendable>(_ work: @Sendable @escaping () -> T) async -> T {
-        await Task.detached(priority: .userInitiated) { work() }.value
-    }
-
-    nonisolated static func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
-        PIIDetectorSupplementalClipboardSupport.classifyDocumentText(text)
-    }
-
-    private static func persistClipboardSession(_ session: ClipboardAnonymizationSession) {
-        PIIDetectorClipboardSessionSupport.persistClipboardSession(
-            session,
-            key: lastClipboardSessionKey,
-            legacyKey: legacyLastClipboardSessionKey
-        )
-    }
-
-    private static func loadPersistedClipboardSession(key: String, legacyKey: String) -> ClipboardAnonymizationSession? {
-        PIIDetectorClipboardSessionSupport.loadPersistedClipboardSession(
-            key: key,
-            legacyKey: legacyKey
-        )
+        PIIDetectorClipboardSessionSupport.restoreText(text, session: lastClipboardSession)
     }
 }
 

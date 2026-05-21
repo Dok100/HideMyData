@@ -39,6 +39,7 @@ Bereits bereinigt oder ersetzt:
 - Supplemental-Recovery und Sichtbarkeitspruefung fuer Bild-Previews laufen jetzt ueber `ImageReviewRecoverySupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik laufen jetzt ueber `ImageAnnotationReviewLifecycleSupport.swift`
 - Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung laufen jetzt ueber `PatternMatcherLiteralSupport.swift`
+- Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung fuer benutzerdefinierte Muster laufen jetzt ueber `PatternStorePersistenceSupport.swift` und `PatternStoreManagementSupport.swift`
 - groessere `PIIDetector`-Bloecke fuer Modellcache, Platzhalter, Pattern-Diagnostik, Span-Sanitizing und Clipboard-Supplemente in eigene Support-Dateien verschoben
 - PIIDetector-Zustandslogik und die Persistenz der letzten Zwischenablage-Sitzung laufen jetzt ueber `PIIDetectorLifecycleSupport.swift` und `PIIDetectorClipboardSessionSupport.swift`
 - PIIDetector-Inferenzaufbau und die sichtbare Pattern-Diagnostik laufen jetzt zusaetzlich ueber `PIIDetectorInferenceSupport.swift`
@@ -59,7 +60,7 @@ Aktuelle Groessen der verbleibenden Fachkern-Dateien:
 Neue Priorisierung nach den letzten PDF-Extraktionen:
 
 1. `HideMyData/PatternMatcher.swift`
-   Groesster zusammenhaengender Restblock. Enthält weiterhin Store-, Persistenz-, Import-, Cleanup- und Detection-Logik in einer Datei.
+   Groesster zusammenhaengender Restblock. Detection-Kern und Teile der Store-Orchestrierung liegen weiterhin zusammen, auch wenn Persistenz- und Verwaltungslogik bereits in Support-Dateien ausgelagert wurden.
 2. `HideMyData/patterns.json`
    Nicht gross in Zeilen, aber fachlich sensibel. Die Regex-/Datenbasis selbst bleibt ein relevanter Relicensing-Risikoblock.
 3. `HideMyData/PIIDetector.swift`
@@ -116,7 +117,7 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 
 ## Naechste konkrete Schritte
 
-- `PatternMatcher.swift` als naechsten groessten Fachkern-Block in Store-/Persistenz- und Detection-Verantwortung weiter zerlegen
+- `PatternMatcher.swift` nach dem neuen Persistenz-/Management-Schnitt weiter in Store-Orchestrierung und Detection-Verantwortung aufteilen
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
 - den schlankeren Integrationsrest von `PIIDetector.swift` erneut auf verbleibende Altanteile bewerten
 - `PDFRedactor.swift` und `ImageRedactor.swift` erst nach dem Pattern-/PII-Refresh erneut auf weitere sinnvolle Schnitte pruefen

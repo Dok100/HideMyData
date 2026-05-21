@@ -137,6 +137,7 @@ Aktueller Fortschritt in Phase 4:
 - Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `ImageRedactor.swift` liegt jetzt in `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
 - Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung aus `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternMatcherLiteralSupport.swift`
+- Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung aus dem Store-Teil von `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternStorePersistenceSupport.swift` und `HideMyData/PatternStoreManagementSupport.swift`
 - Bild-Preview-Diagnostik ist in `HideMyData/ImagePreviewDiagnosticsSupport.swift` ausgelagert
 - Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorModelCacheSupport.swift` und `HideMyData/PIIDetectorPlaceholderSupport.swift` verschoben
 - sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert

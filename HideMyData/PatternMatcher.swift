@@ -97,31 +97,28 @@ final class CustomPatternStore {
     }
 
     func importPatterns(_ importedPatterns: [CustomPattern], replaceExisting: Bool = false) -> Int {
-        let normalizedImportedPatterns = normalizedImportedPatterns(from: importedPatterns)
-        guard !normalizedImportedPatterns.isEmpty else { return 0 }
-
-        if replaceExisting {
-            patterns = normalizedImportedPatterns
-            persist()
-            return normalizedImportedPatterns.count
-        }
-
-        let existingKeys = Set(patterns.map(patternKey))
-        let newPatterns = normalizedImportedPatterns.filter { !existingKeys.contains(patternKey($0)) }
-        guard !newPatterns.isEmpty else { return 0 }
-        patterns.append(contentsOf: newPatterns)
+        let result = PatternStoreManagementSupport.importedPatterns(
+            currentPatterns: patterns,
+            importedPatterns: importedPatterns,
+            replaceExisting: replaceExisting,
+            normalizedImportedPatterns: normalizedImportedPatterns(from:),
+            patternKey: patternKey(_:)
+        )
+        guard result.importedCount > 0 else { return 0 }
+        patterns = result.patterns
         persist()
-        return newPatterns.count
+        return result.importedCount
     }
 
     func deduplicatePatterns() -> Int {
-        let originalCount = patterns.count
-        patterns = deduplicated(patterns)
-        let removedCount = originalCount - patterns.count
-        if removedCount > 0 {
-            persist()
-        }
-        return removedCount
+        let result = PatternStoreManagementSupport.deduplicatedPatterns(
+            currentPatterns: patterns,
+            deduplicated: deduplicated(_:)
+        )
+        guard result.removedCount > 0 else { return 0 }
+        patterns = result.patterns
+        persist()
+        return result.removedCount
     }
 
     func previewDeduplicateRemovalCount() -> Int {
@@ -129,13 +126,14 @@ final class CustomPatternStore {
     }
 
     func cleanupWeakPatterns() -> Int {
-        let originalCount = patterns.count
-        patterns = Self.sanitizedPersistedPatterns(patterns)
-        let removedCount = originalCount - patterns.count
-        if removedCount > 0 {
-            persist()
-        }
-        return removedCount
+        let result = PatternStoreManagementSupport.cleanedWeakPatterns(
+            currentPatterns: patterns,
+            sanitizedPersistedPatterns: Self.sanitizedPersistedPatterns(_:)
+        )
+        guard result.removedCount > 0 else { return 0 }
+        patterns = result.patterns
+        persist()
+        return result.removedCount
     }
 
     func previewWeakPatternRemovalCount() -> Int {
@@ -143,55 +141,30 @@ final class CustomPatternStore {
     }
 
     func migrateLegacyPatterns() -> Int {
-        let originalCount = patterns.count
-        var rebuilt: [CustomPattern] = []
-
-        for pattern in patterns {
-            let normalizedPattern = normalize(pattern)
-            guard let normalizedPattern else { continue }
-
-            if isGeneratedPatternLabel(normalizedPattern.label) {
-                rebuilt.append(normalizedPattern)
-            } else {
-                rebuilt.append(contentsOf: expandedPatterns(
-                    label: normalizedPattern.label,
-                    value: normalizedPattern.value,
-                    category: normalizedPattern.category
-                ))
-            }
-        }
-
-        patterns = deduplicated(rebuilt)
-        let addedCount = max(0, patterns.count - originalCount)
-        if patterns.count != originalCount {
-            persist()
-        } else {
-            persist()
-        }
-        return addedCount
+        let result = PatternStoreManagementSupport.migratedLegacyPatterns(
+            currentPatterns: patterns,
+            normalize: normalize(_:) ,
+            isGeneratedPatternLabel: isGeneratedPatternLabel(_:),
+            expandedPatterns: { label, value, category in
+                expandedPatterns(label: label, value: value, category: category)
+            },
+            deduplicated: deduplicated(_:)
+        )
+        patterns = result.patterns
+        persist()
+        return result.addedCount
     }
 
     func previewLegacyMigrationAddedCount() -> Int {
-        let originalCount = patterns.count
-        var rebuilt: [CustomPattern] = []
-
-        for pattern in patterns {
-            let normalizedPattern = normalize(pattern)
-            guard let normalizedPattern else { continue }
-
-            if isGeneratedPatternLabel(normalizedPattern.label) {
-                rebuilt.append(normalizedPattern)
-            } else {
-                rebuilt.append(contentsOf: expandedPatterns(
-                    label: normalizedPattern.label,
-                    value: normalizedPattern.value,
-                    category: normalizedPattern.category
-                ))
-            }
-        }
-
-        let rebuiltPatterns = deduplicated(rebuilt)
-        return max(0, rebuiltPatterns.count - originalCount)
+        PatternStoreManagementSupport.migratedLegacyPatterns(
+            currentPatterns: patterns,
+            normalize: normalize(_:) ,
+            isGeneratedPatternLabel: isGeneratedPatternLabel(_:),
+            expandedPatterns: { label, value, category in
+                expandedPatterns(label: label, value: value, category: category)
+            },
+            deduplicated: deduplicated(_:)
+        ).addedCount
     }
 
     func exportPatterns() -> [CustomPattern] {
@@ -199,59 +172,19 @@ final class CustomPatternStore {
     }
 
     func groupedPatterns() -> [PatternGroup] {
-        let originals = patterns.filter { !Self.isGeneratedPatternLabel($0.label) }
-        var remaining = Dictionary(uniqueKeysWithValues: patterns.map { ($0.id, $0) })
-        var groups: [PatternGroup] = []
-
-        for original in originals {
-            let expected = expandedPatterns(label: original.label, value: original.value, category: original.category)
-            var matched: [CustomPattern] = []
-
-            for pattern in expected {
-                if let match = remaining.values.first(where: { patternKey($0) == patternKey(pattern) }) {
-                    matched.append(match)
-                    remaining.removeValue(forKey: match.id)
-                }
-            }
-
-            if matched.isEmpty, let fallback = remaining.removeValue(forKey: original.id) {
-                matched = [fallback]
-            }
-
-            guard !matched.isEmpty else { continue }
-
-            groups.append(
-                PatternGroup(
-                    id: groupID(baseLabel: baseLabel(for: original.label), category: original.category, anchorID: original.id),
-                    baseLabel: baseLabel(for: original.label),
-                    category: original.category,
-                    original: matched.first(where: { $0.id == original.id }) ?? original,
-                    patterns: sortGroupPatterns(matched)
-                )
-            )
-        }
-
-        let orphanGroups = Dictionary(grouping: remaining.values) { pattern in
-            groupID(baseLabel: baseLabel(for: pattern.label), category: pattern.category, anchorID: pattern.id)
-        }
-            .values
-            .map { orphanPatterns in
-                let sorted = sortGroupPatterns(Array(orphanPatterns))
-                let first = sorted[0]
-                return PatternGroup(
-                    id: groupID(baseLabel: baseLabel(for: first.label), category: first.category, anchorID: first.id),
-                    baseLabel: baseLabel(for: first.label),
-                    category: first.category,
-                    original: sorted.first(where: { !Self.isGeneratedPatternLabel($0.label) }),
-                    patterns: sorted
-                )
-            }
-            .sorted { (lhs: PatternGroup, rhs: PatternGroup) in
-                lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
-            }
-
-        groups.append(contentsOf: orphanGroups)
-        return groups
+        PatternStoreManagementSupport.groupedPatterns(
+            patterns: patterns,
+            isGeneratedPatternLabel: Self.isGeneratedPatternLabel(_:),
+            expandedPatterns: { label, value, category in
+                expandedPatterns(label: label, value: value, category: category)
+            },
+            patternKey: patternKey(_:) ,
+            groupID: { baseLabel, category, anchorID in
+                groupID(baseLabel: baseLabel, category: category, anchorID: anchorID)
+            },
+            baseLabel: Self.baseLabel(for:),
+            sortGroupPatterns: sortGroupPatterns(_:)
+        )
     }
 
     private func load() {

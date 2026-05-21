@@ -1,16 +1,27 @@
 {
+  "role": "runtime_manifest",
+  "description": "Kuratierte Runtime-Teilmenge der eingebauten Regex-Muster fuer die App-Erkennung.",
+  "source_library": "../Regex-Pattern-Bibliothek.Json",
+  "pattern_count": 27,
+  "runtime_scope": [
+    "dokumentzentrierte Personen-, Adress-, Kontakt- und Abrechnungsmerkmale",
+    "ausgewaehlte dokumentnahe Identifikatoren fuer die aktuelle Desktop-Nutzung"
+  ],
+  "library_relationship": "Die Quellbibliothek enthaelt den breiteren Musterkatalog; dieses Manifest bleibt bewusst als kleinere Runtime-Auswahl kuratiert.",
+  "excluded_library_notes": [
+    "polnische Regex-Bloecke wurden aus der Runtime entfernt",
+    "entwicklernahe Secret-Token und Krypto-Adressmuster bleiben nur noch in der Quellenbibliothek",
+    "nicht dokumentzentrierte Secret- und Netzwerkmuster wie IP-, MAC-, JWT- und auslaendische Sozial-/Versicherungsformate bleiben nur noch in der Quellenbibliothek",
+    "breite unlabeled-Kreditkartenmuster bleiben nur noch in der Quellenbibliothek; in der Runtime bleibt der dokumentzentrierte Label-Fall erhalten",
+    "breite internationale Telefonnummern ohne Dokument-Label bleiben nur noch in der Quellenbibliothek; in der Runtime bleiben die explizit gelabelten Telefon- und Mobilfelder",
+    "weitere Bibliotheksmuster bleiben bis zu einer bewussten Runtime-Aufnahme nur in der Quellenbibliothek"
+  ],
   "patterns": [
     {
       "id": "email",
       "description": "E-Mail-Adresse",
       "category": "private_email",
       "regex": "\\b[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}\\b"
-    },
-    {
-      "id": "phone_international",
-      "description": "Internationale Telefonnummer mit Plus-Präfix",
-      "category": "private_phone",
-      "regex": "\\+(?:[0-9][\\s\\-.()]*){7,15}"
     },
     {
       "id": "iban",
@@ -121,18 +132,6 @@
       "regex": "(?<=\\bBLZ\\s)\\d{8}\\b"
     },
     {
-      "id": "credit_card_16",
-      "description": "16-stellige Kreditkartennummer mit optionalen Trennern",
-      "category": "account_number",
-      "regex": "\\b\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}[\\s\\-]?\\d{4}\\b"
-    },
-    {
-      "id": "credit_card_amex",
-      "description": "15-stellige American-Express-Kreditkarte",
-      "category": "account_number",
-      "regex": "\\b3[47]\\d{2}[\\s\\-]?\\d{6}[\\s\\-]?\\d{5}\\b"
-    },
-    {
       "id": "credit_card_labeled",
       "description": "Kreditkartennummer nach einem expliziten Karten-Label",
       "category": "account_number",
@@ -143,12 +142,6 @@
       "description": "Deutscher Name mit Anrede im Format Nachname/Vorname",
       "category": "private_person",
       "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
-    },
-    {
-      "id": "ipv4",
-      "description": "IPv4-Adresse mit oktettgenauer Begrenzung",
-      "category": "secret",
-      "regex": "\\b(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)(?:\\.(?:25[0-5]|2[0-4]\\d|[01]?\\d\\d?)){3}\\b"
     },
     {
       "id": "mrz",
@@ -185,126 +178,6 @@
       "description": "Europäisches Datum mit Punkten, Kommas oder Schrägstrichen",
       "category": "private_date",
       "regex": "[\"'`´’‚]?(?:0?[1-9]|[12]\\d|3[01])\\s*[\\.,/]\\s*(?:0?[1-9]|1[0-2])\\s*[\\.,/]\\s*(?:18|19|20)?\\d{2}\\b"
-    },
-    {
-      "id": "us_ssn",
-      "description": "US-Sozialversicherungsnummer im Format XXX-XX-XXXX",
-      "category": "secret",
-      "regex": "\\b\\d{3}-\\d{2}-\\d{4}\\b"
-    },
-    {
-      "id": "mac_address",
-      "description": "MAC-Adresse mit Doppelpunkt oder Bindestrich",
-      "category": "secret",
-      "regex": "\\b(?:[0-9A-Fa-f]{2}[:\\-]){5}[0-9A-Fa-f]{2}\\b"
-    },
-    {
-      "id": "ipv6",
-      "description": "IPv6-Adresse in unkomprimierter oder teilweise komprimierter Form",
-      "category": "secret",
-      "regex": "\\b(?:[A-Fa-f0-9]{1,4}:){2,7}[A-Fa-f0-9]{1,4}\\b"
-    },
-    {
-      "id": "uk_nino",
-      "description": "Britische National-Insurance-Nummer",
-      "category": "secret",
-      "regex": "\\b[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]\\s?\\d{2}\\s?\\d{2}\\s?\\d{2}\\s?[A-D]\\b"
-    },
-    {
-      "id": "jwt",
-      "description": "JSON Web Token mit drei Base64url-Segmenten",
-      "category": "secret",
-      "regex": "\\beyJ[\\w\\-]+\\.[\\w\\-]+\\.[\\w\\-]+\\b"
-    },
-    {
-      "id": "aws_access_key",
-      "description": "AWS-Access-Key mit AKIA-Präfix",
-      "category": "secret",
-      "regex": "\\bAKIA[0-9A-Z]{16}\\b"
-    },
-    {
-      "id": "github_token",
-      "description": "GitHub-Token mit ghp_/gho_/ghs_/ghu_-Präfix",
-      "category": "secret",
-      "regex": "\\bgh[opsu]_[A-Za-z0-9]{36,}\\b"
-    },
-    {
-      "id": "stripe_live_key",
-      "description": "Stripe-Live-Secret-Key mit sk_live_-Präfix",
-      "category": "secret",
-      "regex": "\\bsk_live_[A-Za-z0-9]{20,}\\b"
-    },
-    {
-      "id": "crypto_eth",
-      "description": "Ethereum- oder EVM-Adresse mit 0x und 40 Hex-Zeichen",
-      "category": "account_number",
-      "regex": "\\b0x[a-fA-F0-9]{40}\\b"
-    },
-    {
-      "id": "crypto_btc",
-      "description": "Bitcoin-Adresse als Legacy- oder Bech32-Format",
-      "category": "account_number",
-      "regex": "\\b(?:bc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\\b"
-    },
-    {
-      "id": "crypto_dash",
-      "description": "Dash-Adresse mit X-Präfix",
-      "category": "account_number",
-      "regex": "\\bX[1-9A-HJ-NP-Za-km-z]{33}\\b"
-    },
-    {
-      "id": "crypto_xmr",
-      "description": "Monero-Adresse mit 4- oder 8-Präfix",
-      "category": "account_number",
-      "regex": "\\b[48][1-9A-HJ-NP-Za-km-z]{94}\\b"
-    },
-    {
-      "id": "crypto_xrp",
-      "description": "Ripple- oder XRP-Adresse mit r-Präfix",
-      "category": "account_number",
-      "regex": "\\br[0-9a-zA-Z]{24,34}\\b"
-    },
-    {
-      "id": "crypto_ltc",
-      "description": "Litecoin-Adresse als Legacy- oder Bech32-Format",
-      "category": "account_number",
-      "regex": "\\b(?:ltc1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}|[LM][a-km-zA-HJ-NP-Z1-9]{26,34})\\b"
-    },
-    {
-      "id": "crypto_bch",
-      "description": "Bitcoin-Cash-Adresse mit bitcoincash:-Präfix",
-      "category": "account_number",
-      "regex": "\\bbitcoincash:q[a-z0-9]{41}\\b"
-    },
-    {
-      "id": "crypto_doge",
-      "description": "Dogecoin-Adresse mit D-Präfix",
-      "category": "account_number",
-      "regex": "\\bD[5-9A-HJ-NP-U][1-9A-HJ-NP-Za-km-z]{32}\\b"
-    },
-    {
-      "id": "crypto_trx",
-      "description": "Tron-Adresse mit T-Präfix",
-      "category": "account_number",
-      "regex": "\\bT[1-9A-HJ-NP-Za-km-z]{33}\\b"
-    },
-    {
-      "id": "crypto_ada",
-      "description": "Cardano-Adresse in addr1-, stake1-, Ae2- oder DdzFF-Form",
-      "category": "account_number",
-      "regex": "\\b(?:addr1[a-z0-9]{53,}|stake1[a-z0-9]{50,}|Ae2[1-9A-HJ-NP-Za-km-z]{50,}|DdzFF[1-9A-HJ-NP-Za-km-z]{50,})\\b"
-    },
-    {
-      "id": "crypto_ton",
-      "description": "TON-Adresse als Raw- oder userfreundliches EQ/UQ-Format",
-      "category": "account_number",
-      "regex": "\\b(?:0:[a-f0-9]{64}|[EU]Q[a-zA-Z0-9_\\-]{46})\\b"
-    },
-    {
-      "id": "crypto_labeled",
-      "description": "Krypto-Adress-Fallback nach einem Ticker-Label",
-      "category": "account_number",
-      "regex": "(?i)(?:Digital\\s+Currency\\s+Address:?\\s*)?\\b(?:ETH|BTC|XBT|BNB|USDT|USDC|TRX|SOL|XRP|LTC|DASH|XMR|BCH|DOGE|ADA|TON)[:\\s]+[A-Za-z0-9]{26,}\\b"
     }
   ]
 }

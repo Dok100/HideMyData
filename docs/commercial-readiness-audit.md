@@ -25,6 +25,11 @@ Bereits bereinigt oder ersetzt:
 - PDF-OCR-Zusatzanalyse fuer Empfaengerkontext in `PDFOCRSupplementalAnalyzer.swift` ausgelagert
 - `patterns.json` wird jetzt ueber `PatternMatcherBuiltinSupport.swift` als separaten Manifest-/Compile-Layer geladen, ohne die Regex-Basis zu aendern
 - `Regex-Pattern-Bibliothek.Json` liegt jetzt als validierte Quellbibliothek neben dem Runtime-Manifest; die App laedt weiterhin nur `HideMyData/patterns.json`, das inzwischen ohne die polnischen Regex-Blöcke kuratiert ist, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig abdeckt
+- `HideMyData/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne das Laufzeitverhalten zu aendern
+- `HideMyData/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
+- `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
+- `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
+- `HideMyData/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
 - Preview-Diagnostik und Kontext-Rect-Erweiterung fuer PDF-Review laufen jetzt ueber `PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionLifecycleSupport.swift`
 - Seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionReviewSupport.swift`
@@ -46,8 +51,12 @@ Bereits bereinigt oder ersetzt:
 - groessere `PIIDetector`-Bloecke fuer Modellcache, Platzhalter, Pattern-Diagnostik, Span-Sanitizing und Clipboard-Supplemente in eigene Support-Dateien verschoben
 - PIIDetector-Zustandslogik und die Persistenz der letzten Zwischenablage-Sitzung laufen jetzt ueber `PIIDetectorLifecycleSupport.swift` und `PIIDetectorClipboardSessionSupport.swift`
 - Modell-Download, Cache-Load und Ready/Warmup-Orchestrierung aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorLifecycleSupport.swift`
+- Warmup-Ausfuehrung und der generische Background-Runner aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorLifecycleSupport.swift`
+- Running-Phase und Guard-Verkabelung der oeffentlichen `detect`-API aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorLifecycleSupport.swift`
+- Clipboard-Session-Erzeugung, Persistenz-Verkabelung und Restore-Helfer aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorClipboardSessionSupport.swift`
 - PIIDetector-Inferenzaufbau und die sichtbare Pattern-Diagnostik laufen jetzt zusaetzlich ueber `PIIDetectorInferenceSupport.swift`
 - Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `PIIDetectorInferenceSupport.swift`
+- `LoadedCustomPattern`, `Diagnostics`, Builtin-Konstante und Entry-Points aus `PatternMatcher.swift` liegen jetzt ebenfalls in `PatternMatcherLiteralSupport.swift`, waehrend `PatternMatcher.swift` im Wesentlichen nur noch den `CustomPatternStore` traegt
 - Review-Kompaktierung fuer Trefferprojektionen in `ReviewFindingCompactor.swift` ausgelagert
 - README-Lizenzhinweis auf den realen Zwischenstand geschaerft
 - `.swiftlint.yml` als schlanke eigene Projektkonfiguration neu aufgebaut
@@ -56,20 +65,20 @@ Bereits bereinigt oder ersetzt:
 
 Aktuelle Groessen der verbleibenden Fachkern-Dateien:
 
-- `HideMyData/PatternMatcher.swift`: `332` Zeilen
-- `HideMyData/PIIDetector.swift`: `343` Zeilen
-- `HideMyData/patterns.json`: `310` Zeilen
+- `HideMyData/PatternMatcher.swift`: `302` Zeilen
+- `HideMyData/PIIDetector.swift`: `326` Zeilen
+- `HideMyData/patterns.json`: `183` Zeilen
 - `HideMyData/PDFRedactor.swift`: `609` Zeilen
 - `HideMyData/ImageRedactor.swift`: `522` Zeilen
 
 Neue Priorisierung nach den letzten Pattern-/PII-Extraktionen:
 
 1. `HideMyData/PIIDetector.swift`
-   Deutlich geschrumpft, aber weiterhin zentraler Integrations- und Orchestrierungsknoten vor allem fuer die oeffentliche Detection-API und den verbleibenden Session-Rest.
-2. `HideMyData/PatternMatcher.swift`
-   Inzwischen fast reine Fassade. Der verbleibende Schritt waere vor allem eine weitere Typen-/API-Entkopplung statt grosser Fachlogik.
-3. `HideMyData/patterns.json`
-   Kleiner geworden und sauberer gegen die Quellenbibliothek abgegrenzt, fachlich aber weiterhin ein sensibler Relicensing-Risikoblock.
+   Deutlich geschrumpft, aber weiterhin zentraler Integrations- und Orchestrierungsknoten vor allem fuer die oeffentliche Detection-/Anonymisierungs-API und die schmale Objektverkabelung.
+2. `HideMyData/patterns.json`
+   Runtime-Rolle inzwischen sauberer dokumentiert, fachlich enger kuratiert und gegen die Quellenbibliothek abgegrenzt; der verbleibende Risikoblock liegt dort jetzt vor allem in der bewussten Restauswahl der dokumentzentrierten Muster.
+3. `HideMyData/PatternMatcher.swift`
+   Trägt jetzt im Wesentlichen nur noch den `CustomPatternStore`; verbleibender Nutzen läge eher in einer optionalen weiteren Store-Entkopplung als in großem Fachkern-Abbau.
 4. `HideMyData/PDFRedactor.swift`
    Nach den neuen Lifecycle-, Rect-, Styling-, Mutations- und Render-Extraktionen inzwischen eher Integrationsklasse mit kleinerem verbleibendem Review-/State-Block.
 5. `HideMyData/ImageRedactor.swift`
@@ -122,10 +131,10 @@ Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-His
 
 ## Naechste konkrete Schritte
 
-- den verbleibenden API-/Session-Rest von `PIIDetector.swift` erneut auf einen kleinen naechsten Orchestrierungsschnitt pruefen
-- den verbleibenden Typen-/API-Rest von `PatternMatcher.swift` nur noch dann weiter entkoppeln, wenn sich ein klarer Nutzen ohne Zusatzkomplexitaet ergibt
-- die Quellenbibliothek und das Runtime-Manifest weiter bewusst auseinanderhalten und kuenftige Runtime-Streichungen oder Erweiterungen jeweils explizit dokumentieren
+- den verbleibenden API-/Facade-Rest von `PIIDetector.swift` nur noch dann weiter entkoppeln, wenn sich ein klarer Nutzen ohne Zusatzkomplexitaet ergibt
 - `patterns.json` fachlich und datenstrukturell weiter aus dem Altstand herausloesen
+- den verbleibenden Store-Rest von `PatternMatcher.swift` nur noch dann weiter entkoppeln, wenn sich ein klarer Nutzen ohne Zusatzkomplexitaet ergibt
+- die Quellenbibliothek und das Runtime-Manifest weiter bewusst auseinanderhalten und kuenftige Runtime-Streichungen oder Erweiterungen jeweils explizit dokumentieren
 - den schlankeren Integrationsrest von `PIIDetector.swift` erneut auf verbleibende Altanteile bewerten
 - `PDFRedactor.swift` und `ImageRedactor.swift` erst nach dem Pattern-/PII-Refresh erneut auf weitere sinnvolle Schnitte pruefen
 - Sparkle-Historie fuer neue Distribution separat neu aufsetzen

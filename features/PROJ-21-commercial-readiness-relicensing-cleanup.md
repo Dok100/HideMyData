@@ -123,6 +123,11 @@ Aktueller Fortschritt in Phase 4:
 - bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
 - Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
 - `Regex-Pattern-Bibliothek.Json` liegt jetzt zusaetzlich als validierte Quellbibliothek vor; die App laedt zur Laufzeit weiterhin nur das kuratierte Manifest `HideMyData/patterns.json`, aus dem die polnischen Regex-Blöcke entfernt wurden, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig mittraegt
+- `HideMyData/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne die Erkennungslogik zu veraendern
+- `HideMyData/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
+- `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
+- `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
+- `HideMyData/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
 - Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
 - seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
@@ -149,8 +154,12 @@ Aktueller Fortschritt in Phase 4:
 - Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `HideMyData/ReviewFindingCompactor.swift`
 - Zustandslogik, Fehlermeldungstexte und Persistenz fuer die letzte Zwischenablage-Sitzung aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorLifecycleSupport.swift` und `HideMyData/PIIDetectorClipboardSessionSupport.swift`
 - Modell-Download, Cache-Load und Ready/Warmup-Orchestrierung aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
+- Warmup-Ausfuehrung und der generische Background-Runner aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
+- Running-Phase und Guard-Verkabelung der oeffentlichen `detect`-API aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
+- Clipboard-Session-Erzeugung, Persistenz-Verkabelung und Restore-Helfer aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorClipboardSessionSupport.swift`
 - Modelltreffer-Mapping, Pattern-/Supplemental-Zusammenfuehrung, sichtbare Pattern-Diagnostik und Clipboard-Session-Aufbau aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorInferenceSupport.swift`
 - Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorInferenceSupport.swift`
+- `LoadedCustomPattern`, `Diagnostics`, Builtin-Konstante und Entry-Points aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternMatcherLiteralSupport.swift`, waehrend `PatternMatcher.swift` im Wesentlichen nur noch den `CustomPatternStore` traegt
 
 ## Bekannte Ausgangslage
 

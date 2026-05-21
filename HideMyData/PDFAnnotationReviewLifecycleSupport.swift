@@ -2,6 +2,38 @@ import Foundation
 import PDFKit
 
 enum PDFAnnotationReviewLifecycleSupport {
+    static func isRedaction(
+        _ annotation: PDFAnnotation,
+        redactionAnnotations: [PDFRedactor.RedactionEntry]
+    ) -> Bool {
+        redactionAnnotations.contains { $0.annotation === annotation }
+    }
+
+    static func findingID(
+        at point: CGPoint,
+        on page: PDFPage,
+        redactionAnnotations: [PDFRedactor.RedactionEntry],
+        previewAnnotations: [PDFRedactor.RedactionEntry]
+    ) -> UUID? {
+        let match = (redactionAnnotations + previewAnnotations)
+            .filter { $0.page === page && $0.annotation.bounds.contains(point) }
+            .min { lhs, rhs in
+                let lhsArea = lhs.annotation.bounds.width * lhs.annotation.bounds.height
+                let rhsArea = rhs.annotation.bounds.width * rhs.annotation.bounds.height
+                if lhsArea == rhsArea {
+                    return lhs.annotation.bounds.midY > rhs.annotation.bounds.midY
+                }
+                return lhsArea < rhsArea
+            }
+        return match?.findingID
+    }
+
+    static func pendingFindingIDs(reviewFindings: [ReviewFinding]) -> [UUID] {
+        reviewFindings
+            .filter { $0.status == .pending }
+            .map(\.id)
+    }
+
     static func clearAllVisuals(
         redactionAnnotations: inout [PDFRedactor.RedactionEntry],
         previewAnnotations: inout [PDFRedactor.RedactionEntry],
@@ -120,5 +152,49 @@ enum PDFAnnotationReviewLifecycleSupport {
         let pageIndex = document.index(for: entry.page)
         guard pageIndex >= 0 else { return nil }
         return PDFRedactor.FocusTarget(pageIndex: pageIndex, rect: entry.annotation.bounds)
+    }
+
+    static func selectFinding(
+        _ findingID: UUID,
+        document: PDFDocument?,
+        previewAnnotations: [PDFRedactor.RedactionEntry],
+        redactionAnnotations: [PDFRedactor.RedactionEntry],
+        focusedFindingID: inout UUID?,
+        focusTarget: inout PDFRedactor.FocusTarget?,
+        currentPageIndex: inout Int,
+        focusRequestID: inout UUID
+    ) {
+        focusedFindingID = findingID
+        focusTarget = nil
+        guard let target = firstFocusTarget(
+            document: document,
+            previewAnnotations: previewAnnotations,
+            redactionAnnotations: redactionAnnotations,
+            findingID: findingID
+        ) else { return }
+        currentPageIndex = target.pageIndex
+        focusTarget = target
+        focusRequestID = UUID()
+    }
+
+    static func goToPage(
+        _ pageIndex: Int,
+        pageCount: Int,
+        currentPageIndex: inout Int,
+        requestedPageIndex: inout Int?,
+        pageNavigationRequest: inout UUID
+    ) {
+        guard pageIndex >= 0, pageIndex < pageCount else { return }
+        currentPageIndex = pageIndex
+        requestedPageIndex = pageIndex
+        pageNavigationRequest = UUID()
+    }
+
+    static func updateVisiblePage(
+        index: Int,
+        currentPageIndex: inout Int
+    ) {
+        guard index >= 0 else { return }
+        currentPageIndex = index
     }
 }

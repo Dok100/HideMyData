@@ -356,21 +356,19 @@ final class PDFRedactor {
     }
 
     func isRedaction(_ ann: PDFAnnotation) -> Bool {
-        redactionAnnotations.contains { $0.annotation === ann }
+        PDFAnnotationReviewLifecycleSupport.isRedaction(
+            ann,
+            redactionAnnotations: redactionAnnotations
+        )
     }
 
     func findingID(at point: CGPoint, on page: PDFPage) -> UUID? {
-        let match = (redactionAnnotations + previewAnnotations)
-            .filter { $0.page === page && $0.annotation.bounds.contains(point) }
-            .min { lhs, rhs in
-                let lhsArea = lhs.annotation.bounds.width * lhs.annotation.bounds.height
-                let rhsArea = rhs.annotation.bounds.width * rhs.annotation.bounds.height
-                if lhsArea == rhsArea {
-                    return lhs.annotation.bounds.midY > rhs.annotation.bounds.midY
-                }
-                return lhsArea < rhsArea
-            }
-        return match?.findingID
+        PDFAnnotationReviewLifecycleSupport.findingID(
+            at: point,
+            on: page,
+            redactionAnnotations: redactionAnnotations,
+            previewAnnotations: previewAnnotations
+        )
     }
 
     func acceptFinding(_ id: UUID) {
@@ -381,10 +379,7 @@ final class PDFRedactor {
     }
 
     func acceptAllFindings() {
-        let pendingIDs = reviewFindings
-            .filter { $0.status == .pending }
-            .map(\.id)
-        for id in pendingIDs {
+        for id in PDFAnnotationReviewLifecycleSupport.pendingFindingIDs(reviewFindings: reviewFindings) {
             acceptFinding(id)
         }
     }
@@ -419,32 +414,53 @@ final class PDFRedactor {
     }
 
     func selectFinding(_ id: UUID) {
-        focusedFindingID = id
-        focusTarget = nil
-        guard let target = firstFocusTarget(for: id) else { return }
-        currentPageIndex = target.pageIndex
-        focusTarget = target
-        focusRequestID = UUID()
+        PDFAnnotationReviewLifecycleSupport.selectFinding(
+            id,
+            document: document,
+            previewAnnotations: previewAnnotations,
+            redactionAnnotations: redactionAnnotations,
+            focusedFindingID: &focusedFindingID,
+            focusTarget: &focusTarget,
+            currentPageIndex: &currentPageIndex,
+            focusRequestID: &focusRequestID
+        )
     }
 
     func goToPreviousPage() {
-        goToPage(currentPageIndex - 1)
+        PDFAnnotationReviewLifecycleSupport.goToPage(
+            currentPageIndex - 1,
+            pageCount: pageCount,
+            currentPageIndex: &currentPageIndex,
+            requestedPageIndex: &requestedPageIndex,
+            pageNavigationRequest: &pageNavigationRequest
+        )
     }
 
     func goToNextPage() {
-        goToPage(currentPageIndex + 1)
+        PDFAnnotationReviewLifecycleSupport.goToPage(
+            currentPageIndex + 1,
+            pageCount: pageCount,
+            currentPageIndex: &currentPageIndex,
+            requestedPageIndex: &requestedPageIndex,
+            pageNavigationRequest: &pageNavigationRequest
+        )
     }
 
     func goToPage(_ pageIndex: Int) {
-        guard pageIndex >= 0, pageIndex < pageCount else { return }
-        currentPageIndex = pageIndex
-        requestedPageIndex = pageIndex
-        pageNavigationRequest = UUID()
+        PDFAnnotationReviewLifecycleSupport.goToPage(
+            pageIndex,
+            pageCount: pageCount,
+            currentPageIndex: &currentPageIndex,
+            requestedPageIndex: &requestedPageIndex,
+            pageNavigationRequest: &pageNavigationRequest
+        )
     }
 
     func updateVisiblePage(index: Int) {
-        guard index >= 0 else { return }
-        currentPageIndex = index
+        PDFAnnotationReviewLifecycleSupport.updateVisiblePage(
+            index: index,
+            currentPageIndex: &currentPageIndex
+        )
     }
 
     func clearRedactions() {

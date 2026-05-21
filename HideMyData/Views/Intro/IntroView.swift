@@ -43,7 +43,7 @@ struct IntroView: View {
                     .font(.system(size: 32, weight: .bold))
                     .tracking(-0.6)
 
-                Text("Anonymisieren. Direkt auf deinem Mac.\nVertrauliche Inhalte bleiben auf deinem Gerät.")
+                Text("Dateien und Texte anonymisieren. Direkt auf deinem Mac.\nVertrauliche Inhalte aus PDFs, Bildern und der Zwischenablage bleiben auf deinem Gerät.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -64,14 +64,14 @@ struct IntroView: View {
             IntroBenefit(
                 icon: "sparkles",
                 tint: .indigo,
-                title: "Sensible Inhalte erkennen",
-                text: "Inkognito findet Namen, E-Mail-Adressen, Telefonnummern, Adressen, Daten und Kennungen in PDFs und Bildern."
+                title: "Dateien und Inhalte anonymisieren",
+                text: "Inkognito erkennt sensible Stellen in PDFs, Bildern und kopierten Texten, damit du sie vor dem Weitergeben gezielt anonymisieren kannst."
             )
             IntroBenefit(
                 icon: "rectangle.on.rectangle.angled",
                 tint: .orange,
-                title: "Sicher exportieren",
-                text: "Vor dem Speichern prüfst du die Treffer. Beim Export werden bestätigte Schwärzungen fest eingebrannt."
+                title: "Vor dem Export prüfen",
+                text: "Vor dem Speichern prüfst du die Treffer. Beim Export werden bestätigte Schwärzungen oder Anonymisierungen zuverlässig fest übernommen."
             )
         }
         .frame(maxWidth: 580, alignment: .leading)

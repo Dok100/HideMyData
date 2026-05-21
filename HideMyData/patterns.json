@@ -2,10 +2,16 @@
   "role": "runtime_manifest",
   "description": "Kuratierte Runtime-Teilmenge der eingebauten Regex-Muster fuer die App-Erkennung.",
   "source_library": "../Regex-Pattern-Bibliothek.Json",
+  "selection_profile": "document_focused_runtime_v1",
   "pattern_count": 27,
   "runtime_scope": [
     "dokumentzentrierte Personen-, Adress-, Kontakt- und Abrechnungsmerkmale",
     "ausgewaehlte dokumentnahe Identifikatoren fuer die aktuelle Desktop-Nutzung"
+  ],
+  "selection_principles": [
+    "Runtime-Muster sollen bevorzugt in typischen Dokument- und Formular-Kontexten auftreten",
+    "unlabeled Catch-all-Muster bleiben nur dann in der Runtime, wenn ihr Dokumentbezug fachlich bewusst gewollt ist",
+    "breitere oder fachfremdere Muster verbleiben standardmaessig nur in der Quellenbibliothek, bis eine Runtime-Aufnahme explizit begruendet wird"
   ],
   "library_relationship": "Die Quellbibliothek enthaelt den breiteren Musterkatalog; dieses Manifest bleibt bewusst als kleinere Runtime-Auswahl kuratiert.",
   "excluded_library_notes": [

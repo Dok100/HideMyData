@@ -13,7 +13,10 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
   Top-Level-Zustandssteuerung zwischen Erststart, Download, Hauptworkflow und Fehlerfaellen.
 
 - `HideMyData/PIIDetector.swift`
-  Modellintegration, Regex-Matching, Span-Nachbearbeitung und Textwiederherstellung fuer den Clipboard-Flow.
+  schmale oeffentliche Fassade fuer Modellintegration, Detection-Start, Clipboard-Anonymisierung und Textwiederherstellung; groessere Lifecycle-, Inference-, Diagnostics- und Placeholder-Bloecke liegen inzwischen in PIIDetector-Support-Dateien.
+
+- `HideMyData/PatternMatcher.swift`
+  Store- und Persistenzfassade fuer benutzerdefinierte Regeln; eingebaute Detection, Diagnostics und Literal-Matching liegen inzwischen in den PatternMatcher-Support-Dateien.
 
 - `HideMyData/PDFRedactor.swift`
   PDF-Textgewinnung, OCR-Fallback, Finding-Projektion, Review-Kandidaten, finale Exporte, technischer Export-Validierungsreport und Produktzustände fuer schwache oder unbrauchbare PDF-/OCR-Ergebnisse.
@@ -30,11 +33,20 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 2. Text normalisieren
 3. Modell-Treffer erzeugen
 4. Regex-Treffer ergaenzen
-5. Dokumentklasse heuristisch einschaetzen
-6. Heuristiken fuer Dokumentrauschen, Briefkopf-Kontext, AGB-/Rechtstext und False Positives anwenden
-7. Review-faehige Treffer aufbereiten
-8. finale Redaktionen exportieren
-9. Export technisch validieren und Vertrauenssignale im UI anzeigen
+5. Runtime-Regexe aus `HideMyData/patterns.json` als bewusst kuratierte Manifest-Teilmenge laden, waehrend `Regex-Pattern-Bibliothek.Json` den breiteren Quellenkatalog dokumentiert
+6. Dokumentklasse heuristisch einschaetzen
+7. Heuristiken fuer Dokumentrauschen, Briefkopf-Kontext, AGB-/Rechtstext und False Positives anwenden
+8. Review-faehige Treffer aufbereiten
+9. finale Redaktionen exportieren
+10. Export technisch validieren und Vertrauenssignale im UI anzeigen
+
+## Regex-Quellen
+
+- `HideMyData/patterns.json`
+  kuratiertes Runtime-Manifest mit explizitem `selection_profile` und dokumentierten `selection_principles` fuer dokumentzentrierte App-Erkennung.
+
+- `Regex-Pattern-Bibliothek.Json`
+  breitere Quellbibliothek fuer fachliche Sammlung, Vergleich und spaetere bewusste Runtime-Aufnahmen; diese Datei wird nicht direkt zur Laufzeit geladen.
 
 ## Aktuelle Schwerpunkte
 

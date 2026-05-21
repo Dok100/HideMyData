@@ -2,6 +2,37 @@ import Foundation
 import CoreGraphics
 
 enum ImageAnnotationReviewLifecycleSupport {
+    static func pendingFindingIDs(reviewFindings: [ReviewFinding]) -> [UUID] {
+        reviewFindings
+            .filter { $0.status == .pending }
+            .map(\.id)
+    }
+
+    static func findingID(
+        at point: CGPoint,
+        redactionEntries: [ImageRedactor.RedactionEntry],
+        previewEntries: [ImageRedactor.RedactionEntry]
+    ) -> UUID? {
+        let match = (redactionEntries + previewEntries)
+            .filter { $0.rect.contains(point) }
+            .min { lhs, rhs in
+                let lhsArea = lhs.rect.width * lhs.rect.height
+                let rhsArea = rhs.rect.width * rhs.rect.height
+                if lhsArea == rhsArea {
+                    return lhs.rect.midY > rhs.rect.midY
+                }
+                return lhsArea < rhsArea
+            }
+        return match?.findingID
+    }
+
+    static func totalVisibleRectCount(
+        redactionEntries: [ImageRedactor.RedactionEntry],
+        previewEntries: [ImageRedactor.RedactionEntry]
+    ) -> Int {
+        redactionEntries.count + previewEntries.count
+    }
+
     static func clearRedactions(
         redactionEntries: inout [ImageRedactor.RedactionEntry],
         previewEntries: inout [ImageRedactor.RedactionEntry],

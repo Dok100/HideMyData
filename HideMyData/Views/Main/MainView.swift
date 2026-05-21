@@ -1964,6 +1964,9 @@ private struct CustomPatternsSheet: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 26)
         }
+        .safeAreaInset(edge: .bottom) {
+            bottomActionBar
+        }
         .frame(minWidth: 720, idealWidth: 940, maxWidth: 1280, minHeight: 640, idealHeight: 760, maxHeight: 1100, alignment: .topLeading)
         .background(AmbientBackdrop())
         .fileImporter(
@@ -2011,7 +2014,7 @@ private struct CustomPatternsSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Eigene Regeln")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
-                Text("Lege eigene Begriffe, Personen oder Adressbausteine Zeile für Zeile an und prüfe direkt, welche Regeln Inkognito daraus ableitet.")
+                Text("Lege eigene Begriffe, Personen oder Adressbausteine Zeile für Zeile an. Inkognito zeigt dir direkt, welche zusätzlichen Teil- oder Blockregeln daraus beim Speichern entstehen.")
                     .font(.system(size: 13))
                     .foregroundStyle(.primary.opacity(0.82))
                     .fixedSize(horizontal: false, vertical: true)
@@ -2187,6 +2190,41 @@ private struct CustomPatternsSheet: View {
                         .buttonStyle(.glass)
                 }
             }
+
+            compactHintCard("Wenn du unten arbeitest, kannst du den Editor direkt über die feste Abschlussleiste schließen. Du musst dafür nicht zurück an den Seitenanfang scrollen.")
+        }
+    }
+
+    private var bottomActionBar: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(selectedPatternID == nil ? "Regel ergänzen oder Abschluss wählen" : "Änderung speichern oder Abschluss wählen")
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text("Die Abschlussleiste bleibt auch am unteren Ende des Editors sichtbar.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Fertig") { dismiss() }
+                .controlSize(.large)
+                .buttonStyle(.glass)
+
+            Button(selectedPatternID == nil ? "Regel hinzufügen" : "Regel aktualisieren", action: savePattern)
+                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+                .disabled(label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || composedValue.isEmpty)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
+        .padding(.bottom, 18)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.separator.opacity(0.45))
+                .frame(height: 0.5)
         }
     }
 

@@ -48,3 +48,4 @@
 - `README.md`, `docs/architecture.md` und `docs/decision-log.md` gegen den realen Produktstand querlesen
 - Release-Text / Highlights formulieren
 - Sparkle-/DMG-Artefakte pruefen, falls ein Distribution-Release gebaut wird
+- bei neuer Distribution zuerst die getrennte Sparkle-Strategie aus `features/PROJ-22-sparkle-distribution-reset.md` gegen den historischen `HideMyData`-Pfad abgleichen

@@ -352,10 +352,7 @@ final class ImageRedactor {
     }
 
     func acceptAllFindings() {
-        let pendingIDs = reviewFindings
-            .filter { $0.status == .pending }
-            .map(\.id)
-        for id in pendingIDs {
+        for id in ImageAnnotationReviewLifecycleSupport.pendingFindingIDs(reviewFindings: reviewFindings) {
             acceptFinding(id)
         }
     }
@@ -371,7 +368,13 @@ final class ImageRedactor {
         if redactionRects.isEmpty && previewRects.isEmpty, image != nil {
             phase = .loaded
         } else if case .redacted = phase {
-            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
+            phase = .redacted(
+                spanCount: 0,
+                rectCount: ImageAnnotationReviewLifecycleSupport.totalVisibleRectCount(
+                    redactionEntries: redactionEntries,
+                    previewEntries: previewEntries
+                )
+            )
         }
     }
 
@@ -389,7 +392,13 @@ final class ImageRedactor {
             ) else { return }
             updateFinding(id) { $0.status = .pending }
             focusedFindingID = id
-            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
+            phase = .redacted(
+                spanCount: 0,
+                rectCount: ImageAnnotationReviewLifecycleSupport.totalVisibleRectCount(
+                    redactionEntries: redactionEntries,
+                    previewEntries: previewEntries
+                )
+            )
         case .rejected:
             guard ImageAnnotationReviewLifecycleSupport.reopenRejectedFinding(
                 id,
@@ -398,7 +407,13 @@ final class ImageRedactor {
             ) else { return }
             updateFinding(id) { $0.status = .pending }
             focusedFindingID = id
-            phase = .redacted(spanCount: 0, rectCount: redactionRects.count + previewRects.count)
+            phase = .redacted(
+                spanCount: 0,
+                rectCount: ImageAnnotationReviewLifecycleSupport.totalVisibleRectCount(
+                    redactionEntries: redactionEntries,
+                    previewEntries: previewEntries
+                )
+            )
         }
     }
 
@@ -407,17 +422,11 @@ final class ImageRedactor {
     }
 
     func findingID(at point: CGPoint) -> UUID? {
-        let match = (redactionEntries + previewEntries)
-            .filter { $0.rect.contains(point) }
-            .min { lhs, rhs in
-                let lhsArea = lhs.rect.width * lhs.rect.height
-                let rhsArea = rhs.rect.width * rhs.rect.height
-                if lhsArea == rhsArea {
-                    return lhs.rect.midY > rhs.rect.midY
-                }
-                return lhsArea < rhsArea
-            }
-        return match?.findingID
+        ImageAnnotationReviewLifecycleSupport.findingID(
+            at: point,
+            redactionEntries: redactionEntries,
+            previewEntries: previewEntries
+        )
     }
 
     // MARK: - Helpers

@@ -26,6 +26,7 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 - priorisierte Ersetzungsreihenfolge für Dateien mit hohem Maciej-Anteil
 - separates Umstellungskonzept für Lizenz, README, Store-Metadaten und Release-Artefakte
 - dokumentierte Entscheidung, welche Legacy-Migrationen bewusst erhalten bleiben
+- separater Folgeblock fuer die Spaeter-Neuaufsetzung der Sparkle-Historie und Distribution statt einer stillen Umschreibung der Alt-Artefakte
 
 ## Relevante Dateien
 
@@ -124,6 +125,7 @@ Aktueller Fortschritt in Phase 4:
 - Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
 - `Regex-Pattern-Bibliothek.Json` liegt jetzt zusaetzlich als validierte Quellbibliothek vor; die App laedt zur Laufzeit weiterhin nur das kuratierte Manifest `HideMyData/patterns.json`, aus dem die polnischen Regex-Blöcke entfernt wurden, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig mittraegt
 - `HideMyData/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne die Erkennungslogik zu veraendern
+- `HideMyData/patterns.json` traegt jetzt ausserdem ein explizites `selection_profile` und dokumentierte `selection_principles`, damit der Runtime-Manifestcharakter auch datenstrukturell klarer vom breiteren Quellenkatalog getrennt bleibt
 - `HideMyData/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
 - `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
 - `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
@@ -131,6 +133,7 @@ Aktueller Fortschritt in Phase 4:
 - Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
 - seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
+- Hit-Testing, Pending-Auswahl sowie Fokus-/Navigationshelfer aus `PDFRedactor.swift` laufen jetzt staerker ueber `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
 - Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFBoundingRectSupport.swift`
@@ -142,6 +145,7 @@ Aktueller Fortschritt in Phase 4:
 - OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageDetectionLifecycleSupport.swift`
 - Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `ImageRedactor.swift` liegt jetzt in `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
+- Hit-Testing, Pending-Auswahl und sichtbare Rect-Zaehlung aus `ImageRedactor.swift` laufen jetzt staerker ueber `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
 - Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung aus `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternMatcherLiteralSupport.swift`
 - Detection-Loop, Regex-/Literal-Span-Aufbau und Diagnostics-Zusammenstellung aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternMatcherLiteralSupport.swift`
 - Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung aus dem Store-Teil von `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternStorePersistenceSupport.swift` und `HideMyData/PatternStoreManagementSupport.swift`
@@ -169,7 +173,7 @@ Aktueller Fortschritt in Phase 4:
   - `HideMyData/PIIDetector.swift`
   - `HideMyData/PatternMatcher.swift`
   - `HideMyData/Views/Main/MainView.swift`
-- merklicher, aber heute nicht dominanter Altanteil:
+- merklicher und nun wieder prioritaerer Altanteil:
   - `HideMyData/PDFRedactor.swift`
   - `HideMyData/ImageRedactor.swift`
   - `HideMyData/patterns.json`

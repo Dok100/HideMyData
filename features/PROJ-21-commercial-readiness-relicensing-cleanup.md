@@ -128,6 +128,10 @@ Aktueller Fortschritt in Phase 4:
 - Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
 - Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
 - Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFBoundingRectSupport.swift`
+- Annotation-Styling, Preview-Farbgebung und Bounds-Normalisierung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationStyleSupport.swift`
+- Redaction-/Preview-Mutation und Redaction-Restyle aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationMutationSupport.swift`
+- Dokumentladen, PDF-Ladeergebnisse und Save-Panel-Aufbau aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDocumentLifecycleSupport.swift`
+- Render-Snapshots und Blur-Cache-Zugriff aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFPageRenderSupport.swift`
 - Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageExportLifecycleSupport.swift`
 - OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageDetectionLifecycleSupport.swift`
 - Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
@@ -181,3 +185,6 @@ Aktueller Fortschritt in Phase 4:
 - Auch die reine PDF-Textsuche und Rect-Aufloesung fuer Treffer-Fallbacks liegt jetzt separat in `PDFTextRectResolver.swift` statt weiterhin direkt in `PDFRedactor`.
 - Die PDF-spezifische Header-/Senderblock-Suppression fuer Fehlmarkierungen liegt nun ebenfalls in `PDFHeaderSuppressionSupport.swift`, sodass `PDFRedactor` diese Regeln nicht mehr selbst traegt.
 - Auch der technische Rect-Brueckenblock fuer `boundingRects`, `nsRange` und `rectsViaOCRFallback` liegt jetzt in `PDFBoundingRectSupport.swift`, sodass `PDFRedactor` diese Zuordnungslogik nicht mehr direkt traegt.
+- Die Erzeugung von Preview-/Blur-/Black-Annotations sowie die Bounds-Normalisierung fuer PDF-Highlights liegt jetzt in `PDFAnnotationStyleSupport.swift`, sodass `PDFRedactor` diesen Styling-Block nicht mehr selbst traegt.
+- Auch die eigentliche Mutation fuer Preview-/Redaction-Annotations sowie das Redaction-Restyle liegen jetzt in `PDFAnnotationMutationSupport.swift`, sodass `PDFRedactor` diesen Rebuild-Block nicht mehr direkt traegt.
+- Auch Open-/Save-Panel, PDF-Ladeergebnisse und der Render-/Blur-Helferblock liegen jetzt in `PDFDocumentLifecycleSupport.swift` und `PDFPageRenderSupport.swift`, sodass `PDFRedactor` an dieser Lifecycle-Kante weiter Richtung Orchestrierung schürft.

@@ -1,7 +1,6 @@
 import Foundation
 import PDFKit
 import AppKit
-internal import UniformTypeIdentifiers
 
 @Observable
 @MainActor
@@ -81,36 +80,36 @@ final class PDFRedactor {
     // MARK: - Open / Save
 
     func presentOpenPanel() -> DocumentOpenResult {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf]
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
-        guard loadPDF(from: url) else {
-            return .failed("Das PDF „\(url.lastPathComponent)“ konnte nicht geöffnet werden. Prüfe bitte, ob die Datei vollständig ist und wirklich ein lesbares PDF enthält.")
+        PDFDocumentLifecycleSupport.presentOpenPanel { url in
+            loadPDF(from: url)
         }
-        return .opened(url)
     }
 
     @discardableResult
     func loadPDF(from url: URL) -> Bool {
-        guard let doc = PDFDocument(url: url) else {
-            phase = .failed("PDF konnte nicht geöffnet werden: \(url.lastPathComponent)")
+        switch PDFDocumentLifecycleSupport.loadDocument(from: url) {
+        case .success(let loaded):
+            installLoadedDocument(loaded)
+            return true
+        case .failure(let message):
+            phase = .failed(message)
             return false
         }
+    }
+
+    private func installLoadedDocument(_ loaded: PDFDocumentLifecycleSupport.LoadedDocument) {
         cancelDetection()
         clearAllVisuals(silently: true)
         blurCache.removeAllObjects()
         clearReviewState()
         lastExportReport = nil
         detectionNotice = nil
-        self.document = doc
-        self.sourceURL = url
-        self.pageCount = doc.pageCount
+        self.document = loaded.document
+        self.sourceURL = loaded.sourceURL
+        self.pageCount = loaded.pageCount
         self.currentPageIndex = 0
         self.requestedPageIndex = nil
         self.phase = .loaded
-        return true
     }
 
     /// Load a PDF whose bytes are already in memory. Used by the recents flow so the
@@ -118,40 +117,21 @@ final class PDFRedactor {
     /// `sourceURL` still points at the original location for save-name suggestions.
     @discardableResult
     func loadPDF(data: Data, originalURL: URL) -> Bool {
-        guard let doc = PDFDocument(data: data) else {
-            phase = .failed("PDF konnte nicht geöffnet werden: \(originalURL.lastPathComponent)")
+        switch PDFDocumentLifecycleSupport.loadDocument(data: data, originalURL: originalURL) {
+        case .success(let loaded):
+            installLoadedDocument(loaded)
+            return true
+        case .failure(let message):
+            phase = .failed(message)
             return false
         }
-        cancelDetection()
-        clearAllVisuals(silently: true)
-        blurCache.removeAllObjects()
-        clearReviewState()
-        lastExportReport = nil
-        detectionNotice = nil
-        self.document = doc
-        self.sourceURL = originalURL
-        self.pageCount = doc.pageCount
-        self.currentPageIndex = 0
-        self.requestedPageIndex = nil
-        self.phase = .loaded
-        return true
     }
 
     func save() -> DocumentSaveResult {
         guard document != nil else {
             return .failed("Es ist gerade kein PDF geladen, das gespeichert werden kann.")
         }
-        let panel = NSSavePanel()
-        let exportAccessory = ExportOptionsAccessoryView()
-        panel.allowedContentTypes = [.pdf]
-        panel.canCreateDirectories = true
-        panel.title = "Geschützte Kopie speichern"
-        panel.message = "Wähle Speicherort und Dateinamen für das geschützte PDF."
-        panel.prompt = "Speichern"
-        panel.nameFieldLabel = "Dateiname:"
-        panel.showsTagField = false
-        panel.nameFieldStringValue = PDFExportLifecycleSupport.suggestedSaveName(for: sourceURL)
-        panel.accessoryView = exportAccessory
+        let (panel, exportAccessory) = PDFDocumentLifecycleSupport.makeSavePanel(sourceURL: sourceURL)
         guard panel.runModal() == .OK, let url = panel.url else { return .cancelled }
 
         switch saveSecurely(to: url, options: exportAccessory.options) {
@@ -297,7 +277,8 @@ final class PDFRedactor {
     }
 
     private func ocrText(for page: PDFPage) async -> OCRPage? {
-        guard let cg = renderPageToCGImage(page, scale: 2) else { return nil }
+        let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
+        guard let cg = PDFPageRenderSupport.renderPageToCGImage(page, scale: 2, detaching: detached) else { return nil }
         return try? await OCREngine.recognize(cg)
     }
 
@@ -313,29 +294,6 @@ final class PDFRedactor {
         PDFOCRSupplementalAnalyzer.analyze(page: page)
     }
 
-    private func renderPageToCGImage(_ page: PDFPage, scale: CGFloat) -> CGImage? {
-        let pageBounds = page.bounds(for: .mediaBox)
-        let pixelWidth = Int(pageBounds.width * scale)
-        let pixelHeight = Int(pageBounds.height * scale)
-        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
-
-        let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
-        for ann in detached { page.removeAnnotation(ann) }
-        defer { for ann in detached { page.addAnnotation(ann) } }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let ctx = CGContext(
-            data: nil, width: pixelWidth, height: pixelHeight,
-            bitsPerComponent: 8, bytesPerRow: 0, space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-        ctx.setFillColor(NSColor.white.cgColor)
-        ctx.fill(CGRect(x: 0, y: 0, width: pixelWidth, height: pixelHeight))
-        ctx.scaleBy(x: scale, y: scale)
-        page.draw(with: .mediaBox, to: ctx)
-        return ctx.makeImage()
-    }
-
     // MARK: - Annotations
 
     enum RedactionSource { case auto, manual }
@@ -348,22 +306,15 @@ final class PDFRedactor {
         findingID: UUID? = nil,
         rectIsPreNormalized: Bool = false
     ) -> PDFAnnotation {
-        let padded = rectIsPreNormalized ? rect : normalizedDisplayRect(for: rect, on: page)
-        let ann: PDFAnnotation
-        switch redactionStyle {
-        case .blackRectangle:
-            let blackAnn = BlackRedactionAnnotation(bounds: padded, forType: .square, withProperties: nil)
-            blackAnn.border = nil
-            ann = blackAnn
-        case .blur:
-            let blurAnn = BlurRedactionAnnotation(bounds: padded, forType: .square, withProperties: nil)
-            blurAnn.border = nil
-            blurAnn.blurredPageImage = blurredImage(for: page)
-            blurAnn.pageMediaBoxRect = page.bounds(for: .mediaBox)
-            ann = blurAnn
-        }
-        page.addAnnotation(ann)
-        redactionAnnotations.append(RedactionEntry(page: page, annotation: ann, findingID: findingID))
+        let ann = PDFAnnotationMutationSupport.addRedaction(
+            rect: rect,
+            on: page,
+            findingID: findingID,
+            rectIsPreNormalized: rectIsPreNormalized,
+            redactionStyle: redactionStyle,
+            blurredImage: redactionStyle == .blur ? blurredImage(for: page) : nil,
+            redactionAnnotations: &redactionAnnotations
+        )
 
         let count = redactionAnnotations.count
         switch phase {
@@ -379,15 +330,15 @@ final class PDFRedactor {
 
     @discardableResult
     private func addPreview(rect: CGRect, on page: PDFPage, findingID: UUID, rectIsPreNormalized: Bool = false) -> PDFAnnotation {
-        let padded = rectIsPreNormalized ? rect : normalizedDisplayRect(for: rect, on: page)
-        let annotation = PreviewRedactionAnnotation(bounds: padded, forType: .square, withProperties: nil)
-        annotation.border = nil
-        if let finding = reviewFindings.first(where: { $0.id == findingID }) {
-            annotation.tintColor = previewColor(for: finding.category)
-        }
-        page.addAnnotation(annotation)
-        previewAnnotations.append(RedactionEntry(page: page, annotation: annotation, findingID: findingID))
-        return annotation
+        PDFAnnotationMutationSupport.addPreview(
+            rect: rect,
+            on: page,
+            findingID: findingID,
+            category: reviewFindings.first(where: { $0.id == findingID })?.category,
+            rectIsPreNormalized: rectIsPreNormalized,
+            redactionStyle: redactionStyle,
+            previewAnnotations: &previewAnnotations
+        )
     }
 
     func removeRedaction(_ ann: PDFAnnotation, on page: PDFPage) {
@@ -514,12 +465,12 @@ final class PDFRedactor {
     private func restyleAllAnnotations() {
         let priorPhase = phase
         let snapshot = redactionAnnotations
-        redactionAnnotations.removeAll()
-        for entry in snapshot {
-            let bounds = entry.annotation.bounds
-            entry.page.removeAnnotation(entry.annotation)
-            addRedaction(rect: bounds, on: entry.page, source: .auto, findingID: entry.findingID)
-        }
+        PDFAnnotationMutationSupport.rebuildRedactions(
+            from: snapshot,
+            redactionStyle: redactionStyle,
+            blurredImageProvider: { page in blurredImage(for: page) },
+            redactionAnnotations: &redactionAnnotations
+        )
         phase = priorPhase
     }
 
@@ -616,39 +567,11 @@ final class PDFRedactor {
         )
     }
 
-    func normalizedDisplayRect(for rect: CGRect, on page: PDFPage) -> CGRect {
-        let pageBounds = page.bounds(for: .mediaBox)
-        let workingRect = rect.standardized
-        guard redactionStyle == .blackRectangle else {
-            return workingRect.insetBy(dx: -1, dy: -1).intersection(pageBounds)
-        }
-
-        let targetHeight = max(12, round(workingRect.height + 4))
-        let centerY = workingRect.midY
-        let adjusted = CGRect(
-            x: workingRect.minX - 1,
-            y: centerY - (targetHeight / 2),
-            width: workingRect.width + 2,
-            height: targetHeight
-        )
-        return adjusted.intersection(pageBounds)
-    }
-
-    private func previewColor(for category: String) -> NSColor {
-        FindingVisualSemantics.nsColor(for: category)
-    }
-
     // MARK: - Blurred page snapshot (for editor preview)
 
     private func blurredImage(for page: PDFPage) -> CGImage? {
-        if let cached = blurCache.object(forKey: page) { return cached }
-
         let detached = redactionAnnotations.filter { $0.page === page }.map { $0.annotation }
-        guard let sharpCG = RedactionRendering.renderPDFPageSnapshot(page, detaching: detached),
-              let blurred = RedactionRendering.gaussianBlurred(sharpCG) else { return nil }
-
-        blurCache.setObject(blurred, forKey: page)
-        return blurred
+        return PDFPageRenderSupport.blurredImage(for: page, using: blurCache, detaching: detached)
     }
 
     // MARK: - True (rasterized) save

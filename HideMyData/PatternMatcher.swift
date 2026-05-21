@@ -255,11 +255,7 @@ final class CustomPatternStore {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: Self.storageURL()),
-              let decoded = try? JSONDecoder().decode([CustomPattern].self, from: data)
-        else {
-            return
-        }
+        guard let decoded = PatternStorePersistenceSupport.loadDecodedPatterns() else { return }
         let sanitized = sanitizedPersistedPatterns(decoded)
         patterns = sanitized
         if sanitized != decoded {
@@ -268,19 +264,11 @@ final class CustomPatternStore {
     }
 
     private func persist() {
-        let url = Self.storageURL()
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(patterns) else { return }
-        try? data.write(to: url, options: .atomic)
+        PatternStorePersistenceSupport.persist(patterns)
     }
 
     nonisolated static func loadPersistedPatterns() -> [CustomPattern] {
-        guard let data = try? Data(contentsOf: storageURL()),
-              let decoded = try? JSONDecoder().decode([CustomPattern].self, from: data)
-        else {
-            return []
-        }
-        return sanitizedPersistedPatterns(decoded)
+        PatternStorePersistenceSupport.loadPatterns()
     }
 
     private func normalizedCategory(_ category: String) -> String {
@@ -341,7 +329,7 @@ final class CustomPatternStore {
         Self.sanitizedPersistedPatterns(persistedPatterns)
     }
 
-    nonisolated fileprivate static func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
+    nonisolated static func sanitizedPersistedPatterns(_ persistedPatterns: [CustomPattern]) -> [CustomPattern] {
         var bestBySemanticKey: [String: CustomPattern] = [:]
         var order: [String] = []
 
@@ -655,34 +643,6 @@ final class CustomPatternStore {
         ].joined(separator: "::")
     }
 
-    nonisolated fileprivate static func storageURL() -> URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        migrateLegacyStorageIfNeeded(base: support)
-        return support
-            .appendingPathComponent("Inkognito", isDirectory: true)
-            .appendingPathComponent("custom-patterns.json")
-    }
-
-    nonisolated fileprivate static func legacyStorageURL() -> URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return support
-            .appendingPathComponent("HideMyData", isDirectory: true)
-            .appendingPathComponent("custom-patterns.json")
-    }
-
-    nonisolated private static func migrateLegacyStorageIfNeeded(base: URL) {
-        let fm = FileManager.default
-        let legacyDir = base.appendingPathComponent("HideMyData", isDirectory: true)
-        let newDir = base.appendingPathComponent("Inkognito", isDirectory: true)
-        let legacyFile = legacyDir.appendingPathComponent("custom-patterns.json")
-        let newFile = newDir.appendingPathComponent("custom-patterns.json")
-
-        guard fm.fileExists(atPath: legacyFile.path),
-              !fm.fileExists(atPath: newFile.path) else { return }
-
-        try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
-        try? fm.copyItem(at: legacyFile, to: newFile)
-    }
 }
 
 nonisolated enum PatternMatcher {
@@ -738,8 +698,8 @@ nonisolated enum PatternMatcher {
         var spans: [DetectedSpan] = []
         let nsText = text as NSString
         let fullRange = NSRange(location: 0, length: nsText.length)
-        let storageURL = CustomPatternStore.storageURL()
-        let legacyStorageURL = CustomPatternStore.legacyStorageURL()
+        let storageURL = PatternStorePersistenceSupport.storageURL()
+        let legacyStorageURL = PatternStorePersistenceSupport.legacyStorageURL()
         let customPatternDescriptors = loadCustomPatternDescriptors()
         let customPatterns = customPatternDescriptors.map {
             Pattern(id: $0.label, category: $0.category, source: .literal($0.value))

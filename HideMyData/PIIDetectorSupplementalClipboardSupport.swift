@@ -23,6 +23,7 @@ enum PIIDetectorSupplementalClipboardSupport {
             "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
             "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
             "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
+            "quittung", "zuzahlungsquittung", "beleg",
             "swift-code"
         ]
         let taxMarkers = [
@@ -227,12 +228,12 @@ enum PIIDetectorSupplementalClipboardSupport {
             }
         }
 
-        spans.append(contentsOf: supplementalInlinePersonSpans(in: text))
+        spans.append(contentsOf: supplementalInlinePersonSpans(in: text, documentClass: documentClass))
 
         return spans
     }
 
-    nonisolated static func supplementalInlinePersonSpans(in text: String) -> [DetectedSpan] {
+    nonisolated static func supplementalInlinePersonSpans(in text: String, documentClass: DetectionDocumentClass) -> [DetectedSpan] {
         let inlinePatterns = [
             #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
             #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
@@ -271,6 +272,46 @@ enum PIIDetectorSupplementalClipboardSupport {
                         source: .pattern
                     )
                 )
+            }
+        }
+
+        if documentClass == .invoice {
+            let contextualPatterns = [
+                #"(?im)(?:^|\s)(?:für|fuer)[ \t]+((?:Herr|Herrn|Frau)[ \t]+(?:(?:Dr|Prof)\.?[ \t]+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
+                #"(?im)(?:^|\s)von[ \t]+((?:(?:Dr|Prof)\.?[ \t]+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#
+            ]
+
+            for pattern in contextualPatterns {
+                guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+                let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+
+                for match in regex.matches(in: text, options: [], range: nsRange) {
+                    guard match.numberOfRanges > 1 else { continue }
+                    let range = match.range(at: 1)
+                    guard range.location != NSNotFound,
+                          let swiftRange = Range(range, in: text) else { continue }
+
+                    let snippet = String(text[swiftRange]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
+                    guard !snippet.isEmpty,
+                          !looksLikeContextualNonNameSnippet(snippet),
+                          !PIIDetectorSpanSanitizationSupport.looksLikeOrganizationSnippet(snippet),
+                          !PIIDetectorSpanSanitizationSupport.personSpanContainsAddressOrContactTail(snippet)
+                    else { continue }
+
+                    let key = "\(range.location):\(range.length):\(PIIDetectorSpanSanitizationSupport.normalizedComparableText(snippet))"
+                    guard seenRanges.insert(key).inserted else { continue }
+
+                    spans.append(
+                        DetectedSpan(
+                            category: "private_person",
+                            text: snippet,
+                            start: range.location,
+                            end: range.location + range.length,
+                            confidence: 0.91,
+                            source: .pattern
+                        )
+                    )
+                }
             }
         }
 
@@ -417,6 +458,24 @@ enum PIIDetectorSupplementalClipboardSupport {
             }
         }
         return nil
+    }
+
+    nonisolated private static func looksLikeContextualNonNameSnippet(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let tokens = cleaned.split(separator: " ").map(String.init)
+        guard let first = tokens.first else { return true }
+
+        let blockedFirstTokens = [
+            "Ihr", "Ihre", "Ihren", "Ihrem", "Ihrer",
+            "Unser", "Unsere", "Unseren", "Unserem", "Unserer",
+            "Dein", "Deine", "Deinen", "Deinem", "Deiner"
+        ]
+
+        return blockedFirstTokens.contains {
+            first.compare($0, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
     }
 }
 

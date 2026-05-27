@@ -194,7 +194,7 @@ func looksLikeGermanStreetAddress(_ text: String) -> Bool {
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.range(
-        of: #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
+        of: #"(?i)\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.?|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
         options: .regularExpression
     ) != nil
 }
@@ -249,7 +249,7 @@ func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
     guard looksLikeGermanStreetAddress(cleaned) else { return false }
 
     return cleaned.range(
-        of: #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
+        of: #"(?i)^.+[.!?:]\s+(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.?|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\s*\d+[A-Za-z]?\b"#,
         options: .regularExpression
     ) != nil
 }
@@ -322,16 +322,17 @@ func classifyDocumentText(_ text: String) -> DetectionDocumentClass {
         .standardizedForm: 0
     ]
 
-    let invoiceMarkers = [
-        "rechnung", "rechnungsanschrift", "lieferanschrift", "lieferadresse",
-        "bestellt durch", "kundennummer", "vertragsnummer", "zahlernummer",
-        "zaehlernummer", "lieferstelle", "nutzungsadresse", "rechnungs-nr",
-        "rechnungsdatum", "lieferdatum", "gesamtbetrag brutto",
-        "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
-        "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
-        "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
-        "swift-code"
-    ]
+        let invoiceMarkers = [
+            "rechnung", "rechnungsanschrift", "lieferanschrift", "lieferadresse",
+            "bestellt durch", "kundennummer", "vertragsnummer", "zahlernummer",
+            "zaehlernummer", "lieferstelle", "nutzungsadresse", "rechnungs-nr",
+            "rechnungsdatum", "lieferdatum", "gesamtbetrag brutto",
+            "zahlungsbedingungen", "e-rechnung", "erechnung", "zugferd", "xrechnung",
+            "leitweg-id", "rechnungsempfanger", "rechnungsempfänger", "lieferanten-nr",
+            "leistungszeitraum", "falliger rechnungsbetrag", "fälliger rechnungsbetrag",
+            "quittung", "zuzahlungsquittung", "beleg",
+            "swift-code"
+        ]
     let taxMarkers = [
         "finanzamt", "steuerbescheid", "einkommensteuer", "kirchensteuer",
         "solidaritatszuschlag", "steuernummer", "idnr", "bescheid"
@@ -419,6 +420,47 @@ func sanitizeTrailingPersonLabelArtifacts(_ text: String) -> String {
     return cleaned
 }
 
+func resolveSplitHonorificRecipientPrelude(in lines: [String], startIndex: Int) -> (personIndices: [Int], streetIndex: Int, postalCityIndex: Int)? {
+    let searchEnd = min(lines.count, startIndex + 6)
+    guard startIndex + 1 < searchEnd else { return nil }
+
+    var personIndices: [Int] = [startIndex]
+    var streetIndex: Int?
+    var postalCityIndex: Int?
+
+    for candidateIndex in (startIndex + 1)..<searchEnd {
+        let cleaned = lines[candidateIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { continue }
+
+        if looksLikeGermanStreetAddress(cleaned) {
+            streetIndex = candidateIndex
+            continue
+        }
+
+        if let streetIndex,
+           candidateIndex > streetIndex,
+           looksLikePostalCity(cleaned) {
+            postalCityIndex = candidateIndex
+            break
+        }
+
+        if streetIndex == nil {
+            personIndices.append(candidateIndex)
+        }
+    }
+
+    guard let streetIndex, let postalCityIndex else { return nil }
+    let nameIndices = personIndices.dropFirst()
+    guard !nameIndices.isEmpty else { return nil }
+
+    let hasPlausibleNameTail = nameIndices.contains { index in
+        looksLikePlausiblePersonName(lines[index]) || normalizedComparableText(lines[index]).contains("und")
+    }
+    guard hasPlausibleNameTail else { return nil }
+
+    return (personIndices, streetIndex, postalCityIndex)
+}
+
 func extractSalutationPersonName(_ text: String) -> String? {
     let normalized = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
     let nsRange = NSRange(normalized.startIndex..<normalized.endIndex, in: normalized)
@@ -439,7 +481,7 @@ func extractSalutationPersonName(_ text: String) -> String? {
     return nil
 }
 
-func supplementalInlinePersonMatches(in text: String) -> [String] {
+func supplementalInlinePersonMatches(in text: String, documentClass: DetectionDocumentClass = .general) -> [String] {
     let patterns = [
         #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
         #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
@@ -467,7 +509,51 @@ func supplementalInlinePersonMatches(in text: String) -> [String] {
         }
     }
 
+    if documentClass == .invoice {
+        let contextualPatterns = [
+            #"(?im)(?:^|\s)(?:für|fuer)[ \t]+((?:Herr|Herrn|Frau)[ \t]+(?:(?:Dr|Prof)\.?[ \t]+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
+            #"(?im)(?:^|\s)von[ \t]+((?:(?:Dr|Prof)\.?[ \t]+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:[ \t]+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#
+        ]
+
+        for pattern in contextualPatterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else { continue }
+            let nsRange = NSRange(text.startIndex..<text.endIndex, in: text)
+
+            for match in regex.matches(in: text, options: [], range: nsRange) {
+                guard match.numberOfRanges > 1,
+                      let range = Range(match.range(at: 1), in: text) else { continue }
+                let value = String(text[range]).trimmingCharacters(in: CharacterSet(charactersIn: ",;: "))
+                guard !value.isEmpty,
+                      !looksLikeContextualNonNameSnippet(value),
+                      !looksLikeOrganizationSnippet(value),
+                      !personSpanContainsAddressOrContactTail(value)
+                else { continue }
+                let key = normalizedComparableText(value)
+                guard seen.insert(key).inserted else { continue }
+                matches.append(value)
+            }
+        }
+    }
+
     return matches
+}
+
+func looksLikeContextualNonNameSnippet(_ text: String) -> Bool {
+    let cleaned = text
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let tokens = cleaned.split(separator: " ").map(String.init)
+    guard let first = tokens.first else { return true }
+
+    let blockedFirstTokens = [
+        "Ihr", "Ihre", "Ihren", "Ihrem", "Ihrer",
+        "Unser", "Unsere", "Unseren", "Unserem", "Unserer",
+        "Dein", "Deine", "Deinen", "Deinem", "Deiner"
+    ]
+
+    return blockedFirstTokens.contains {
+        first.compare($0, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+    }
 }
 
 func deduplicatedLabeledAddressBlock(after label: String, in text: String) -> [String] {
@@ -1162,6 +1248,10 @@ func runGeneralChecks() throws -> Int {
         "Expected street matcher to accept 'Weinbergsteige 2'"
     )
     try assert(
+        looksLikeGermanStreetAddress("Friedenstr 25"),
+        "Expected street matcher to accept OCR-style 'str' abbreviation without dot"
+    )
+    try assert(
         preservesStrongCustomIdentifier("Jonas Weber"),
         "Expected multi-token custom identifier to remain preservable"
     )
@@ -1239,6 +1329,22 @@ func runGeneralChecks() throws -> Int {
         sanitizeTrailingPersonLabelArtifacts("Sylvia Kern Lieferadresse") == "Sylvia Kern",
         "Expected trailing delivery-address label to be trimmed from person spans"
     )
+    let splitPreludeLines = [
+        "Herrn und Frau",
+        "Oliver und",
+        "Sylvia Kern",
+        "Friedenstr. 25",
+        "74229 Oedheim"
+    ]
+    let splitPrelude = resolveSplitHonorificRecipientPrelude(in: splitPreludeLines, startIndex: 0)
+    try assert(
+        splitPrelude?.personIndices == [0, 1, 2],
+        "Expected split honorific recipient prelude to keep all person lines"
+    )
+    try assert(
+        splitPrelude?.streetIndex == 3 && splitPrelude?.postalCityIndex == 4,
+        "Expected split honorific recipient prelude to resolve street and city"
+    )
     try assert(
         supplementalInlinePersonMatches(in: "Empfänger: Herrn Max Muster").contains("Herrn Max Muster"),
         "Expected honorific full name to be picked up as supplemental person match"
@@ -1250,6 +1356,31 @@ func runGeneralChecks() throws -> Int {
     try assert(
         supplementalInlinePersonMatches(in: "Name: Herrn Max Muster").contains("Herrn Max Muster"),
         "Expected inline labeled honorific name to be picked up as supplemental person match"
+    )
+    try assert(
+        classifyDocumentText("Zuzahlungsquittung\nfür Sylvia Kern\nvon Dr. Peter Bind") == .invoice,
+        "Expected receipt-like text to classify as invoice context"
+    )
+    try assert(
+        supplementalInlinePersonMatches(
+            in: "Zuzahlungsquittung\nfür Sylvia Kern\nvon Dr. Peter Bind",
+            documentClass: .invoice
+        ).contains("Sylvia Kern"),
+        "Expected receipt context to expose 'für <Name>'"
+    )
+    try assert(
+        supplementalInlinePersonMatches(
+            in: "Zuzahlungsquittung\nfür Sylvia Kern\nvon Dr. Peter Bind",
+            documentClass: .invoice
+        ).contains("Dr. Peter Bind"),
+        "Expected receipt context to expose 'von <Name>'"
+    )
+    try assert(
+        !supplementalInlinePersonMatches(
+            in: "Vielen Dank für Ihren Auftrag.",
+            documentClass: .invoice
+        ).contains("Ihren Auftrag"),
+        "Expected generic invoice wording not to be misread as a person name"
     )
     try assert(
         firstMatch(

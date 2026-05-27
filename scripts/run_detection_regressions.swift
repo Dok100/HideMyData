@@ -104,7 +104,7 @@ func shouldSuppressHeaderLikeFinding(snippet: String, category: String, pageText
     guard !cleanedSnippet.isEmpty else { return false }
 
     let isPostalCity = cleanedSnippet.range(
-        of: #"^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#,
+        of: #"^(?:D\s*-?\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#,
         options: .regularExpression
     ) != nil
     let isBareCityToken = category == "private_person" &&
@@ -184,7 +184,7 @@ func looksLikePostalCity(_ text: String) -> Bool {
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         .trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.range(
-        of: #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#,
+        of: #"(?i)^(?:D\s*-?\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#,
         options: .regularExpression
     ) != nil
 }
@@ -385,6 +385,38 @@ func extractInlineContextPersonName(_ text: String) -> String? {
         return nil
     }
     return String(normalized[range])
+}
+
+func sanitizeTrailingPersonLabelArtifacts(_ text: String) -> String {
+    let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let trailingLabels = [
+        "Lieferadresse",
+        "Lieferanschrift",
+        "Rechnungsanschrift",
+        "Postanschrift",
+        "Korrespondenzanschrift",
+        "Nutzungsadresse",
+        "Objektanschrift",
+        "Schriftverkehr"
+    ]
+
+    for label in trailingLabels {
+        let pattern = #"(?i)^(.*?)(?:\s+|\R+)"# + NSRegularExpression.escapedPattern(for: label) + #":?$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+        let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+        guard let match = regex.firstMatch(in: cleaned, options: [], range: range),
+              match.numberOfRanges > 1,
+              let prefixRange = Range(match.range(at: 1), in: cleaned) else {
+            continue
+        }
+
+        let prefix = String(cleaned[prefixRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if looksLikePlausiblePersonName(prefix) {
+            return prefix
+        }
+    }
+
+    return cleaned
 }
 
 func extractSalutationPersonName(_ text: String) -> String? {
@@ -1143,6 +1175,10 @@ func runGeneralChecks() throws -> Int {
         "Expected postal city matcher to accept abbreviated city tokens"
     )
     try assert(
+        looksLikePostalCity("D 74229 Oedheim"),
+        "Expected postal city matcher to accept OCR country-prefix form without hyphen"
+    )
+    try assert(
         personSpanContainsAddressOrContactTail("Frau Lena Sommer Birkenstraße"),
         "Expected person span with street tail to be rejected"
     )
@@ -1198,6 +1234,10 @@ func runGeneralChecks() throws -> Int {
     try assert(
         extractInlineContextPersonName("Kontoinhaber: Winter Paula") == "Winter Paula",
         "Expected account-holder label to accept reversed order"
+    )
+    try assert(
+        sanitizeTrailingPersonLabelArtifacts("Sylvia Kern Lieferadresse") == "Sylvia Kern",
+        "Expected trailing delivery-address label to be trimmed from person spans"
     )
     try assert(
         supplementalInlinePersonMatches(in: "Empfänger: Herrn Max Muster").contains("Herrn Max Muster"),

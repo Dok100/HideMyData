@@ -27,8 +27,14 @@ enum PIIDetectorSpanSanitizationSupport {
 
     nonisolated static func sanitizedSpanText(_ text: String, category: String) -> String {
         let cleaned = cleanedSpanText(text)
-        guard category == "private_address" else { return cleaned }
-        return sanitizeAddressFieldArtifacts(in: cleaned)
+        switch category {
+        case "private_address":
+            return sanitizeAddressFieldArtifacts(in: cleaned)
+        case "private_person":
+            return sanitizeTrailingPersonLabelArtifacts(in: cleaned)
+        default:
+            return cleaned
+        }
     }
 
     nonisolated static func sanitizeAddressFieldArtifacts(in text: String) -> String {
@@ -50,6 +56,37 @@ enum PIIDetectorSpanSanitizationSupport {
         )
 
         return cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    nonisolated static func sanitizeTrailingPersonLabelArtifacts(in text: String) -> String {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trailingLabels = [
+            "Lieferadresse",
+            "Lieferanschrift",
+            "Rechnungsanschrift",
+            "Postanschrift",
+            "Korrespondenzanschrift",
+            "Nutzungsadresse",
+            "Objektanschrift",
+            "Schriftverkehr"
+        ]
+
+        for label in trailingLabels {
+            let pattern = #"(?i)^(.*?)(?:\s+|\R+)"# + NSRegularExpression.escapedPattern(for: label) + #":?$"#
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
+            guard let match = regex.firstMatch(in: cleaned, options: [], range: range),
+                  match.numberOfRanges > 1,
+                  let prefixRange = Range(match.range(at: 1), in: cleaned)
+            else { continue }
+
+            let prefix = String(cleaned[prefixRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if looksLikePlausiblePersonName(prefix) {
+                return prefix
+            }
+        }
+
+        return cleaned
     }
 
     nonisolated static func sanitizedCategory(for category: String, text: String) -> String {
@@ -147,7 +184,7 @@ enum PIIDetectorSpanSanitizationSupport {
         if normalizedText.hasSuffix("seite") {
             return false
         }
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
+        let pattern = #"(?i)^(?:D\s*-?\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 

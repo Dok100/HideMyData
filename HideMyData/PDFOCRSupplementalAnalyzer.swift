@@ -11,22 +11,60 @@ enum PDFOCRSupplementalAnalyzer {
             spans.append(span)
         }
 
-        for (index, line) in page.lines.enumerated() {
-            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { continue }
-            guard DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned),
-                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: index),
-                  let candidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
-                    in: lines,
-                    nameIndex: index,
-                    allowDotsInCityTokens: true
-                  )
-            else { continue }
+        func nextNonEmptyLineIndex(after index: Int) -> Int? {
+            guard index + 1 < page.lines.count else { return nil }
+            for candidate in (index + 1)..<page.lines.count {
+                let cleaned = page.lines[candidate].text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !cleaned.isEmpty {
+                    return candidate
+                }
+            }
+            return nil
+        }
 
-            diagnostics.append("PDF OCR supplemental recipient block at line \(index): \(cleaned)")
+        func looksLikeHonorificOnlyLine(_ text: String) -> Bool {
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+                cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }
+
+        func appendRecipientBlock(nameIndex: Int, honorificIndex: Int? = nil, sourceLabel: String) {
+            guard let candidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
+                in: lines,
+                nameIndex: nameIndex,
+                allowDotsInCityTokens: true
+            ) else { return }
+
+            if let honorificIndex {
+                appendLine(honorificIndex, category: "private_person")
+            }
             for candidate in candidates {
                 appendLine(candidate.lineIndex, category: candidate.category)
             }
+            let cleanedName = page.lines[nameIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            diagnostics.append("PDF OCR supplemental recipient block (\(sourceLabel)) at line \(nameIndex): \(cleanedName)")
+        }
+
+        for (index, line) in page.lines.enumerated() {
+            let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !cleaned.isEmpty else { continue }
+
+            if index < 6,
+               looksLikeHonorificOnlyLine(cleaned),
+               let nameIndex = nextNonEmptyLineIndex(after: index),
+               nameIndex <= index + 2 {
+                let nameLine = page.lines[nameIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if PIIDetectorSpanSanitizationSupport.looksLikeNameishWord(nameLine) {
+                    appendRecipientBlock(nameIndex: nameIndex, honorificIndex: index, sourceLabel: "top prelude")
+                    continue
+                }
+            }
+
+            guard DocumentTextHeuristics.looksLikeWindowRecipientNameLine(cleaned),
+                  OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: index)
+            else { continue }
+
+            appendRecipientBlock(nameIndex: index, sourceLabel: "header-context")
         }
 
         return (deduplicatedSpans(spans), diagnostics)

@@ -94,7 +94,7 @@ enum DocumentTextHeuristics {
         let cityTokenPattern = allowDotsInCityTokens
             ? #"[A-Za-zÄÖÜäöüß.]+"#
             : #"[A-Za-zÄÖÜäöüß]+"#
-        let pattern = #"(?i)^(?:D\s*-\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß]\#(cityTokenPattern)(?:[ -]\#(cityTokenPattern)){0,2}$"#
+        let pattern = #"(?i)^(?:D\s*-?\s*)?\d{5}\s+[A-ZÄÖÜa-zäöüß]\#(cityTokenPattern)(?:[ -]\#(cityTokenPattern)){0,2}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
     }
 

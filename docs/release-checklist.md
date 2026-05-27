@@ -49,3 +49,4 @@
 - Release-Text / Highlights formulieren
 - Sparkle-/DMG-Artefakte pruefen, falls ein Distribution-Release gebaut wird
 - bei neuer Distribution zuerst die getrennte Sparkle-Strategie aus `features/PROJ-22-sparkle-distribution-reset.md` gegen den historischen `HideMyData`-Pfad abgleichen
+- Apple-Signing-, Archiv- und Notarisierungsablauf gegen `features/PROJ-24-apple-signing-and-notarization-readiness.md` pruefen, sobald die neue Distribution vorbereitet wird

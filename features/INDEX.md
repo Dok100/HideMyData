@@ -23,3 +23,6 @@
 | [PROJ-19](PROJ-19-export-zusammenfassung.md) | Menschliche Export-Zusammenfassung | Abgeschlossen |
 | [PROJ-20](PROJ-20-regel-assistenz.md) | Regel-Assistenz und Vorlagen | Abgeschlossen |
 | [PROJ-21](PROJ-21-commercial-readiness-relicensing-cleanup.md) | Commercial Readiness und Re-Licensing Cleanup | In Arbeit |
+| [PROJ-22](PROJ-22-sparkle-distribution-reset.md) | Sparkle-Historie und neue Distribution getrennt vorbereiten | Geplant |
+| [PROJ-23](PROJ-23-onboarding-and-rules-editor-ux.md) | Onboarding- und Regeln-Editor-UX nachschärfen | In Arbeit |
+| [PROJ-24](PROJ-24-apple-signing-and-notarization-readiness.md) | Apple Signing and Notarization Readiness | In Vorbereitung |

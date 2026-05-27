@@ -242,6 +242,13 @@ func looksLikePlausiblePersonName(_ text: String) -> Bool {
     }
 }
 
+func looksLikeNameishWord(_ text: String) -> Bool {
+    let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
+    let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
+    return cleaned.range(of: pattern, options: .regularExpression) != nil
+}
+
 func hasLeadingSentenceFragmentBeforeStreetAddress(_ text: String) -> Bool {
     let cleaned = text
         .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -421,40 +428,123 @@ func sanitizeTrailingPersonLabelArtifacts(_ text: String) -> String {
 }
 
 func resolveSplitHonorificRecipientPrelude(in lines: [String], startIndex: Int) -> (personIndices: [Int], streetIndex: Int, postalCityIndex: Int)? {
-    let searchEnd = min(lines.count, startIndex + 6)
+    let searchEnd = min(lines.count, startIndex + 9)
     guard startIndex + 1 < searchEnd else { return nil }
 
     var personIndices: [Int] = [startIndex]
-    var streetIndex: Int?
+    var streetIndices: [Int] = []
     var postalCityIndex: Int?
+
+    func looksLikeRecipientPreludeLeadFragment(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            #"(?i)^(?:herr|herrn|frau)$"#,
+            #"(?i)^und\s+(?:herr|herrn|frau)$"#,
+            #"(?i)^(?:herr|herrn|frau)\s+und$"#
+        ]
+        return patterns.contains { pattern in
+            cleaned.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
+    func looksLikeHonorificOnlyLine(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            cleaned.compare("Herrn", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+    }
+
+    func looksLikeHonorificRecipientLeadLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let patterns = [
+            #"(?i)^(?:herr|herrn|frau)\s+und\s+(?:herr|herrn|frau)$"#,
+            #"(?i)^(?:herr|herrn|frau)/(?:herr|herrn|frau)(?:/firma)?$"#,
+            #"(?i)^(?:herr|herrn|frau)(?:/firma)?$"#
+        ]
+        return patterns.contains { pattern in
+            cleaned.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
+    func looksLikeStreetNameOnlyLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\-]*(?:straße|str\.?|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)$"#
+        return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    func looksLikeHouseNumberOnlyLine(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.range(of: #"^\d+[A-Za-z]?$"#, options: .regularExpression) != nil
+    }
+
+    func looksLikeRecipientPersonFragment(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return false }
+
+        if looksLikeHonorificOnlyLine(cleaned) ||
+            looksLikeHonorificRecipientLeadLine(cleaned) ||
+            looksLikeRecipientPreludeLeadFragment(cleaned) ||
+            looksLikeNameishWord(cleaned) {
+            return true
+        }
+
+        let patterns = [
+            #"(?i)^und$"#,
+            #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+            #"(?i)^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und$"#
+        ]
+        return patterns.contains { pattern in
+            cleaned.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
 
     for candidateIndex in (startIndex + 1)..<searchEnd {
         let cleaned = lines[candidateIndex].trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { continue }
 
         if looksLikeGermanStreetAddress(cleaned) {
-            streetIndex = candidateIndex
+            streetIndices = [candidateIndex]
             continue
         }
 
-        if let streetIndex,
-           candidateIndex > streetIndex,
+        if streetIndices.isEmpty,
+           looksLikeStreetNameOnlyLine(cleaned),
+           let houseNumberIndex = nearestNonEmptyLineIndex(in: lines, after: candidateIndex),
+           houseNumberIndex < searchEnd {
+            let houseNumber = lines[houseNumberIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+            if looksLikeHouseNumberOnlyLine(houseNumber) {
+                streetIndices = [candidateIndex, houseNumberIndex]
+                continue
+            }
+        }
+
+        if let lastStreetIndex = streetIndices.last,
+           candidateIndex > lastStreetIndex,
            looksLikePostalCity(cleaned) {
             postalCityIndex = candidateIndex
             break
         }
 
-        if streetIndex == nil {
+        if streetIndices.isEmpty,
+           looksLikeRecipientPersonFragment(cleaned) {
             personIndices.append(candidateIndex)
         }
     }
 
-    guard let streetIndex, let postalCityIndex else { return nil }
+    guard let streetIndex = streetIndices.first, let postalCityIndex else { return nil }
     let nameIndices = personIndices.dropFirst()
     guard !nameIndices.isEmpty else { return nil }
 
     let hasPlausibleNameTail = nameIndices.contains { index in
-        looksLikePlausiblePersonName(lines[index]) || normalizedComparableText(lines[index]).contains("und")
+        looksLikePlausiblePersonName(lines[index]) || looksLikeRecipientPersonFragment(lines[index])
     }
     guard hasPlausibleNameTail else { return nil }
 
@@ -1344,6 +1434,43 @@ func runGeneralChecks() throws -> Int {
     try assert(
         splitPrelude?.streetIndex == 3 && splitPrelude?.postalCityIndex == 4,
         "Expected split honorific recipient prelude to resolve street and city"
+    )
+    let fragmentedSplitPreludeLines = [
+        "Herrn",
+        "und Frau",
+        "Oliver",
+        "und",
+        "Sylvia Kern",
+        "Friodenstr",
+        "25",
+        "74229 Oedheim"
+    ]
+    let fragmentedSplitPrelude = resolveSplitHonorificRecipientPrelude(in: fragmentedSplitPreludeLines, startIndex: 0)
+    try assert(
+        fragmentedSplitPrelude?.personIndices == [0, 1, 2, 3, 4],
+        "Expected fragmented split recipient prelude to keep all person fragments"
+    )
+    try assert(
+        fragmentedSplitPrelude?.streetIndex == 5 && fragmentedSplitPrelude?.postalCityIndex == 7,
+        "Expected fragmented split recipient prelude to resolve split street and city"
+    )
+    let delayedWindowPreludeLines = [
+        "Finanzamt Heilbronn, 74064 Heilbronn",
+        "DV 11 0,70 Deutsche Post Q",
+        "*9150*0010443*2211*",
+        "Herrn",
+        "und Frau",
+        "Oliver",
+        "und",
+        "Sylvia Kern",
+        "Friodenstr",
+        "25",
+        "74229 Oedheim"
+    ]
+    let delayedWindowPrelude = resolveSplitHonorificRecipientPrelude(in: delayedWindowPreludeLines, startIndex: 3)
+    try assert(
+        delayedWindowPrelude?.streetIndex == 8 && delayedWindowPrelude?.postalCityIndex == 10,
+        "Expected delayed window-recipient prelude to resolve split street and city after postal header lines"
     )
     try assert(
         supplementalInlinePersonMatches(in: "Empfänger: Herrn Max Muster").contains("Herrn Max Muster"),

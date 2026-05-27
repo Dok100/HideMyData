@@ -6,9 +6,9 @@ struct OCRRecipientBlock {
 }
 
 enum OCRRecipientHeuristics {
-    static func hasNearbyOrganizationHeader(in lines: [String], before index: Int) -> Bool {
+    static func hasNearbyOrganizationHeader(in lines: [String], before index: Int, lookback: Int = 3) -> Bool {
         guard index > 0 else { return false }
-        let start = max(0, index - 3)
+        let start = max(0, index - lookback)
         for previousIndex in start..<index {
             if DocumentTextHeuristics.looksLikeOrganizationHeaderLine(lines[previousIndex]) {
                 return true

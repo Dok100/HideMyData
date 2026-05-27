@@ -84,8 +84,24 @@ enum PDFDetectionReviewSupport {
             }
         }
 
-        for span in contextualSupplementalSpans + ocrSupplemental.0 {
+        for span in contextualSupplementalSpans {
             let rects = boundingRects(span, source, page)
+            guard !rects.isEmpty else { continue }
+            let candidate = ReviewFindingCandidate(
+                category: span.category,
+                snippet: span.text,
+                source: span.source,
+                confidence: span.confidence,
+                pageIndex: nil,
+                rects: PDFReviewContextSupport.deduplicatedRects(rects)
+            )
+            reviewCandidates.append(candidate)
+            pageReviewCandidates.append(candidate)
+            totalRects += rects.count
+        }
+
+        for span in ocrSupplemental.0 {
+            let rects = supplementalOCRRects(for: span, source: source, page: page, boundingRects: boundingRects)
             guard !rects.isEmpty else { continue }
             let candidate = ReviewFindingCandidate(
                 category: span.category,
@@ -106,6 +122,20 @@ enum PDFDetectionReviewSupport {
             previewDiagnostics: PDFReviewContextSupport.previewDiagnosticsLines(for: pageReviewCandidates) + ocrSupplemental.1,
             totalRects: totalRects
         )
+    }
+
+    private static func supplementalOCRRects(
+        for span: DetectedSpan,
+        source: PDFPageTextSource,
+        page: PDFPage,
+        boundingRects: (DetectedSpan, PDFPageTextSource, PDFPage) -> [CGRect]
+    ) -> [CGRect] {
+        if case .ocr(let ocrPage) = source {
+            let rects = boundingRects(span, .ocr(ocrPage), page)
+            if !rects.isEmpty { return rects }
+        }
+
+        return boundingRects(span, source, page)
     }
 
     private static func translatedSpanAndRects(

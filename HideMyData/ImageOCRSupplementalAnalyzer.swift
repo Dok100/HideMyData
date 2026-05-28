@@ -56,6 +56,23 @@ enum ImageOCRSupplementalAnalyzer {
             }
         }
 
+        func appendResolvedRecipientBlock(_ block: OCRRecipientLineBlock, startIndex: Int, sourceLabel: String) {
+            let summary = block.personIndices
+                .map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .joined(separator: " | ")
+            let streetSummary = block.streetIndices
+                .map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .joined(separator: " | ")
+            let city = page.lines[block.postalCityIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
+            diagnostics.append(
+                "Supplemental OCR hit: \(sourceLabel) at line \(startIndex) -> '\(summary)' | streets='\(streetSummary)' | city='\(city)'"
+            )
+
+            for candidate in block.candidates {
+                appendCandidate(lineIndex: candidate.lineIndex, category: candidate.category)
+            }
+        }
+
         func appendLabeledFormAddressBlock(startingAt index: Int) {
             var labelLineIndices: [Int] = []
             var cursor = index
@@ -98,6 +115,17 @@ enum ImageOCRSupplementalAnalyzer {
             if let salutationName = DocumentTextHeuristics.salutationPersonName(in: cleaned) {
                 diagnostics.append("Supplemental OCR hit: salutation at line \(index) -> '\(salutationName)'")
                 appendCandidate(lineIndex: index, matchedText: salutationName, category: "private_person")
+                continue
+            }
+
+            if index < 20,
+               OCRRecipientHeuristics.looksLikeRecipientPreludeStart(cleaned),
+               let block = OCRRecipientHeuristics.resolveRecipientPreludeBlock(
+                   in: lines,
+                   startIndex: index,
+                   allowDotsInCityTokens: true
+               ) {
+                appendResolvedRecipientBlock(block, startIndex: index, sourceLabel: "layout recipient block")
                 continue
             }
 

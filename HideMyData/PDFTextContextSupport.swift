@@ -10,7 +10,7 @@ enum PDFTextContextSupport {
         let explicitPrefixes = [
             "kundin:", "kunde:", "lieferadresse:", "schriftverkehr", "kontoinhaber:",
             "abweichender ansprechpartner:", "bestellt durch:", "besteller:", "bestellerin:", "name:",
-            "eheleute", "herr", "frau",
+            "eheleute", "herr", "herrn", "frau",
             "versicherungsnehmer", "darlehensnehmer", "postanschrift",
             "korrespondenzanschrift", "objektanschrift", "rechnungsanschrift",
             "lieferstelle", "anschlussinhaber", "nutzungsadresse"

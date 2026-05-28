@@ -233,7 +233,7 @@ func looksLikePlausiblePersonName(_ text: String) -> Bool {
     let patterns = [
         #"(?i)^(?:frau|herr)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#,
         #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
-        #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
+        #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*$"#,
         #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$"#
     ]
 
@@ -245,7 +245,20 @@ func looksLikePlausiblePersonName(_ text: String) -> Bool {
 func looksLikeNameishWord(_ text: String) -> Bool {
     let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
-    let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
+    let nameToken = #"[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*"#
+    let pattern = #"^\#(nameToken)(?:\s+\#(nameToken)){0,2}$"#
+    return cleaned.range(of: pattern, options: .regularExpression) != nil
+}
+
+func looksLikeRecipientNameLine(_ text: String) -> Bool {
+    looksLikeNameishWord(text) || looksLikeSharedSurnameCoupleName(text)
+}
+
+func looksLikeSharedSurnameCoupleName(_ text: String) -> Bool {
+    let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard cleaned.count >= 8, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
+    let nameToken = #"[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*"#
+    let pattern = #"^\#(nameToken)\s+und\s+\#(nameToken)\s+\#(nameToken)$"#
     return cleaned.range(of: pattern, options: .regularExpression) != nil
 }
 
@@ -440,6 +453,7 @@ func resolveSplitHonorificRecipientPrelude(in lines: [String], startIndex: Int) 
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let patterns = [
+            #"(?i)^eheleute$"#,
             #"(?i)^(?:herr|herrn|frau)$"#,
             #"(?i)^und\s+(?:herr|herrn|frau)$"#,
             #"(?i)^(?:herr|herrn|frau)\s+und$"#
@@ -492,7 +506,7 @@ func resolveSplitHonorificRecipientPrelude(in lines: [String], startIndex: Int) 
         if looksLikeHonorificOnlyLine(cleaned) ||
             looksLikeHonorificRecipientLeadLine(cleaned) ||
             looksLikeRecipientPreludeLeadFragment(cleaned) ||
-            looksLikeNameishWord(cleaned) {
+            looksLikeRecipientNameLine(cleaned) {
             return true
         }
 
@@ -544,7 +558,9 @@ func resolveSplitHonorificRecipientPrelude(in lines: [String], startIndex: Int) 
     guard !nameIndices.isEmpty else { return nil }
 
     let hasPlausibleNameTail = nameIndices.contains { index in
-        looksLikePlausiblePersonName(lines[index]) || looksLikeRecipientPersonFragment(lines[index])
+        looksLikePlausiblePersonName(lines[index]) ||
+            looksLikeRecipientNameLine(lines[index]) ||
+            looksLikeRecipientPersonFragment(lines[index])
     }
     guard hasPlausibleNameTail else { return nil }
 
@@ -1345,6 +1361,14 @@ func runGeneralChecks() throws -> Int {
         preservesStrongCustomIdentifier("Jonas Weber"),
         "Expected multi-token custom identifier to remain preservable"
     )
+    try assert(
+        looksLikeSharedSurnameCoupleName("Jonas und Nina Weber"),
+        "Expected shared-surname recipient couple names to be accepted"
+    )
+    try assert(
+        !looksLikeSharedSurnameCoupleName("Privat- und Geschaeftskundenbetreuung Tel"),
+        "Expected hyphenated service labels not to be accepted as couple names"
+    )
 
     try assert(
         looksLikeCompanyAddressBlock("Nordlicht Service GmbH Musterweg 88"),
@@ -1471,6 +1495,36 @@ func runGeneralChecks() throws -> Int {
     try assert(
         delayedWindowPrelude?.streetIndex == 8 && delayedWindowPrelude?.postalCityIndex == 10,
         "Expected delayed window-recipient prelude to resolve split street and city after postal header lines"
+    )
+    let imageLayoutRecipientLines = [
+        "Herrn",
+        "Oliver Christof Kern",
+        "Friedenstr. 25",
+        "74229 Oedheim"
+    ]
+    let imageLayoutRecipient = resolveSplitHonorificRecipientPrelude(in: imageLayoutRecipientLines, startIndex: 0)
+    try assert(
+        imageLayoutRecipient?.personIndices == [0, 1],
+        "Expected image layout recipient block to keep honorific and name"
+    )
+    try assert(
+        imageLayoutRecipient?.streetIndex == 2 && imageLayoutRecipient?.postalCityIndex == 3,
+        "Expected image layout recipient block to resolve street and city"
+    )
+    let eheleuteRecipientLines = [
+        "Eheleute",
+        "Jonas und Nina Weber",
+        "Ahornweg 21",
+        "24589 Lindenried"
+    ]
+    let eheleuteRecipient = resolveSplitHonorificRecipientPrelude(in: eheleuteRecipientLines, startIndex: 0)
+    try assert(
+        eheleuteRecipient?.personIndices == [0, 1],
+        "Expected Eheleute recipient block to keep label and couple name"
+    )
+    try assert(
+        eheleuteRecipient?.streetIndex == 2 && eheleuteRecipient?.postalCityIndex == 3,
+        "Expected Eheleute recipient block to resolve street and city"
     )
     try assert(
         supplementalInlinePersonMatches(in: "Empfänger: Herrn Max Muster").contains("Herrn Max Muster"),

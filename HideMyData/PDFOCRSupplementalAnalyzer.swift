@@ -28,78 +28,6 @@ enum PDFOCRSupplementalAnalyzer {
                 cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
         }
 
-        func looksLikeHonorificRecipientLeadLine(_ text: String) -> Bool {
-            let cleaned = text
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let patterns = [
-                #"(?i)^(?:herr|herrn|frau)\s+und\s+(?:herr|herrn|frau)$"#,
-                #"(?i)^(?:herr|herrn|frau)/(?:herr|herrn|frau)(?:/firma)?$"#,
-                #"(?i)^(?:herr|herrn|frau)(?:/firma)?$"#
-            ]
-            return patterns.contains { pattern in
-                cleaned.range(of: pattern, options: .regularExpression) != nil
-            }
-        }
-
-        func looksLikeRecipientPreludeLeadFragment(_ text: String) -> Bool {
-            let cleaned = text
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let patterns = [
-                #"(?i)^(?:herr|herrn|frau)$"#,
-                #"(?i)^und\s+(?:herr|herrn|frau)$"#,
-                #"(?i)^(?:herr|herrn|frau)\s+und$"#
-            ]
-            return patterns.contains { pattern in
-                cleaned.range(of: pattern, options: .regularExpression) != nil
-            }
-        }
-
-        func looksLikeRecipientPersonFragment(_ text: String) -> Bool {
-            let cleaned = text
-                .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !cleaned.isEmpty else { return false }
-
-            if looksLikeHonorificOnlyLine(cleaned) ||
-                looksLikeHonorificRecipientLeadLine(cleaned) ||
-                looksLikeRecipientPreludeLeadFragment(cleaned) ||
-                PIIDetectorSpanSanitizationSupport.looksLikeNameishWord(cleaned) {
-                return true
-            }
-
-            let patterns = [
-                #"(?i)^und$"#,
-                #"(?i)^und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#,
-                #"(?i)^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und$"#
-            ]
-            return patterns.contains { pattern in
-                cleaned.range(of: pattern, options: .regularExpression) != nil
-            }
-        }
-
-        func hasWindowRecipientContext(before index: Int) -> Bool {
-            guard index > 0 else { return false }
-            if OCRRecipientHeuristics.hasNearbyOrganizationHeader(in: lines, before: index, lookback: 8) {
-                return true
-            }
-
-            let start = max(0, index - 8)
-            for previousIndex in start..<index {
-                let cleaned = page.lines[previousIndex].text
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                    .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
-                if cleaned.contains("deutsche post") ||
-                    cleaned.contains("finanzamt") ||
-                    cleaned.contains("dv ") ||
-                    cleaned.contains("*9150*") {
-                    return true
-                }
-            }
-            return false
-        }
-
         func appendRecipientBlock(nameIndex: Int, honorificIndex: Int? = nil, sourceLabel: String) {
             guard let candidates = OCRContextAnalyzer.windowRecipientBlockCandidates(
                 in: lines,
@@ -118,64 +46,18 @@ enum PDFOCRSupplementalAnalyzer {
         }
 
         func appendSplitPreludeRecipientBlock(startIndex: Int) -> Bool {
-            let searchEnd = min(page.lines.count, startIndex + 9)
-            guard startIndex + 1 < searchEnd else { return false }
+            guard let block = OCRRecipientHeuristics.resolveRecipientPreludeBlock(
+                in: lines,
+                startIndex: startIndex,
+                allowDotsInCityTokens: true
+            ) else { return false }
 
-            var personIndices: [Int] = [startIndex]
-            var streetIndices: [Int] = []
-            var postalCityIndex: Int?
-
-            for candidateIndex in (startIndex + 1)..<searchEnd {
-                let cleaned = page.lines[candidateIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !cleaned.isEmpty else { continue }
-
-                if DocumentTextHeuristics.looksLikeGermanStreetLine(cleaned) {
-                    streetIndices = [candidateIndex]
-                    continue
-                }
-
-                if streetIndices.isEmpty,
-                   PIIDetectorSpanSanitizationSupport.looksLikeStreetNameOnlyLine(cleaned),
-                   let houseNumberIndex = nextNonEmptyLineIndex(after: candidateIndex),
-                   houseNumberIndex < searchEnd {
-                    let houseNumber = page.lines[houseNumberIndex].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if PIIDetectorSpanSanitizationSupport.looksLikeHouseNumberOnlyLine(houseNumber) {
-                        streetIndices = [candidateIndex, houseNumberIndex]
-                        continue
-                    }
-                }
-
-                if let lastStreetIndex = streetIndices.last,
-                   candidateIndex > lastStreetIndex,
-                   DocumentTextHeuristics.looksLikePostalCityLine(cleaned, allowDotsInCityTokens: true) {
-                    postalCityIndex = candidateIndex
-                    break
-                }
-
-                if streetIndices.isEmpty,
-                   looksLikeRecipientPersonFragment(cleaned) {
-                    personIndices.append(candidateIndex)
-                }
+            for candidate in block.candidates {
+                appendLine(candidate.lineIndex, category: candidate.category)
             }
-
-            guard !streetIndices.isEmpty, let postalCityIndex else { return false }
-            let nameIndices = personIndices.dropFirst()
-            guard !nameIndices.isEmpty else { return false }
-
-            let hasPlausibleNameTail = nameIndices.contains { index in
-                let cleaned = page.lines[index].text.trimmingCharacters(in: .whitespacesAndNewlines)
-                return PIIDetectorSpanSanitizationSupport.looksLikeNameishWord(cleaned)
-            }
-            guard hasPlausibleNameTail else { return false }
-
-            for index in personIndices {
-                appendLine(index, category: "private_person")
-            }
-            for streetIndex in streetIndices {
-                appendLine(streetIndex, category: "private_address")
-            }
-            appendLine(postalCityIndex, category: "private_address")
-            let summary = personIndices.map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " | ")
+            let summary = block.personIndices
+                .map { page.lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .joined(separator: " | ")
             diagnostics.append("PDF OCR supplemental recipient block (split prelude) at line \(startIndex): \(summary)")
             return true
         }
@@ -185,8 +67,8 @@ enum PDFOCRSupplementalAnalyzer {
             guard !cleaned.isEmpty else { continue }
 
             if index < 32,
-               hasWindowRecipientContext(before: index),
-               (looksLikeHonorificRecipientLeadLine(cleaned) || looksLikeRecipientPreludeLeadFragment(cleaned)),
+               OCRRecipientHeuristics.hasWindowRecipientContext(in: lines, before: index),
+               OCRRecipientHeuristics.looksLikeRecipientPreludeStart(cleaned),
                appendSplitPreludeRecipientBlock(startIndex: index) {
                 continue
             }

@@ -170,13 +170,13 @@
       "id": "german_honorific_name",
       "description": "Deutscher Personenname mit Anrede",
       "category": "private_person",
-      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+){1,2}\\b"
+      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*){1,2}\\b"
     },
     {
       "id": "german_couple_name_shared_surname",
       "description": "Zwei Personennamen mit gemeinsamem Nachnamen und 'und'",
       "category": "private_person",
-      "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
+      "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\b"
     },
     {
       "id": "german_street_house_number",

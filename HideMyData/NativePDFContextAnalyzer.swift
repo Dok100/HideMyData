@@ -59,6 +59,21 @@ enum NativePDFContextAnalyzer {
             let cleaned = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !cleaned.isEmpty else { continue }
 
+            if OCRRecipientHeuristics.looksLikeRecipientPreludeStart(cleaned),
+               let recipientBlock = OCRRecipientHeuristics.resolveRecipientPreludeBlock(
+                   in: lines.map(\.text),
+                   startIndex: index,
+                   allowDotsInCityTokens: true
+               ) {
+                appendAddressCandidates(
+                    recipientBlock.candidates,
+                    from: lines,
+                    into: &spans,
+                    sourceText: text
+                )
+                continue
+            }
+
             if let inlineMatch = inlineContextPersonName(in: cleaned) {
                 appendSpan(for: line, matchedText: inlineMatch, category: "private_person")
                 continue
@@ -83,7 +98,8 @@ enum NativePDFContextAnalyzer {
                     OCRContextAnalyzer.labeledAddressBlockCandidates(
                         in: lines.map(\.text),
                         startingAt: index,
-                        allowDotsInCityTokens: true
+                        allowDotsInCityTokens: true,
+                        includeLabelAsAddress: false
                     ),
                     from: lines,
                     into: &spans,
@@ -117,7 +133,8 @@ enum NativePDFContextAnalyzer {
                     OCRContextAnalyzer.labeledAddressBlockCandidates(
                         in: lines.map(\.text),
                         startingAt: index,
-                        allowDotsInCityTokens: true
+                        allowDotsInCityTokens: true,
+                        includeLabelAsAddress: false
                     ),
                     from: lines,
                     into: &spans,
@@ -134,7 +151,8 @@ enum NativePDFContextAnalyzer {
                     OCRContextAnalyzer.labeledAddressBlockCandidates(
                         in: lines.map(\.text),
                         startingAt: index,
-                        allowDotsInCityTokens: true
+                        allowDotsInCityTokens: true,
+                        includeLabelAsAddress: false
                     ),
                     from: lines,
                     into: &spans,
@@ -151,7 +169,6 @@ enum NativePDFContextAnalyzer {
             }
 
             if cleaned.localizedCaseInsensitiveContains("Schriftverkehr") {
-                appendSpan(for: line, category: "private_address")
                 if index + 1 < lines.count { appendSpan(for: lines[index + 1], category: "private_address") }
                 continue
             }

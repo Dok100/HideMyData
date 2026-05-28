@@ -41,3 +41,40 @@ Der Clipboard-/Platzhalterpfad ist zusaetzlich manuell gegen dieselben Problemkl
 2. Dokumentklasse in `scripts/run_detection_regressions.swift` einordnen.
 3. Soll-/Nicht-Soll-Faelle in die Matrix und in die Regression aufnehmen.
 4. Lauf ueber `CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift` grün halten.
+
+## Stress-PDF / Akzeptanzmatrix
+
+Die synthetische Datei `output/pdf/inkognito-detection-stress-test.pdf` ist als manuelle End-to-End-Pruefung gedacht. Die verbindlichen Soll-/Nicht-Soll-Erwartungen stehen maschinenlesbar in `fixtures/detection/inkognito_stress_expectations.json`.
+
+### Arbeitsregel
+
+1. Vor neuen Heuristik-Aenderungen erst die Erwartung in `inkognito_stress_expectations.json` klaeren.
+2. Eine rote Markierung im Screenshot allein reicht nicht als Fix-Auftrag; sie muss einer `must_redact`- oder `must_not_redact`-Erwartung zugeordnet werden.
+3. Wenn eine Erwartung fachlich unklar ist, bleibt sie unter `review`, bis entschieden ist, ob sie geschuetzt oder bewusst ignoriert werden soll.
+4. Der Validator `scripts/run_detection_stress_expectations.swift` prueft exportierte App-Debug-JSONs gegen diese Erwartungsmatrix, bevor weitere Detection-Heuristiken angepasst werden.
+
+Beispiel:
+
+```bash
+swift -module-cache-path /private/tmp/inkognito-swift-module-cache scripts/run_detection_stress_expectations.swift fixtures/detection/inkognito_stress_expectations.json /Users/oliverkern/Downloads
+```
+
+Der Validator vergleicht nur Text-Findings; er veraendert keine Detection-Logik. Fehlende `seite-*.json`-Exporte werden als eigene Fehler ausgewiesen.
+
+### Baseline 2026-05-28
+
+Der erste Lauf gegen die zuletzt exportierten App-Debug-JSONs aus `/Users/oliverkern/Downloads` ist bewusst rot und dient als Ausgangspunkt fuer die naechsten Detection-Schritte:
+
+- fehlende Exporte: `seite-3.json`, `seite-9.json`
+- fehlende Muss-Treffer: `9`
+- unerwuenschte Treffer auf `must_not_redact`: `9`
+- Teilabdeckungen: `4`
+
+Die wichtigsten offenen Muster sind damit nicht mehr nur visuell beschrieben, sondern messbar:
+
+- PLZ-/Ort-Zeilen in Empfaengeradressen fehlen noch in mehreren Bloecken.
+- Einzelne Kontext-Verkettungen sind zu breit, z. B. `Winter Strasse`, `Bankverbindung:` oder `Jonas Weber Eheleute`.
+- Einige Namen in klaren Dokumentkontexten fehlen noch, z. B. `Elmar Bauer`.
+- Einige zusammengesetzte Adress- oder Personenphrasen werden nur teilweise abgedeckt.
+
+Solange diese Baseline rot ist, sollen neue Detection-Aenderungen klein bleiben und jeweils gegen den Validator plus die bestehenden Regressionen geprueft werden.

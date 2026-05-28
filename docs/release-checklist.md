@@ -4,6 +4,7 @@
 
 - `xcodebuild -project Inkognito.xcodeproj -scheme Inkognito -sdk macosx build`
 - `CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift`
+- `swift -module-cache-path /private/tmp/inkognito-swift-module-cache scripts/run_detection_stress_expectations.swift fixtures/detection/inkognito_stress_expectations.json /Users/oliverkern/Downloads` mit aktuellen App-Debug-JSONs aus der Stress-PDF pruefen
 - manuelle Pruefung mit mindestens:
   - OCR-lastigem PDF
   - nativem PDF mit Adressblock

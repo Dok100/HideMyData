@@ -61,20 +61,23 @@ swift -module-cache-path /private/tmp/inkognito-swift-module-cache scripts/run_d
 
 Der Validator vergleicht nur Text-Findings; er veraendert keine Detection-Logik. Fehlende `seite-*.json`-Exporte werden als eigene Fehler ausgewiesen.
 
-### Baseline 2026-05-28
+### Status 2026-05-29
 
-Der erste Lauf gegen die zuletzt exportierten App-Debug-JSONs aus `/Users/oliverkern/Downloads` ist bewusst rot und dient als Ausgangspunkt fuer die naechsten Detection-Schritte:
+Der aktuelle Akzeptanzlauf gegen die zuletzt exportierten App-Debug-JSONs aus `/Users/oliverkern/Downloads` ist vollstaendig gruen:
 
-- fehlende Exporte: `seite-3.json`, `seite-9.json`
-- fehlende Muss-Treffer: `9`
-- unerwuenschte Treffer auf `must_not_redact`: `9`
-- Teilabdeckungen: `4`
+- fehlende Exporte: `0`
+- fehlende Muss-Treffer: `0`
+- unerwuenschte Treffer auf `must_not_redact`: `0`
+- Teilabdeckungen: `0`
 
-Die wichtigsten offenen Muster sind damit nicht mehr nur visuell beschrieben, sondern messbar:
+Die zuletzt gezielt geschlossenen Restfaelle waren:
 
-- PLZ-/Ort-Zeilen in Empfaengeradressen fehlen noch in mehreren Bloecken.
-- Einzelne Kontext-Verkettungen sind zu breit, z. B. `Winter Strasse`, `Bankverbindung:` oder `Jonas Weber Eheleute`.
-- Einige Namen in klaren Dokumentkontexten fehlen noch, z. B. `Elmar Bauer`.
-- Einige zusammengesetzte Adress- oder Personenphrasen werden nur teilweise abgedeckt.
+- Formularwerte in expliziten Feldkontexten wie `Paula`, `Winter` und `Hausnr.: 3`
+- Empfaenger-PLZ/Ort unter nativen `IBAN:`-Adressbloecken
+- freie Namenskontexte wie `von Elmar Bauer`
+- Intro-/Dokumentationszeilen, die nicht als Personenfund in Debug-JSON oder Vorschau auftauchen duerfen
 
-Solange diese Baseline rot ist, sollen neue Detection-Aenderungen klein bleiben und jeweils gegen den Validator plus die bestehenden Regressionen geprueft werden.
+Weiterhin gilt:
+
+- Neue Detection-Aenderungen klein halten und immer gegen den Stress-Validator plus die bestehenden Regressionen pruefen.
+- Der Stress-Validator bewertet die exportierten App-Debug-JSONs; ein gruener Stand ist erst erreicht, wenn der aktuelle Build auch frisch exportierte `seite-*.json` liefert.

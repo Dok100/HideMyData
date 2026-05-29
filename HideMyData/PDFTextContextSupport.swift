@@ -8,12 +8,14 @@ enum PDFTextContextSupport {
         guard !cleaned.isEmpty else { return false }
 
         let explicitPrefixes = [
-            "kundin:", "kunde:", "lieferadresse:", "schriftverkehr", "kontoinhaber:",
+            "kundin:", "kunde:", "lieferadresse:", "schriftverkehr", "kontoinhaber:", "iban:",
             "abweichender ansprechpartner:", "bestellt durch:", "besteller:", "bestellerin:", "name:",
+            "vorname:", "nachname:", "hausnr.:", "hausnr:", "hausnummer:", "plz:", "ort:", "stadt:",
             "eheleute", "herr", "herrn", "frau",
             "versicherungsnehmer", "darlehensnehmer", "postanschrift",
             "korrespondenzanschrift", "objektanschrift", "rechnungsanschrift",
-            "lieferstelle", "anschlussinhaber", "nutzungsadresse"
+            "lieferstelle", "anschlussinhaber", "nutzungsadresse",
+            "fuer rueckfragen", "fur ruckfragen", "rueckfragen", "ruckfragen"
         ]
         return explicitPrefixes.contains(where: { cleaned.hasPrefix($0) })
     }

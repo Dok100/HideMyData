@@ -115,7 +115,11 @@ func shouldSuppressHeaderLikeFinding(snippet: String, category: String, pageText
             of: #"(?i)^(?:herr|frau)\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}$|^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2}(?:,\s*(?:CEO|CFO|COO|CTO|CMO))?$"#,
             options: .regularExpression
         ) != nil
-    guard isPostalCity || isBareCityToken || isStreetAddress || isLikelyPersonName else { return false }
+    let isRecipientLabelPerson = category == "private_person" && looksLikeRecipientLabelPersonLine(cleanedSnippet)
+    let isRecipientCoupleName = category == "private_person" && looksLikeRecipientCoupleName(cleanedSnippet)
+    guard isPostalCity || isBareCityToken || isStreetAddress || isLikelyPersonName || isRecipientLabelPerson || isRecipientCoupleName else {
+        return false
+    }
 
     let normalizedSnippet = cleanedSnippet.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
     let lines = pageText.components(separatedBy: .newlines)
@@ -126,13 +130,22 @@ func shouldSuppressHeaderLikeFinding(snippet: String, category: String, pageText
         "handelsregister", "amtsgericht", "bankverbindung", "onlinebuchung",
         "reisebestätigung", "reisebestatigung"
     ]
+    var foundLegitimateRecipientContext = false
+    var foundSuppressibleContext = false
 
     for (index, line) in lines.enumerated() {
         let normalizedLine = line.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
         guard normalizedLine.localizedCaseInsensitiveContains(normalizedSnippet) else { continue }
 
+        if isLikelyRecipientBlockContext(in: lines, at: index),
+           (isLikelyPersonName || isStreetAddress || isPostalCity || isRecipientLabelPerson || isRecipientCoupleName) {
+            foundLegitimateRecipientContext = true
+            continue
+        }
+
         if (isPostalCity || isStreetAddress) && looksLikeOrganizationSnippet(line) {
-            return true
+            foundSuppressibleContext = true
+            continue
         }
 
         let contextStart = max(0, index - 2)
@@ -142,25 +155,73 @@ func shouldSuppressHeaderLikeFinding(snippet: String, category: String, pageText
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
 
         if headerKeywords.contains(where: { context.contains($0) }) {
-            return true
+            foundSuppressibleContext = true
+            continue
         }
         if isLikelyPersonName,
            context.contains("geschäftsführung") || context.contains("geschaftsfuhrung") ||
             context.contains("ceo") || context.contains("cfo") ||
             context.contains("geschäftsführer") || context.contains("geschaftsfuhrer") {
-            return true
+            foundSuppressibleContext = true
+            continue
         }
         if isPostalCity,
            context.range(of: #"\b\d{2}\.\d{2}\.\d{4}\b"#, options: .regularExpression) != nil {
-            return true
+            foundSuppressibleContext = true
+            continue
         }
         if isPostalCity,
            context.range(of: #"\(?\d{3,5}\)?[ /-]?\d{2,5}[-/]\d{2,5}"#, options: .regularExpression) != nil {
+            foundSuppressibleContext = true
+            continue
+        }
+    }
+
+    return foundSuppressibleContext && !foundLegitimateRecipientContext
+}
+
+func isLikelyRecipientBlockContext(in lines: [String], at index: Int) -> Bool {
+    guard index >= 0, index < lines.count else { return false }
+
+    let markerRange = max(0, index - 1)...min(lines.count - 1, index + 1)
+    let hasRecipientMarkerNearby = markerRange.contains { nearbyIndex in
+        looksLikeRecipientMarkerLine(lines[nearbyIndex])
+    }
+    guard hasRecipientMarkerNearby else { return false }
+
+    let searchEnd = min(lines.count, index + 4)
+    var foundStreet = false
+    for cursor in index..<searchEnd {
+        let cleaned = lines[cursor].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { continue }
+
+        if looksLikeGermanStreetAddress(cleaned) {
+            foundStreet = true
+            continue
+        }
+
+        if foundStreet, looksLikePostalCity(cleaned) {
             return true
         }
     }
 
     return false
+}
+
+func looksLikeRecipientLabelPersonLine(_ text: String) -> Bool {
+    let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+        cleaned.compare("Herrn", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+        cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+        cleaned.compare("Eheleute", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+}
+
+func looksLikeRecipientCoupleName(_ text: String) -> Bool {
+    let cleaned = text
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+und\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+$"#
+    return cleaned.range(of: pattern, options: .regularExpression) != nil
 }
 
 func shouldDropModelAccountNumber(_ text: String) -> Bool {
@@ -177,6 +238,64 @@ func normalizedComparableText(_ text: String) -> String {
 
 func looksLikeOrganizationSnippet(_ text: String) -> Bool {
     text.range(of: #"(?i)\b(?:gmbh|mbh|ag|ug|kg|ohg|gbr|llc|ltd|inc)\b"#, options: .regularExpression) != nil
+}
+
+func normalizedPhrase(_ text: String) -> String {
+    text
+        .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+        .lowercased()
+        .replacingOccurrences(of: #"[^a-z0-9äöüß]+"#, with: " ", options: .regularExpression)
+        .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+func looksLikeContextLabelOnly(_ text: String) -> Bool {
+    let normalized = normalizedPhrase(text)
+    let labels: Set<String> = [
+        "bankverbindung",
+        "lieferadresse",
+        "lieferanschrift",
+        "rechnungsanschrift",
+        "schriftverkehr bitte auch an",
+        "postanschrift",
+        "korrespondenzanschrift"
+    ]
+    return labels.contains(normalized)
+}
+
+func looksLikeMisjoinedPersonLabelFragment(_ text: String) -> Bool {
+    let normalized = normalizedPhrase(text)
+    if normalized.contains("lieferadresse und kontoinhaber") {
+        return true
+    }
+
+    let trailingLabels = [
+        " iban",
+        " strasse",
+        " straße",
+        " eheleute",
+        " lieferadresse",
+        " lieferanschrift",
+        " rechnungsanschrift",
+        " kontoinhaber"
+    ]
+    return trailingLabels.contains { normalized.hasSuffix($0) }
+}
+
+func looksLikeMisjoinedAddressLabelFragment(_ text: String) -> Bool {
+    let normalized = normalizedPhrase(text)
+    let trailingLabels = [
+        " kreditkarte",
+        " iban"
+    ]
+    return trailingLabels.contains { normalized.hasSuffix($0) }
+}
+
+func looksLikeDocumentationNoiseFragment(_ text: String) -> Bool {
+    let normalized = normalizedPhrase(text)
+    return normalized.hasPrefix("lieferadresse rechnungsanschrift") ||
+        normalized == "bank steuer" ||
+        normalized.contains("schwierige ocr nahe varianten")
 }
 
 func looksLikePostalCity(_ text: String) -> Bool {
@@ -590,7 +709,7 @@ func extractSalutationPersonName(_ text: String) -> String? {
 func supplementalInlinePersonMatches(in text: String, documentClass: DetectionDocumentClass = .general) -> [String] {
     let patterns = [
         #"\b(?:name|bestellt\s+durch|besteller(?:in)?|kunde|kundin|kontoinhaber|ansprechpartner)\s*:\s*((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?|[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){1,2})\b"#,
-        #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})\b"#,
+        #"\b((?:Herr|Herrn|Frau)\s+(?:(?:Dr|Prof)\.?\s+)?[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2})(?=\s+(?:oder|und)\s+(?:Herr|Herrn|Frau)\b|[.,;:]|$)"#,
         #"\b([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+,\s*[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+)?)\b"#
     ]
 
@@ -1177,6 +1296,8 @@ func runFixtureCases() throws -> Int {
             checks: [
                 ("Fixture contains recipient context", expectContains("Eheleute")),
                 ("Fixture contains contact-label context", expectContains("Hier erreichen wir Sie bei Rückfragen:")),
+                ("Keep recipient label Eheleute", expectHeaderRetained(snippet: "Eheleute", category: "private_person")),
+                ("Keep recipient couple name", expectHeaderRetained(snippet: "Jonas und Nina Weber", category: "private_person")),
                 ("Suppress sender street", expectSenderSuppressed(snippet: "Adolf-Pirrung-Str. 7", category: "private_address")),
                 ("Suppress sender postal city", expectSenderSuppressed(snippet: "88400 Biberach", category: "private_address")),
                 ("Avoid footer postal fragment from Steuer-Nr", expectRegexNoMatch(tightenedGermanPostalCityPattern, forbidden: "19122 Steuer-Nr")),
@@ -1236,6 +1357,7 @@ func runFixtureCases() throws -> Int {
             checks: [
                 ("Fixture contains recipient honorific line", expectContains("Herr\nHelmut Knobel")),
                 ("Fixture contains participant section", expectContains("1. Herr Knobel/Helmut")),
+                ("Keep recipient honorific line", expectHeaderRetained(snippet: "Herr", category: "private_person")),
                 ("Suppress company header postal city", expectHeaderSuppressed(snippet: "20097 Hamburg", category: "private_address")),
                 ("Suppress inline date postal fragment", expectRegexNoMatch(tightenedGermanPostalCityPattern, forbidden: "54356 Datum")),
                 ("Suppress footer postal fragment from replacement note", expectRegexNoMatch(tightenedGermanPostalCityPattern, forbidden: "00052 Ersetzt")),
@@ -1393,6 +1515,30 @@ func runGeneralChecks() throws -> Int {
     try assert(
         personSpanContainsAddressOrContactTail("Herr Jonas Sommer E-Mail"),
         "Expected person span with contact-label tail to be rejected"
+    )
+    try assert(
+        looksLikeContextLabelOnly("Bankverbindung:"),
+        "Expected pure context labels not to survive as address findings"
+    )
+    try assert(
+        looksLikeMisjoinedPersonLabelFragment("Winter Paula IBAN"),
+        "Expected person spans glued to following IBAN labels to be rejected"
+    )
+    try assert(
+        looksLikeMisjoinedPersonLabelFragment("Winter Strasse"),
+        "Expected person spans glued to address field labels to be rejected"
+    )
+    try assert(
+        looksLikeMisjoinedPersonLabelFragment("Jonas Weber Eheleute"),
+        "Expected person spans glued to recipient labels to be rejected"
+    )
+    try assert(
+        looksLikeMisjoinedAddressLabelFragment("77881 Kreditkarte"),
+        "Expected address-like fragments glued to card labels to be rejected"
+    )
+    try assert(
+        looksLikeDocumentationNoiseFragment("4. Schwierige OCR-nahe Varianten mit getrennten Strassen- und Hausnummernzeilen."),
+        "Expected documentation list headings not to survive as person findings"
     )
     try assert(
         looksLikeHonorificStreetCombo("Frau Lena Sommer Birkenstraße 12"),
@@ -1555,6 +1701,24 @@ func runGeneralChecks() throws -> Int {
             documentClass: .invoice
         ).contains("Dr. Peter Bind"),
         "Expected receipt context to expose 'von <Name>'"
+    )
+    try assert(
+        supplementalInlinePersonMatches(
+            in: "Zuzahlungsquittung\nfür Sylvia Kern\nvon Elmar Bauer",
+            documentClass: .invoice
+        ).contains("Elmar Bauer"),
+        "Expected receipt context to expose plain 'von <Name>'"
+    )
+    let rueckfragenMatches = supplementalInlinePersonMatches(
+        in: "Für Rückfragen wenden Sie sich bitte an Frau Sylvia Kern oder Herrn Oliver Kern."
+    )
+    try assert(
+        rueckfragenMatches.contains("Frau Sylvia Kern"),
+        "Expected Rückfragen context to expose Frau Sylvia Kern"
+    )
+    try assert(
+        rueckfragenMatches.contains("Herrn Oliver Kern"),
+        "Expected Rückfragen context to expose Herrn Oliver Kern"
     )
     try assert(
         !supplementalInlinePersonMatches(

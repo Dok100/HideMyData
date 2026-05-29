@@ -107,11 +107,16 @@ enum PIIDetectorSpanSanitizationSupport {
             if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
                 return true
             }
-            if normalizedComparableText(text) == "eheleute" {
+            if looksLikeEnumeratedDocumentationLine(text) ||
+                looksLikeDocumentationNoiseFragment(text) ||
+                looksLikeMisjoinedPersonLabelFragment(text) {
                 return true
             }
             if looksLikeOrganizationSnippet(text) || personSpanContainsAddressOrContactTail(text) {
                 return true
+            }
+            if looksLikeHonorificOnlyPersonLine(text) || normalizedComparableText(text) == "eheleute" {
+                return false
             }
             if source == .model, text.count <= 4, !looksLikeNameishWord(text) {
                 return true
@@ -123,6 +128,9 @@ enum PIIDetectorSpanSanitizationSupport {
 
         case "private_address":
             if isDocumentNoise(text) || looksLikeTaxOfficeHeader(text) {
+                return true
+            }
+            if looksLikeContextLabelOnly(text) || looksLikeMisjoinedAddressLabelFragment(text) {
                 return true
             }
             if looksLikeCompanyAddressBlock(text) {
@@ -174,6 +182,25 @@ enum PIIDetectorSpanSanitizationSupport {
         default:
             return false
         }
+    }
+
+    nonisolated static func looksLikeEnumeratedDocumentationLine(_ text: String) -> Bool {
+        let cleaned = text
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = normalizedPhrase(cleaned)
+        guard cleaned.range(of: #"^\d+\.\s+"#, options: .regularExpression) != nil else {
+            return false
+        }
+
+        let documentationFragments = [
+            "schwierige ocr nahe varianten",
+            "firmen absenderadressen",
+            "label kontexte",
+            "bank steuer kontakt",
+            "mehrzeilige empfaengeradressen"
+        ]
+        return documentationFragments.contains { normalized.contains($0) }
     }
 
     nonisolated static func looksLikePostalCity(_ text: String) -> Bool {
@@ -261,6 +288,64 @@ enum PIIDetectorSpanSanitizationSupport {
             cleaned.range(of: #"\b\d+[A-Za-z]?\b"#, options: .regularExpression) != nil
     }
 
+    nonisolated static func looksLikeContextLabelOnly(_ text: String) -> Bool {
+        let normalized = normalizedPhrase(text)
+        let labels: Set<String> = [
+            "bankverbindung",
+            "lieferadresse",
+            "lieferanschrift",
+            "rechnungsanschrift",
+            "schriftverkehr bitte auch an",
+            "postanschrift",
+            "korrespondenzanschrift"
+        ]
+        return labels.contains(normalized)
+    }
+
+    nonisolated static func looksLikeMisjoinedPersonLabelFragment(_ text: String) -> Bool {
+        let normalized = normalizedPhrase(text)
+        if normalized.contains("lieferadresse und kontoinhaber") {
+            return true
+        }
+
+        let trailingLabels = [
+            " iban",
+            " strasse",
+            " straße",
+            " eheleute",
+            " lieferadresse",
+            " lieferanschrift",
+            " rechnungsanschrift",
+            " kontoinhaber"
+        ]
+        return trailingLabels.contains { normalized.hasSuffix($0) }
+    }
+
+    nonisolated static func looksLikeMisjoinedAddressLabelFragment(_ text: String) -> Bool {
+        let normalized = normalizedPhrase(text)
+        let trailingLabels = [
+            " kreditkarte",
+            " iban"
+        ]
+        return trailingLabels.contains { normalized.hasSuffix($0) }
+    }
+
+    nonisolated static func looksLikeDocumentationNoiseFragment(_ text: String) -> Bool {
+        let normalized = normalizedPhrase(text)
+        return normalized.hasPrefix("lieferadresse rechnungsanschrift") ||
+            normalized == "bank steuer" ||
+            normalized.contains("schwierige ocr nahe varianten")
+    }
+
+    nonisolated static func normalizedPhrase(_ text: String) -> String {
+        text
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: #"[^a-z0-9äöüß]+"#, with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     nonisolated static func personSpanContainsAddressOrContactTail(_ text: String) -> Bool {
         let cleaned = text
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
@@ -316,6 +401,14 @@ enum PIIDetectorSpanSanitizationSupport {
         guard cleaned.count >= 3, cleaned.rangeOfCharacter(from: .decimalDigits) == nil else { return false }
         let pattern = #"^[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+(?:\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\-]+){0,2}$"#
         return cleaned.range(of: pattern, options: .regularExpression) != nil
+    }
+
+    nonisolated static func looksLikeHonorificOnlyPersonLine(_ text: String) -> Bool {
+        let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return cleaned.compare("Herr", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            cleaned.compare("Herrn", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            cleaned.compare("Frau", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame ||
+            cleaned.compare("Eheleute", options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
     }
 
     nonisolated static func looksLikeTaxOfficeHeader(_ text: String) -> Bool {

@@ -85,6 +85,7 @@ enum PDFDetectionReviewSupport {
         }
 
         for span in contextualSupplementalSpans {
+            guard !suppressHeaderLikeFinding(span, source.text) else { continue }
             let rects = boundingRects(span, source, page)
             guard !rects.isEmpty else { continue }
             let candidate = ReviewFindingCandidate(
@@ -101,6 +102,7 @@ enum PDFDetectionReviewSupport {
         }
 
         for span in ocrSupplemental.0 {
+            guard !suppressHeaderLikeFinding(span, source.text) else { continue }
             let rects = supplementalOCRRects(for: span, source: source, page: page, boundingRects: boundingRects)
             guard !rects.isEmpty else { continue }
             let candidate = ReviewFindingCandidate(
@@ -116,8 +118,14 @@ enum PDFDetectionReviewSupport {
             totalRects += rects.count
         }
 
+        let debugVisibleSpans = mergedDebugSpans(
+            base: visibleDebugSpans,
+            reviewCandidates: pageReviewCandidates,
+            in: source.text
+        )
+
         return PDFPageDetectionReviewResult(
-            visibleDebugSpans: visibleDebugSpans,
+            visibleDebugSpans: debugVisibleSpans,
             reviewCandidates: reviewCandidates,
             previewDiagnostics: PDFReviewContextSupport.previewDiagnosticsLines(for: pageReviewCandidates) + ocrSupplemental.1,
             totalRects: totalRects
@@ -160,5 +168,42 @@ enum PDFDetectionReviewSupport {
             source: span.source
         )
         return (translated, boundingRects(translated, source, page))
+    }
+
+    private static func mergedDebugSpans(
+        base: [DetectedSpan],
+        reviewCandidates: [ReviewFindingCandidate],
+        in sourceText: String
+    ) -> [DetectedSpan] {
+        var seen = Set(base.map { "\($0.category)::\($0.start)::\($0.end)::\($0.text)" })
+        var merged = base
+
+        for candidate in reviewCandidates {
+            let snippet = candidate.snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !snippet.isEmpty,
+                  let range = sourceText.range(
+                    of: snippet,
+                    options: [.caseInsensitive, .diacriticInsensitive]
+                  )
+            else { continue }
+
+            let start = sourceText.distance(from: sourceText.startIndex, to: range.lowerBound)
+            let end = sourceText.distance(from: sourceText.startIndex, to: range.upperBound)
+            let key = "\(candidate.category)::\(start)::\(end)::\(snippet)"
+            guard seen.insert(key).inserted else { continue }
+
+            merged.append(
+                DetectedSpan(
+                    category: candidate.category,
+                    text: snippet,
+                    start: start,
+                    end: end,
+                    confidence: candidate.confidence,
+                    source: candidate.source
+                )
+            )
+        }
+
+        return merged
     }
 }

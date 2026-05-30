@@ -19,6 +19,7 @@ struct MainView: View {
     @State private var customPatternsPresented = false
     @State private var diagnosticsPresented = false
     @State private var clipboardAnonymizerPresented = false
+    @State private var helpPresented = false
     @State private var reviewUndoNotice: ReviewUndoNotice?
     @State private var presentedIssue: UserFacingIssue?
 
@@ -37,6 +38,7 @@ struct MainView: View {
                 EmptyState(
                     inputMode: $inputMode,
                     recents: recents,
+                    onOpenHelp: { helpPresented = true },
                     onOpenClipboardAnonymizer: { clipboardAnonymizerPresented = true },
                     onOpenPDF: openPDFAndAdd,
                     onOpenImage: openImageAndAdd,
@@ -62,6 +64,7 @@ struct MainView: View {
                             onManagePatterns: { customPatternsPresented = true },
                             onShowDiagnostics: { diagnosticsPresented = true },
                             onAnonymizeClipboard: { clipboardAnonymizerPresented = true },
+                            onOpenHelp: { helpPresented = true },
                             onOpenRequest: openCurrentInputType,
                             onSaveRequest: requestSave
                         )
@@ -156,6 +159,9 @@ struct MainView: View {
         .onReceive(NotificationCenter.default.publisher(for: .legacyShowClipboardAnonymizer)) { _ in
             clipboardAnonymizerPresented = true
         }
+        .onReceive(NotificationCenter.default.publisher(for: .showHelp)) { _ in
+            helpPresented = true
+        }
         .alert("Vor dem Export bitte prüfen", isPresented: $saveWarningPresented) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -185,6 +191,9 @@ struct MainView: View {
         }
         .sheet(isPresented: $clipboardAnonymizerPresented) {
             ClipboardAnonymizerSheet(detector: detector)
+        }
+        .sheet(isPresented: $helpPresented) {
+            HelpView()
         }
     }
 
@@ -2097,29 +2106,40 @@ private struct CustomPatternsSheet: View {
                 }
             }
 
-            if !previewPatterns.isEmpty {
-                sectionCard(title: "Vorschau vor dem Speichern", subtitle: "Diese Regeln werden aus deinen Eingaben neu angelegt:") {
+            if !previewPatternStatuses.isEmpty {
+                sectionCard(title: "Vorschau vor dem Speichern", subtitle: "Diese Regeln ergeben sich aus deinen Eingaben. Bereits vorhandene Regeln werden nicht erneut angelegt.") {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 10) {
                             previewSummary
 
-                            ForEach(previewPatterns) { pattern in
+                            ForEach(previewPatternStatuses) { preview in
                                 HStack(alignment: .top, spacing: 12) {
-                                    Text(previewBadgeText(for: pattern))
-                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(previewBadgeColor(for: pattern))
-                                        .padding(.horizontal, 9)
-                                        .padding(.vertical, 5)
-                                        .background(previewBadgeColor(for: pattern).opacity(0.12), in: Capsule())
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        HStack(spacing: 8) {
+                                            Text(previewBadgeText(for: preview.pattern))
+                                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(previewBadgeColor(for: preview.pattern))
+                                                .padding(.horizontal, 9)
+                                                .padding(.vertical, 5)
+                                                .background(previewBadgeColor(for: preview.pattern).opacity(0.12), in: Capsule())
 
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(pattern.label)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(.primary)
-                                        Text(pattern.value)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.secondary)
-                                            .textSelection(.enabled)
+                                            Text(previewStatusText(for: preview))
+                                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(previewStatusColor(for: preview))
+                                                .padding(.horizontal, 9)
+                                                .padding(.vertical, 5)
+                                                .background(previewStatusColor(for: preview).opacity(0.12), in: Capsule())
+                                        }
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(preview.pattern.label)
+                                                .font(.system(size: 13, weight: .semibold))
+                                                .foregroundStyle(.primary)
+                                            Text(preview.pattern.value)
+                                                .font(.system(size: 12))
+                                                .foregroundStyle(.secondary)
+                                                .textSelection(.enabled)
+                                        }
                                     }
 
                                     Spacer(minLength: 0)
@@ -2363,6 +2383,10 @@ private struct CustomPatternsSheet: View {
         store.previewPatterns(label: label, value: composedValue, category: effectiveCategory.rawValue)
     }
 
+    private var previewPatternStatuses: [CustomPatternStore.PreviewPatternStatus] {
+        store.previewPatternStatuses(label: label, value: composedValue, category: effectiveCategory.rawValue)
+    }
+
     private var ruleQualityHints: [RuleQualityHint] {
         var hints: [RuleQualityHint] = []
 
@@ -2530,9 +2554,11 @@ private struct CustomPatternsSheet: View {
 
     private var previewSummary: some View {
         HStack(spacing: 8) {
-            summaryChip(title: "Original", count: previewPatterns.filter { !$0.label.contains("Teil") && !$0.label.contains("Block") }.count, color: .blue)
-            summaryChip(title: "Teilregeln", count: previewPatterns.filter { $0.label.contains("Teil") }.count, color: .teal)
-            summaryChip(title: "Blockregeln", count: previewPatterns.filter { $0.label.contains("Block") }.count, color: .indigo)
+            summaryChip(title: "Neu", count: previewPatternStatuses.filter { !$0.isExisting }.count, color: .green)
+            summaryChip(title: "Vorhanden", count: previewPatternStatuses.filter(\.isExisting).count, color: .secondary)
+            summaryChip(title: "Original", count: previewPatternStatuses.filter { !$0.pattern.label.contains("Teil") && !$0.pattern.label.contains("Block") }.count, color: .blue)
+            summaryChip(title: "Teilregeln", count: previewPatternStatuses.filter { $0.pattern.label.contains("Teil") }.count, color: .teal)
+            summaryChip(title: "Blockregeln", count: previewPatternStatuses.filter { $0.pattern.label.contains("Block") }.count, color: .indigo)
         }
     }
 
@@ -2965,6 +2991,14 @@ private struct CustomPatternsSheet: View {
             return .indigo
         }
         return .blue
+    }
+
+    private func previewStatusText(for preview: CustomPatternStore.PreviewPatternStatus) -> String {
+        preview.isExisting ? "Bereits vorhanden" : "Neu"
+    }
+
+    private func previewStatusColor(for preview: CustomPatternStore.PreviewPatternStatus) -> Color {
+        preview.isExisting ? .secondary : .green
     }
 
     private func handleImport(_ result: Result<[URL], Error>) {

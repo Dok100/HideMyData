@@ -17,6 +17,13 @@ struct CustomPattern: Identifiable, Codable, Equatable {
 @Observable
 @MainActor
 final class CustomPatternStore {
+    struct PreviewPatternStatus: Identifiable, Equatable {
+        let pattern: CustomPattern
+        let isExisting: Bool
+
+        var id: UUID { pattern.id }
+    }
+
     struct PatternGroup: Identifiable, Equatable {
         let id: String
         let baseLabel: String
@@ -209,15 +216,26 @@ final class CustomPatternStore {
     }
 
     func previewPatterns(label: String, value: String, category: String = "custom_identifier") -> [CustomPattern] {
+        previewPatternStatuses(label: label, value: value, category: category)
+            .filter { !$0.isExisting }
+            .map(\.pattern)
+    }
+
+    func previewPatternStatuses(label: String, value: String, category: String = "custom_identifier") -> [PreviewPatternStatus] {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedLabel.isEmpty, !trimmedValue.isEmpty else { return [] }
-        return PatternStoreNormalizationSupport.previewPatterns(
-            currentPatterns: patterns,
-            label: trimmedLabel,
-            value: trimmedValue,
-            category: category
-        )
+
+        let normalizedCategory = normalizedCategory(category)
+        let expanded = expandedPatterns(label: trimmedLabel, value: trimmedValue, category: normalizedCategory)
+        let existingKeys = Set(patterns.map(patternKey))
+
+        return expanded.map { pattern in
+            PreviewPatternStatus(
+                pattern: pattern,
+                isExisting: existingKeys.contains(patternKey(pattern))
+            )
+        }
     }
 
     private func expandedPatterns(label: String, value: String, category: String) -> [CustomPattern] {

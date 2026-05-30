@@ -10,6 +10,7 @@ struct FloatingToolbar: View {
     let onManagePatterns: () -> Void
     let onShowDiagnostics: () -> Void
     let onAnonymizeClipboard: () -> Void
+    let onOpenHelp: () -> Void
     let onOpenRequest: () -> Void
     let onSaveRequest: () -> Void
 
@@ -126,6 +127,10 @@ struct FloatingToolbar: View {
                     Label("Technische Ansicht", systemImage: "ladybug")
                 }
                 .disabled(!hasDiagnostics)
+
+                Button(action: onOpenHelp) {
+                    Label("Hilfe", systemImage: "questionmark.circle")
+                }
 
                 Divider()
 

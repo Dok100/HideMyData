@@ -43,7 +43,7 @@ struct IntroView: View {
                     .font(.system(size: 32, weight: .bold))
                     .tracking(-0.6)
 
-                Text("Dateien und Texte anonymisieren. Direkt auf deinem Mac.\nVertrauliche Inhalte aus PDFs, Bildern und der Zwischenablage bleiben auf deinem Gerät.")
+                Text("Dokumente schützen und Texte für KI-Tools anonymisieren. Direkt auf deinem Mac.\nVertrauliche Inhalte aus PDFs, Bildern und der Zwischenablage bleiben auf deinem Gerät.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -64,14 +64,14 @@ struct IntroView: View {
             IntroBenefit(
                 icon: "sparkles",
                 tint: .indigo,
-                title: "Dateien und Inhalte anonymisieren",
-                text: "Inkognito erkennt sensible Stellen in PDFs, Bildern und kopierten Texten, damit du sie vor dem Weitergeben gezielt anonymisieren kannst."
+                title: "Dokumente und KI-Texte vorbereiten",
+                text: "Inkognito schützt sensible Stellen in PDFs und Bildern oder anonymisiert kopierten Text mit Platzhaltern für die sichere Arbeit mit KI-Tools."
             )
             IntroBenefit(
                 icon: "rectangle.on.rectangle.angled",
                 tint: .orange,
-                title: "Vor dem Export prüfen",
-                text: "Vor dem Speichern prüfst du die Treffer. Beim Export werden bestätigte Schwärzungen oder Anonymisierungen zuverlässig fest übernommen."
+                title: "Prüfen oder zurückführen",
+                text: "Dokumente prüfst du vor dem Export. KI-Antworten mit Platzhaltern kannst du später wieder lokal in die ursprünglichen Inhalte zurückführen."
             )
         }
         .frame(maxWidth: 580, alignment: .leading)

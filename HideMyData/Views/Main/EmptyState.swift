@@ -5,6 +5,7 @@ struct EmptyState: View {
     @Environment(\.colorScheme) private var colorScheme
     @Binding var inputMode: InputMode
     @Bindable var recents: RecentsStore
+    let onOpenHelp: () -> Void
     let onOpenClipboardAnonymizer: () -> Void
     let onOpenPDF: () -> Void
     let onOpenImage: () -> Void
@@ -72,11 +73,39 @@ struct EmptyState: View {
     }
 
     private var helperCapsuleFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.055) : Color.black.opacity(0.035)
+        colorScheme == .dark ? Color.white.opacity(0.09) : Color.black.opacity(0.035)
     }
 
     private var dropHintFill: Color {
-        colorScheme == .dark ? Color.accentColor.opacity(0.10) : Color.accentColor.opacity(0.06)
+        colorScheme == .dark ? Color.accentColor.opacity(0.14) : Color.accentColor.opacity(0.06)
+    }
+
+    private var kickerTextColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.78) : Color.primary.opacity(0.58)
+    }
+
+    private var helperTextColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.92) : Color.primary.opacity(0.78)
+    }
+
+    private var badgeTextColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.82) : Color.primary.opacity(0.66)
+    }
+
+    private var supportingTextColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.78) : Color.primary.opacity(0.62)
+    }
+
+    private var recentsHeadingColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.68) : Color.secondary.opacity(0.9)
+    }
+
+    private var recentsPanelFill: Color {
+        colorScheme == .dark ? Color.white.opacity(0.05) : Color.white.opacity(0.72)
+    }
+
+    private var recentsPanelBorder: Color {
+        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.07)
     }
 
     private var dropHintBorder: Color {
@@ -92,10 +121,26 @@ struct EmptyState: View {
     @ViewBuilder
     private var dropZone: some View {
         VStack(spacing: 28) {
-            Text("INKOGNITO")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .tracking(4.0)
-                .foregroundStyle(Color.primary.opacity(0.58))
+            HStack(alignment: .top, spacing: 12) {
+                Text("INKOGNITO")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .tracking(4.0)
+                    .foregroundStyle(kickerTextColor)
+
+                Spacer(minLength: 0)
+
+                Button(action: onOpenHelp) {
+                    Label("Hilfe", systemImage: "questionmark.circle")
+                        .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(helperTextColor)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(helperCapsuleFill, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Hilfe öffnen")
+                .accessibilityLabel("Hilfe öffnen")
+            }
 
             HStack(spacing: 8) {
                 Image(systemName: "lock.shield.fill")
@@ -103,7 +148,7 @@ struct EmptyState: View {
                 Text("Keine Cloud. Keine Übertragung. Alles bleibt lokal.")
                     .font(.system(size: 12.5, weight: .semibold, design: .rounded))
             }
-            .foregroundStyle(Color.primary.opacity(0.66))
+            .foregroundStyle(badgeTextColor)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(badgeFill, in: Capsule())
@@ -118,9 +163,9 @@ struct EmptyState: View {
                     .foregroundStyle(.primary)
                     .contentTransition(.opacity)
 
-                Text("Öffne ein Dokument oder anonymisiere kopierten Text. Inkognito arbeitet vollständig lokal auf deinem Mac, ohne Cloud und ohne Datenübertragung.")
+                Text("Schütze Dokumente oder anonymisiere kopierten Text für KI-Tools. Inkognito arbeitet vollständig lokal auf deinem Mac, ohne Cloud und ohne Datenübertragung.")
                     .font(.system(size: 14))
-                    .foregroundStyle(Color.primary.opacity(0.62))
+                    .foregroundStyle(supportingTextColor)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .frame(maxWidth: 460)
@@ -277,6 +322,11 @@ struct EmptyState: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Text("Ideal, wenn Inhalte zuerst anonymisiert an ein Large Language Modell gehen und danach wieder zurückgeführt werden sollen.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(minHeight: cardDetailHeight, alignment: .topLeading)
 
@@ -329,24 +379,24 @@ struct EmptyState: View {
 
     @ViewBuilder
     private var recentsSection: some View {
-        if recents.items.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Zuletzt verwendet")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .tracking(1.8)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 4)
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Zuletzt verwendet")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .tracking(1.8)
+                .foregroundStyle(recentsHeadingColor)
+                .padding(.leading, 4)
 
+            if recents.items.isEmpty {
                 HStack(spacing: 12) {
                     Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(StatusVisualSemantics.trust)
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Noch keine zuletzt verwendeten Dateien")
+                        Text("Noch keine gemerkten Dateien")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.primary)
-                        Text("Zuletzt geöffnete PDFs und Bilder erscheinen hier für einen schnellen Wiedereinstieg.")
+                        Text("Geöffnete PDFs und Bilder erscheinen hier für einen schnellen Wiedereinstieg. Das lässt sich in den Einstellungen bei Bedarf abschalten.")
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -360,10 +410,21 @@ struct EmptyState: View {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .strokeBorder(cardBorder, lineWidth: 0.8)
                 )
+            } else {
+                Text("Geöffnete PDFs und Bilder erscheinen hier für den schnellen Wiedereinstieg.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(colorScheme == .dark ? Color.white.opacity(0.72) : .secondary)
+                    .padding(.leading, 4)
+
+                RecentsRow(store: recents, onOpen: onOpenRecent)
             }
-        } else {
-            RecentsRow(store: recents, onOpen: onOpenRecent)
         }
+        .padding(14)
+        .background(recentsPanelFill, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(recentsPanelBorder, lineWidth: 0.8)
+        )
     }
 
     private var dragOverlay: some View {

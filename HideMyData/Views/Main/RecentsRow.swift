@@ -7,7 +7,7 @@ struct RecentsRow: View {
     let onOpen: (RecentItem) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             header
             tiles
         }
@@ -15,11 +15,6 @@ struct RecentsRow: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
-            Text("ZULETZT")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .tracking(2.4)
-                .foregroundStyle(.tertiary)
-
             Spacer(minLength: 0)
 
             Button("Alles löschen") {
@@ -51,7 +46,7 @@ struct RecentsRow: View {
                 }
             }
             .padding(.horizontal, 4)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
         }
     }
 }

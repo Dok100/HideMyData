@@ -59,6 +59,7 @@ enum AppAppearanceMode: String, CaseIterable, Identifiable {
 extension Notification.Name {
     static let showClipboardAnonymizer = Notification.Name("Inkognito.showClipboardAnonymizer")
     static let legacyShowClipboardAnonymizer = Notification.Name("HMD.showClipboardAnonymizer")
+    static let showHelp = Notification.Name("Inkognito.showHelp")
 }
 
 @main
@@ -76,6 +77,13 @@ struct InkognitoApp: App {
                     NotificationCenter.default.post(name: .showClipboardAnonymizer, object: nil)
                 }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(after: .help) {
+                Button("Inkognito-Hilfe") {
+                    NotificationCenter.default.post(name: .showHelp, object: nil)
+                }
+                .keyboardShortcut("/", modifiers: [.command, .shift])
             }
         }
 
@@ -134,7 +142,7 @@ struct AppSettingsView: View {
             Section("Datenschutz") {
                 Toggle("Zuletzt verwendete Dateien merken", isOn: $recentsEnabled)
 
-                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac, damit zuletzt geöffnete Dokumente schneller wieder verfügbar sind.")
+                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac. Zuletzt geöffnete PDFs und Bilder erscheinen dadurch auf der Startseite und sind schneller wieder verfügbar.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }

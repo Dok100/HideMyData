@@ -48,6 +48,48 @@
 - `CHANGELOG.md` aktualisieren
 - `README.md`, `docs/architecture.md` und `docs/decision-log.md` gegen den realen Produktstand querlesen
 - Release-Text / Highlights formulieren
+- fuer wiederholbare Direct-Distribution den Repo-Helfer `bash release/build_and_notarize_dmg.sh` bevorzugen
 - Sparkle-/DMG-Artefakte pruefen, falls ein Distribution-Release gebaut wird
 - bei neuer Distribution zuerst die getrennte Sparkle-Strategie aus `features/PROJ-22-sparkle-distribution-reset.md` gegen den historischen `HideMyData`-Pfad abgleichen
 - Apple-Signing-, Archiv- und Notarisierungsablauf gegen `features/PROJ-24-apple-signing-and-notarization-readiness.md` pruefen, sobald die neue Distribution vorbereitet wird
+
+## Apple-Distribution vorbereiten
+
+- pruefen, dass `Inkognito.xcodeproj` weiter `CODE_SIGN_STYLE = Automatic`, `DEVELOPMENT_TEAM = LXXVUJZ9QT` und `PRODUCT_BUNDLE_IDENTIFIER = de.okern.inkognito` verwendet
+- sicherstellen, dass fuer die spaetere Auslieferung ein `Developer ID Application`-Zertifikat im Apple-Developer-Konto verfuegbar ist
+- Entitlements gegen den echten Auslieferungspfad querlesen:
+  - `com.apple.security.app-sandbox`
+  - `com.apple.security.files.user-selected.read-write`
+  - `com.apple.security.network.client`
+  - Sparkle-bezogene Mach-Lookup-Ausnahmen nur behalten, wenn die neue Distribution sie wirklich weiter braucht
+- Versionierung fuer den Release-Kandidaten festziehen:
+  - `MARKETING_VERSION`
+  - `CURRENT_PROJECT_VERSION`
+- `notarytool`-Zugang vorbereiten, idealerweise als Keychain-Profil statt mit frei herumliegenden Apple-ID-Credentials
+
+## Archivieren und Exportieren
+
+- in Xcode ein `Archive` fuer `Inkognito` erstellen oder den entsprechenden CI-/CLI-Pfad dokumentiert nachbauen
+- das Archiv in `Organizer` auf oeffnende Signing-Probleme, fehlende Entitlements oder Warnungen pruefen
+- die App als signierte Distributions-App exportieren, nicht nur als lokale Debug-Build-Kopie
+- nach dem Export lokal pruefen:
+  - `codesign --verify --deep --strict --verbose=2 Inkognito.app`
+  - `spctl --assess --type execute --verbose Inkognito.app`
+
+## Notarisierung und Stapling
+
+- das Distributions-Artefakt fuer Apple vorbereiten:
+  - die exportierte `.app` zuerst als `.zip` fuer die App-Notarisierung paketieren
+  - nach dem App-Stapling die finale `.app` in das geplante `Inkognito`-`dmg` paketieren
+- erst das App-Archiv und danach das finale `dmg` mit `notarytool submit --wait` notarisieren
+- nach erfolgreicher Notarisierung das Ergebnis fest mit dem Artefakt verbinden:
+  - `xcrun stapler staple Inkognito.app`
+  - anschliessend auch das `.dmg` staplen
+- danach Gatekeeper lokal gegen das finale Artefakt pruefen, nicht nur gegen die Build-Ausgabe aus `DerivedData`
+
+## Finalen Distributionspfad pruefen
+
+- final entscheiden, ob `0.3.x` zuerst als Direct Distribution ohne Sparkle, mit neuem Sparkle-Pfad oder nur intern verteilt wird
+- Dateinamen, Download-Ziele und Release-Text auf `Inkognito` statt historisches `HideMyData` abgleichen
+- die lokale `output/release/`-Ausgabe als Build-Artefakt behandeln und nicht in Git einchecken
+- erst nach erfolgreich dokumentiertem Notarisierungsdurchlauf `PROJ-22` fuer Appcast- und Bestandsnutzer-Migration weiterziehen

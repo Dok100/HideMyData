@@ -313,7 +313,7 @@
 				405F6E1491A99DCC488D7F1F /* Models */,
 				35807631139BB6E1B7462B77 /* Views */,
 			);
-			path = HideMyData;
+			path = Inkognito;
 			sourceTree = "<group>";
 		};
 		A32086283E14EB36CB97D8B2 /* Main */ = {
@@ -579,7 +579,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = HideMyData/Inkognito.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Inkognito/Inkognito.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -693,7 +693,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = HideMyData/Inkognito.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Inkognito/Inkognito.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 0.3.0;

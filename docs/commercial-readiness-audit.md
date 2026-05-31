@@ -24,14 +24,14 @@ Bereits bereinigt oder ersetzt:
 - `PDFRedactor` und `ImageRedactor` auf die ausgelagerten Typen umgestellt
 - PDF-OCR-Zusatzanalyse fuer Empfaengerkontext in `PDFOCRSupplementalAnalyzer.swift` ausgelagert
 - `patterns.json` wird jetzt ueber `PatternMatcherBuiltinSupport.swift` als separaten Manifest-/Compile-Layer geladen, ohne die Regex-Basis zu aendern
-- `Regex-Pattern-Bibliothek.Json` liegt jetzt als validierte Quellbibliothek neben dem Runtime-Manifest; die App laedt weiterhin nur `HideMyData/patterns.json`, das inzwischen ohne die polnischen Regex-Blöcke kuratiert ist, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig abdeckt
-- `HideMyData/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne das Laufzeitverhalten zu aendern
-- `HideMyData/patterns.json` traegt jetzt ausserdem ein explizites `selection_profile` und dokumentierte `selection_principles`, damit der Runtime-Manifestcharakter auch datenstrukturell klarer vom breiteren Quellenkatalog getrennt bleibt
-- `HideMyData/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
-- `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
-- `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
-- `HideMyData/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
-- `HideMyData/patterns.json` dokumentiert jetzt zusaetzlich bewusst behaltene Runtime-Grenzfaelle ueber `retained_runtime_notes`, aktuell fuer unlabeled `email`, `mrz` und `date_eu_dotted`
+- `Regex-Pattern-Bibliothek.Json` liegt jetzt als validierte Quellbibliothek neben dem Runtime-Manifest; die App laedt weiterhin nur `Inkognito/patterns.json`, das inzwischen ohne die polnischen Regex-Blöcke kuratiert ist, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig abdeckt
+- `Inkognito/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne das Laufzeitverhalten zu aendern
+- `Inkognito/patterns.json` traegt jetzt ausserdem ein explizites `selection_profile` und dokumentierte `selection_principles`, damit der Runtime-Manifestcharakter auch datenstrukturell klarer vom breiteren Quellenkatalog getrennt bleibt
+- `Inkognito/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
+- `Inkognito/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
+- `Inkognito/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
+- `Inkognito/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
+- `Inkognito/patterns.json` dokumentiert jetzt zusaetzlich bewusst behaltene Runtime-Grenzfaelle ueber `retained_runtime_notes`, aktuell fuer unlabeled `email`, `mrz` und `date_eu_dotted`
 - Preview-Diagnostik und Kontext-Rect-Erweiterung fuer PDF-Review laufen jetzt ueber `PDFReviewContextSupport.swift`
 - Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionLifecycleSupport.swift`
 - Seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik fuer PDF-Erkennung laufen jetzt ueber `PDFDetectionReviewSupport.swift`
@@ -82,23 +82,23 @@ Abschlussentscheidungen fuer den aktuellen Stand:
 
 Aktuelle Groessen der verbleibenden Fachkern-Dateien:
 
-- `HideMyData/PatternMatcher.swift`: `302` Zeilen
-- `HideMyData/PIIDetector.swift`: `303` Zeilen
-- `HideMyData/patterns.json`: `194` Zeilen
-- `HideMyData/PDFRedactor.swift`: `603` Zeilen
-- `HideMyData/ImageRedactor.swift`: `531` Zeilen
+- `Inkognito/PatternMatcher.swift`: `302` Zeilen
+- `Inkognito/PIIDetector.swift`: `303` Zeilen
+- `Inkognito/patterns.json`: `194` Zeilen
+- `Inkognito/PDFRedactor.swift`: `603` Zeilen
+- `Inkognito/ImageRedactor.swift`: `531` Zeilen
 
 Neue Priorisierung nach den letzten Pattern-/PII-Extraktionen:
 
-1. `HideMyData/PDFRedactor.swift`
+1. `Inkognito/PDFRedactor.swift`
    Mit `603` Zeilen aktuell wieder der groesste verbleibende fachliche Integrationsknoten; trotz vieler Extraktionen steckt hier am ehesten noch der naechste realistisch lohnende Block fuer weiteren Altstands-Abbau.
-2. `HideMyData/ImageRedactor.swift`
+2. `Inkognito/ImageRedactor.swift`
    Mit `531` Zeilen weiterhin klar ueber den inzwischen stark gestrafften Pattern-/PII-Fassaden; beim letzten Abgleich zeigte sich dort aber kein gleich sauber lohnender Folge-Schnitt mehr.
-3. `HideMyData/patterns.json`
+3. `Inkognito/patterns.json`
    Runtime-Rolle inzwischen sauber dokumentiert und fachlich deutlich enger kuratiert; der verbleibende Risikoblock liegt dort vor allem in der bewussten Restauswahl und Begruendung der dokumentzentrierten Muster.
-4. `HideMyData/PIIDetector.swift`
+4. `Inkognito/PIIDetector.swift`
    Inzwischen fast nur noch oeffentliche Fassade und Objektverkabelung; nach dem letzten Wrapper-Cleanup laege weiterer Nutzen eher in Kosmetik als in groessem Fachkern-Abbau.
-5. `HideMyData/PatternMatcher.swift`
+5. `Inkognito/PatternMatcher.swift`
    Traegt jetzt im Wesentlichen nur noch den `CustomPatternStore`; nach dem letzten Wrapper-Cleanup laege verbleibender Nutzen eher in optionaler Store-Entkopplung als in grossem Fachkern-Abbau.
 
 ## Rechtlich blockierend
@@ -111,11 +111,11 @@ Diese Punkte muessen vor einer proprietaeren oder kommerziellen Umstellung gekla
   Solange diese nicht sicher ersetzt oder lizenziert sind, darf die GPL nicht einfach entfernt werden.
 - Verbleibende Fachkern-Dateien mit nicht-trivialen Altanteilen
   Vor allem:
-  - [HideMyData/PatternMatcher.swift](../HideMyData/PatternMatcher.swift)
-  - [HideMyData/patterns.json](../HideMyData/patterns.json)
-  - der verbleibende Integrationsrest in [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift)
-  - [HideMyData/PDFRedactor.swift](../HideMyData/PDFRedactor.swift)
-  - [HideMyData/ImageRedactor.swift](../HideMyData/ImageRedactor.swift)
+  - [Inkognito/PatternMatcher.swift](../Inkognito/PatternMatcher.swift)
+  - [Inkognito/patterns.json](../Inkognito/patterns.json)
+  - der verbleibende Integrationsrest in [Inkognito/PIIDetector.swift](../Inkognito/PIIDetector.swift)
+  - [Inkognito/PDFRedactor.swift](../Inkognito/PDFRedactor.swift)
+  - [Inkognito/ImageRedactor.swift](../Inkognito/ImageRedactor.swift)
 
 ## Vor Release oder Store-Vorbereitung bereinigen
 
@@ -124,7 +124,7 @@ Diese Punkte sind nicht zwingend sofort blockierend, sollten aber vor einer brei
 - [release/sparkle/appcast.xml](../release/sparkle/appcast.xml)
   Historische Enclosure-URL zeigt noch auf altes Distributionsziel.
 - [README.md](../README.md)
-  Technische Pfade zeigen noch auf den Repo-Ordner `HideMyData/`.
+  Technische Pfade zeigen noch auf den Repo-Ordner `Inkognito/`.
 - interne Projekt- und Targetnamen in [Inkognito.xcodeproj/project.pbxproj](../Inkognito.xcodeproj/project.pbxproj)
   Nicht nutzersichtbar, aber fuer spaeteres Packaging und saubere Store-Metadaten relevant.
 - Scheme- und Target-Referenzen in [Inkognito.xcodeproj/xcshareddata/xcschemes/Inkognito.xcscheme](../Inkognito.xcodeproj/xcshareddata/xcschemes/Inkognito.xcscheme)
@@ -133,12 +133,12 @@ Diese Punkte sind nicht zwingend sofort blockierend, sollten aber vor einer brei
 
 Diese Punkte transportieren derzeit vor allem technische Migration oder Repo-Historie und muessen nicht als Erstes angegangen werden:
 
-- Source-Ordner `HideMyData/`
-- Datei [HideMyData/HideMyData.entitlements](../HideMyData/HideMyData.entitlements)
+- Source-Ordner `Inkognito/`
+- Datei [Inkognito/Inkognito.entitlements](../Inkognito/Inkognito.entitlements)
 - Legacy-Migrationspfade fuer alte App-Support-Daten
-  - [HideMyData/PatternMatcher.swift](../HideMyData/PatternMatcher.swift)
-  - [HideMyData/PIIDetector.swift](../HideMyData/PIIDetector.swift)
-  - [HideMyData/RecentsStore.swift](../HideMyData/RecentsStore.swift)
+  - [Inkognito/PatternMatcher.swift](../Inkognito/PatternMatcher.swift)
+  - [Inkognito/PIIDetector.swift](../Inkognito/PIIDetector.swift)
+  - [Inkognito/RecentsStore.swift](../Inkognito/RecentsStore.swift)
 
 ## Empfohlene Reihenfolge
 

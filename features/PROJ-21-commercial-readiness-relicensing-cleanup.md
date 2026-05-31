@@ -46,7 +46,7 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 - Das bisherige Fork-Repo bleibt bewusst als Nachschlagewerk und historische Referenz bestehen.
 - Das neue Repository `Dok100/Inkognito` ist die kuenftige Produktbasis.
 - Im neuen Repository bleibt die Lizenz vorerst bewusst offen (`No license`), solange die geplante Kommerzialisierung vorbereitet wird.
-- Die im Audit verbleibenden Kernpfade `HideMyData/patterns.json`, `HideMyData/PDFRedactor.swift`, `HideMyData/ImageRedactor.swift`, `HideMyData/PIIDetector.swift` und `HideMyData/PatternMatcher.swift` werden im aktuellen Stand bewusst akzeptiert; es ist keine weitere Reduzierung innerhalb von `PROJ-21` geplant.
+- Die im Audit verbleibenden Kernpfade `Inkognito/patterns.json`, `Inkognito/PDFRedactor.swift`, `Inkognito/ImageRedactor.swift`, `Inkognito/PIIDetector.swift` und `Inkognito/PatternMatcher.swift` werden im aktuellen Stand bewusst akzeptiert; es ist keine weitere Reduzierung innerhalb von `PROJ-21` geplant.
 - Der Sparkle-/Distributionsreset bleibt separat an `PROJ-22` uebergeben.
 
 ## Relevante Dateien
@@ -60,16 +60,16 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 - `.github/workflows/build.yml`
 - `release/sparkle/appcast.xml`
 - `release/sparkle/HideMyData-0.2.0.html`
-- `HideMyData/ContentView.swift`
-- `HideMyData/ModelDownloader.swift`
-- `HideMyData/RecentsStore.swift`
-- `HideMyData/PDFKitView.swift`
-- `HideMyData/Views/Intro/IntroView.swift`
-- `HideMyData/Views/FirstRun/`
-- `HideMyData/Views/Main/ImageDocumentSurface.swift`
-- `HideMyData/patterns.json`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/ContentView.swift`
+- `Inkognito/ModelDownloader.swift`
+- `Inkognito/RecentsStore.swift`
+- `Inkognito/PDFKitView.swift`
+- `Inkognito/Views/Intro/IntroView.swift`
+- `Inkognito/Views/FirstRun/`
+- `Inkognito/Views/Main/ImageDocumentSurface.swift`
+- `Inkognito/patterns.json`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
 - `docs/commercial-readiness-audit.md`
 
 ## Bewertung
@@ -88,7 +88,7 @@ Das Projekt soll technisch, sichtbar und rechtlich so vorbereitet werden, dass e
 
 ### Kann vorerst intern bleiben
 
-- interne Ordnernamen wie `HideMyData/`, solange sie nicht nutzersichtbar oder rechtlich problematisch sind
+- interne Ordnernamen wie `Inkognito/`, solange sie nicht nutzersichtbar oder rechtlich problematisch sind
 - technische Legacy-Migrationspfade für Bestandsnutzer
 - Dateien, in denen heutiger Code klar überwiegend von `Dok100` stammt, aber noch geringe Altanteile enthalten
 
@@ -107,112 +107,112 @@ Außenwirkung und veröffentlichte Herkunft bereinigen, ohne gleich die Kernlogi
 
 ### Phase 2 – UI- und Onboarding-Bausteine neu schreiben
 
-- `HideMyData/ContentView.swift`
-- `HideMyData/Views/Intro/IntroView.swift`
-- `HideMyData/Views/FirstRun/FirstRunPhase.swift`
-- `HideMyData/Views/FirstRun/FirstRunView.swift`
-- `HideMyData/Views/FirstRun/ModelSourceCard.swift`
-- `HideMyData/Views/Status/StatusPill.swift`
-- `HideMyData/Views/Main/RecentsRow.swift`
+- `Inkognito/ContentView.swift`
+- `Inkognito/Views/Intro/IntroView.swift`
+- `Inkognito/Views/FirstRun/FirstRunPhase.swift`
+- `Inkognito/Views/FirstRun/FirstRunView.swift`
+- `Inkognito/Views/FirstRun/ModelSourceCard.swift`
+- `Inkognito/Views/Status/StatusPill.swift`
+- `Inkognito/Views/Main/RecentsRow.swift`
 
 Ziel:
 Dateien mit sehr hohem Altanteil zuerst ersetzen, wo das Risiko technisch vergleichsweise kontrollierbar bleibt.
 
 ### Phase 3 – Infrastruktur und Utility ersetzen
 
-- `HideMyData/ModelDownloader.swift`
-- `HideMyData/RecentsStore.swift`
-- `HideMyData/PDFKitView.swift`
-- `HideMyData/Views/Main/ImageDocumentSurface.swift`
-- `HideMyData/BlurRedactionAnnotation.swift`
-- `HideMyData/Models/RedactionStyle+UI.swift`
+- `Inkognito/ModelDownloader.swift`
+- `Inkognito/RecentsStore.swift`
+- `Inkognito/PDFKitView.swift`
+- `Inkognito/Views/Main/ImageDocumentSurface.swift`
+- `Inkognito/BlurRedactionAnnotation.swift`
+- `Inkognito/Models/RedactionStyle+UI.swift`
 
 Ziel:
 Technische Altbausteine kontrolliert neu aufsetzen, ohne das Produktversprechen zu verlieren.
 
 ### Phase 4 – Fachlogik mit Restanteilen gezielt neu strukturieren
 
-- `HideMyData/patterns.json`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/patterns.json`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
 
 Ziel:
 Die fachlich sensiblen Kernpfade so umarbeiten, dass am Ende keine größeren Altblöcke mehr auf Drittautor-Beiträgen beruhen.
 
 Status Phase 4:
 - inhaltlich abgeschlossen
-- weitere Eingriffe in `HideMyData/PDFRedactor.swift`, `HideMyData/ImageRedactor.swift` oder `HideMyData/patterns.json` nur noch bei klar begruendetem fachlichem Mehrwert
+- weitere Eingriffe in `Inkognito/PDFRedactor.swift`, `Inkognito/ImageRedactor.swift` oder `Inkognito/patterns.json` nur noch bei klar begruendetem fachlichem Mehrwert
 
 Abschlussstand von Phase 4:
-- PDF-spezifische Header-/Absenderblock-Unterdrückung ist in `HideMyData/PDFHeaderSuppressionSupport.swift` ausgelagert
-- PDF-spezifische OCR-Zusatzanalyse fuer Fensterempfaenger-Kontext liegt jetzt in `HideMyData/PDFOCRSupplementalAnalyzer.swift`
-- bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `HideMyData/ImageOCRSupplementalAnalyzer.swift` gebündelt
-- Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `HideMyData/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
-- `Regex-Pattern-Bibliothek.Json` liegt jetzt zusaetzlich als validierte Quellbibliothek vor; die App laedt zur Laufzeit weiterhin nur das kuratierte Manifest `HideMyData/patterns.json`, aus dem die polnischen Regex-Blöcke entfernt wurden, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig mittraegt
-- `HideMyData/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne die Erkennungslogik zu veraendern
-- `HideMyData/patterns.json` traegt jetzt ausserdem ein explizites `selection_profile` und dokumentierte `selection_principles`, damit der Runtime-Manifestcharakter auch datenstrukturell klarer vom breiteren Quellenkatalog getrennt bleibt
-- `HideMyData/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
-- `HideMyData/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
-- `HideMyData/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
-- `HideMyData/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
-- `HideMyData/patterns.json` dokumentiert bewusst behaltene Runtime-Grenzfaelle jetzt zusaetzlich ueber `retained_runtime_notes`, aktuell fuer unlabeled `email`, `mrz` und `date_eu_dotted`
-- Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFReviewContextSupport.swift`
-- Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionLifecycleSupport.swift`
-- seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDetectionReviewSupport.swift`
-- Hit-Testing, Pending-Auswahl sowie Fokus-/Navigationshelfer aus `PDFRedactor.swift` laufen jetzt staerker ueber `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
-- Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFExportLifecycleSupport.swift`
-- Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
+- PDF-spezifische Header-/Absenderblock-Unterdrückung ist in `Inkognito/PDFHeaderSuppressionSupport.swift` ausgelagert
+- PDF-spezifische OCR-Zusatzanalyse fuer Fensterempfaenger-Kontext liegt jetzt in `Inkognito/PDFOCRSupplementalAnalyzer.swift`
+- bildspezifische OCR-Zusatzanalyse und Fensterempfänger-Wiederherstellung ist in `Inkognito/ImageOCRSupplementalAnalyzer.swift` gebündelt
+- Manifest- und Compile-Layer fuer `patterns.json` liegen jetzt getrennt in `Inkognito/PatternMatcherBuiltinSupport.swift`, waehrend die fachlichen Regexe unveraendert bleiben
+- `Regex-Pattern-Bibliothek.Json` liegt jetzt zusaetzlich als validierte Quellbibliothek vor; die App laedt zur Laufzeit weiterhin nur das kuratierte Manifest `Inkognito/patterns.json`, aus dem die polnischen Regex-Blöcke entfernt wurden, waehrend die Bibliothek die aktuelle Runtime-Teilmenge vollstaendig mittraegt
+- `Inkognito/patterns.json` beschreibt seine Runtime-Rolle jetzt selbst ueber Manifest-Metadaten wie `role`, `pattern_count`, `runtime_scope` und die direkte Referenz auf `Regex-Pattern-Bibliothek.Json`, ohne die Erkennungslogik zu veraendern
+- `Inkognito/patterns.json` traegt jetzt ausserdem ein explizites `selection_profile` und dokumentierte `selection_principles`, damit der Runtime-Manifestcharakter auch datenstrukturell klarer vom breiteren Quellenkatalog getrennt bleibt
+- `Inkognito/patterns.json` ist jetzt zudem fachlich enger kuratiert: Entwickler-Token- und Krypto-Adressmuster bleiben in der Quellenbibliothek, laufen aber nicht mehr in der App-Runtime mit
+- `Inkognito/patterns.json` fuehrt ausserdem keine nicht dokumentzentrierten Secret-/Netzwerkmuster wie IPv4, IPv6, MAC, JWT, US-SSN oder UK-NINO mehr in der Runtime, waehrend diese in der Quellenbibliothek dokumentiert bleiben
+- `Inkognito/patterns.json` enthaelt in der Runtime ausserdem keine breiten unlabeled-Kreditkartenmuster mehr; der dokumentzentrierte Kartenfall bleibt ueber `credit_card_labeled` erhalten
+- `Inkognito/patterns.json` fuehrt zudem keine breite internationale Telefonnummer ohne Dokument-Label mehr in der Runtime; erhalten bleiben die explizit gelabelten Telefon- und Mobilfelder sowie der dokumentzentrierte MRZ-Fall
+- `Inkognito/patterns.json` dokumentiert bewusst behaltene Runtime-Grenzfaelle jetzt zusaetzlich ueber `retained_runtime_notes`, aktuell fuer unlabeled `email`, `mrz` und `date_eu_dotted`
+- Preview-Diagnostik und Kontext-Rect-Erweiterung aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFReviewContextSupport.swift`
+- Textquellenwahl, OCR-Bevorzugung und Abschluss-Hinweise aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFDetectionLifecycleSupport.swift`
+- seitenweiser Review-Candidate-Aufbau, OCR-Fallback-Zuordnung und Preview-Diagnostik aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFDetectionReviewSupport.swift`
+- Hit-Testing, Pending-Auswahl sowie Fokus-/Navigationshelfer aus `PDFRedactor.swift` laufen jetzt staerker ueber `Inkognito/PDFAnnotationReviewLifecycleSupport.swift`
+- Export-Aufbau, Dateinamenvorschlag und PDF-Export-Report aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFExportLifecycleSupport.swift`
+- Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `PDFRedactor.swift` liegt jetzt in `Inkognito/PDFAnnotationReviewLifecycleSupport.swift`
 - die verbliebenen toten PDF-Review-Wrapper sowie der ungenutzte `pageCount`-Parameter wurden aus dem PDF-Review-Pfad entfernt
-- Preview-zu-Redaction- und Accepted-zu-Pending-Uebergaenge fuer PDF-Review laufen jetzt ebenfalls staerker ueber `HideMyData/PDFAnnotationReviewLifecycleSupport.swift`
-- Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFBoundingRectSupport.swift`
-- Annotation-Styling, Preview-Farbgebung und Bounds-Normalisierung aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationStyleSupport.swift`
-- Redaction-/Preview-Mutation und Redaction-Restyle aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFAnnotationMutationSupport.swift`
-- Dokumentladen, PDF-Ladeergebnisse und Save-Panel-Aufbau aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFDocumentLifecycleSupport.swift`
-- Render-Snapshots und Blur-Cache-Zugriff aus `PDFRedactor.swift` liegen jetzt in `HideMyData/PDFPageRenderSupport.swift`
-- Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageExportLifecycleSupport.swift`
-- OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageDetectionLifecycleSupport.swift`
-- Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `HideMyData/ImageReviewRecoverySupport.swift`
-- Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `ImageRedactor.swift` liegt jetzt in `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
-- Hit-Testing, Pending-Auswahl und sichtbare Rect-Zaehlung aus `ImageRedactor.swift` laufen jetzt staerker ueber `HideMyData/ImageAnnotationReviewLifecycleSupport.swift`
-- Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung aus `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternMatcherLiteralSupport.swift`
-- Detection-Loop, Regex-/Literal-Span-Aufbau und Diagnostics-Zusammenstellung aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternMatcherLiteralSupport.swift`
-- Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung aus dem Store-Teil von `PatternMatcher.swift` liegen jetzt in `HideMyData/PatternStorePersistenceSupport.swift` und `HideMyData/PatternStoreManagementSupport.swift`
-- Store-Normalisierung, Preview-Expansion, Persisted-Pattern-Sanitizing und Generated-Pattern-Heuristiken aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternStoreManagementSupport.swift`
-- Bild-Preview-Diagnostik ist in `HideMyData/ImagePreviewDiagnosticsSupport.swift` ausgelagert
-- Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorModelCacheSupport.swift` und `HideMyData/PIIDetectorPlaceholderSupport.swift` verschoben
-- sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `HideMyData/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert
-- der größere Span-Sanitizing-/Suppression-Block aus `PIIDetector.swift` liegt jetzt in `HideMyData/PIIDetectorSpanSanitizationSupport.swift`
-- Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorSupplementalClipboardSupport.swift`
-- Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `HideMyData/ReviewFindingCompactor.swift`
-- Zustandslogik, Fehlermeldungstexte und Persistenz fuer die letzte Zwischenablage-Sitzung aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorLifecycleSupport.swift` und `HideMyData/PIIDetectorClipboardSessionSupport.swift`
-- Modell-Download, Cache-Load und Ready/Warmup-Orchestrierung aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
-- Warmup-Ausfuehrung und der generische Background-Runner aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
-- Running-Phase und Guard-Verkabelung der oeffentlichen `detect`-API aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorLifecycleSupport.swift`
-- Clipboard-Session-Erzeugung, Persistenz-Verkabelung und Restore-Helfer aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorClipboardSessionSupport.swift`
-- Modelltreffer-Mapping, Pattern-/Supplemental-Zusammenfuehrung, sichtbare Pattern-Diagnostik und Clipboard-Session-Aufbau aus `PIIDetector.swift` liegen jetzt in `HideMyData/PIIDetectorInferenceSupport.swift`
-- Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorInferenceSupport.swift`
-- Text-Anonymisierung und Clipboard-Anonymisierungsaufbau aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `HideMyData/PIIDetectorAnonymizationSupport.swift`
+- Preview-zu-Redaction- und Accepted-zu-Pending-Uebergaenge fuer PDF-Review laufen jetzt ebenfalls staerker ueber `Inkognito/PDFAnnotationReviewLifecycleSupport.swift`
+- Bounding-Rect-Aufloesung, UTF-16-Range-Mapping und OCR-Fallback-Rects aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFBoundingRectSupport.swift`
+- Annotation-Styling, Preview-Farbgebung und Bounds-Normalisierung aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFAnnotationStyleSupport.swift`
+- Redaction-/Preview-Mutation und Redaction-Restyle aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFAnnotationMutationSupport.swift`
+- Dokumentladen, PDF-Ladeergebnisse und Save-Panel-Aufbau aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFDocumentLifecycleSupport.swift`
+- Render-Snapshots und Blur-Cache-Zugriff aus `PDFRedactor.swift` liegen jetzt in `Inkognito/PDFPageRenderSupport.swift`
+- Export-Aufbau, Dateinamenvorschlag und Bild-Export-Report aus `ImageRedactor.swift` liegen jetzt in `Inkognito/ImageExportLifecycleSupport.swift`
+- OCR-Vorbereitung, Candidate-Aufbau, Schwachtext-Hinweise und Debug-Zusammenstellung aus `ImageRedactor.swift` liegen jetzt in `Inkognito/ImageDetectionLifecycleSupport.swift`
+- Supplemental-Recovery und Sichtbarkeitspruefung aus `ImageRedactor.swift` liegen jetzt in `Inkognito/ImageReviewRecoverySupport.swift`
+- Review-/Annotation-Lifecycle fuer Preview-, Dismiss- und Wiederherstellungslogik aus `ImageRedactor.swift` liegt jetzt in `Inkognito/ImageAnnotationReviewLifecycleSupport.swift`
+- Hit-Testing, Pending-Auswahl und sichtbare Rect-Zaehlung aus `ImageRedactor.swift` laufen jetzt staerker ueber `Inkognito/ImageAnnotationReviewLifecycleSupport.swift`
+- Literal-Suche, Normalisierung und Custom-Pattern-Deduplizierung aus `PatternMatcher.swift` liegen jetzt in `Inkognito/PatternMatcherLiteralSupport.swift`
+- Detection-Loop, Regex-/Literal-Span-Aufbau und Diagnostics-Zusammenstellung aus `PatternMatcher.swift` liegen jetzt ebenfalls in `Inkognito/PatternMatcherLiteralSupport.swift`
+- Persistenz, Legacy-Migration, Import, Cleanup und Gruppierung aus dem Store-Teil von `PatternMatcher.swift` liegen jetzt in `Inkognito/PatternStorePersistenceSupport.swift` und `Inkognito/PatternStoreManagementSupport.swift`
+- Store-Normalisierung, Preview-Expansion, Persisted-Pattern-Sanitizing und Generated-Pattern-Heuristiken aus `PatternMatcher.swift` liegen jetzt ebenfalls in `Inkognito/PatternStoreManagementSupport.swift`
+- Bild-Preview-Diagnostik ist in `Inkognito/ImagePreviewDiagnosticsSupport.swift` ausgelagert
+- Modellcache- und Platzhalterlogik aus `PIIDetector.swift` ist in `Inkognito/PIIDetectorModelCacheSupport.swift` und `Inkognito/PIIDetectorPlaceholderSupport.swift` verschoben
+- sichtbare Pattern-/Custom-Rule-Diagnostik aus `PIIDetector.swift` ist in `Inkognito/PIIDetectorPatternDiagnosticsSupport.swift` ausgelagert
+- der größere Span-Sanitizing-/Suppression-Block aus `PIIDetector.swift` liegt jetzt in `Inkognito/PIIDetectorSpanSanitizationSupport.swift`
+- Dokumentklassen-Erkennung und Clipboard-Supplemental-Spans aus `PIIDetector.swift` liegen jetzt in `Inkognito/PIIDetectorSupplementalClipboardSupport.swift`
+- Review-Kompaktierung und Projection-Logik fuer Trefferbloecke liegen jetzt in `Inkognito/ReviewFindingCompactor.swift`
+- Zustandslogik, Fehlermeldungstexte und Persistenz fuer die letzte Zwischenablage-Sitzung aus `PIIDetector.swift` liegen jetzt in `Inkognito/PIIDetectorLifecycleSupport.swift` und `Inkognito/PIIDetectorClipboardSessionSupport.swift`
+- Modell-Download, Cache-Load und Ready/Warmup-Orchestrierung aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorLifecycleSupport.swift`
+- Warmup-Ausfuehrung und der generische Background-Runner aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorLifecycleSupport.swift`
+- Running-Phase und Guard-Verkabelung der oeffentlichen `detect`-API aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorLifecycleSupport.swift`
+- Clipboard-Session-Erzeugung, Persistenz-Verkabelung und Restore-Helfer aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorClipboardSessionSupport.swift`
+- Modelltreffer-Mapping, Pattern-/Supplemental-Zusammenfuehrung, sichtbare Pattern-Diagnostik und Clipboard-Session-Aufbau aus `PIIDetector.swift` liegen jetzt in `Inkognito/PIIDetectorInferenceSupport.swift`
+- Post-Processing-Pipeline, sichtbare Pattern-Diagnostik und der zugehoerige Span-Orchestrierungsblock aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorInferenceSupport.swift`
+- Text-Anonymisierung und Clipboard-Anonymisierungsaufbau aus `PIIDetector.swift` laufen jetzt ebenfalls ueber `Inkognito/PIIDetectorAnonymizationSupport.swift`
 - die letzten Facade-Helfer `visiblePatternDiagnostics` und `classifyDocumentText` werden jetzt als `PIIDetector`-Extensions aus den jeweiligen Support-Dateien bereitgestellt statt direkt in `PIIDetector.swift`
-- `LoadedCustomPattern`, `Diagnostics`, Builtin-Konstante und Entry-Points aus `PatternMatcher.swift` liegen jetzt ebenfalls in `HideMyData/PatternMatcherLiteralSupport.swift`, waehrend `PatternMatcher.swift` im Wesentlichen nur noch den `CustomPatternStore` traegt
+- `LoadedCustomPattern`, `Diagnostics`, Builtin-Konstante und Entry-Points aus `PatternMatcher.swift` liegen jetzt ebenfalls in `Inkognito/PatternMatcherLiteralSupport.swift`, waehrend `PatternMatcher.swift` im Wesentlichen nur noch den `CustomPatternStore` traegt
 
 ## Bekannte Ausgangslage
 
 - sehr geringer Altanteil:
-  - `HideMyData/PIIDetector.swift`
-  - `HideMyData/PatternMatcher.swift`
-  - `HideMyData/Views/Main/MainView.swift`
+  - `Inkognito/PIIDetector.swift`
+  - `Inkognito/PatternMatcher.swift`
+  - `Inkognito/Views/Main/MainView.swift`
 - merklicher und nun wieder prioritaerer Altanteil:
-  - `HideMyData/PDFRedactor.swift`
-  - `HideMyData/ImageRedactor.swift`
-  - `HideMyData/patterns.json`
+  - `Inkognito/PDFRedactor.swift`
+  - `Inkognito/ImageRedactor.swift`
+  - `Inkognito/patterns.json`
 - sehr hoher Altanteil:
-  - `HideMyData/ContentView.swift`
-  - `HideMyData/Views/Intro/IntroView.swift`
-  - `HideMyData/Views/FirstRun/*`
-  - `HideMyData/ModelDownloader.swift`
-  - `HideMyData/RecentsStore.swift`
-  - `HideMyData/PDFKitView.swift`
-  - `HideMyData/Views/Main/ImageDocumentSurface.swift`
+  - `Inkognito/ContentView.swift`
+  - `Inkognito/Views/Intro/IntroView.swift`
+  - `Inkognito/Views/FirstRun/*`
+  - `Inkognito/ModelDownloader.swift`
+  - `Inkognito/RecentsStore.swift`
+  - `Inkognito/PDFKitView.swift`
+  - `Inkognito/Views/Main/ImageDocumentSurface.swift`
 
 ## Umsetzung
 

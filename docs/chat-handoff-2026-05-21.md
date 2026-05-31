@@ -11,7 +11,7 @@ Kontext:
 - PROJ-21 Commercial Readiness und Re-Licensing Cleanup ist abgeschlossen
 - PROJ-22 behandelt den Sparkle-Distributionsreset separat
 - PROJ-23 schaerft Onboarding- und Regeln-Editor-UX nach
-- Der Runtime-Manifeststand in HideMyData/patterns.json ist bewusst enger kuratiert als die Quellenbibliothek Regex-Pattern-Bibliothek.Json
+- Der Runtime-Manifeststand in Inkognito/patterns.json ist bewusst enger kuratiert als die Quellenbibliothek Regex-Pattern-Bibliothek.Json
 - PIIDetector.swift und PatternMatcher.swift sind inzwischen nur noch schlanke Fassaden und sollen nur noch bei klarem Mehrwert weiter entkoppelt werden
 - Das bisherige Fork-Repository bleibt als Nachschlagewerk; `Dok100/Inkognito` ist die neue Produktbasis
 
@@ -30,11 +30,11 @@ Letzte Verifikation:
 - xcodebuild -project Inkognito.xcodeproj -scheme Inkognito -sdk macosx build -> BUILD SUCCEEDED
 
 Aktuelle Audit-Priorisierung:
-1. HideMyData/PDFRedactor.swift
-2. HideMyData/ImageRedactor.swift
-3. HideMyData/patterns.json
-4. HideMyData/PIIDetector.swift
-5. HideMyData/PatternMatcher.swift
+1. Inkognito/PDFRedactor.swift
+2. Inkognito/ImageRedactor.swift
+3. Inkognito/patterns.json
+4. Inkognito/PIIDetector.swift
+5. Inkognito/PatternMatcher.swift
 
 Naechste sinnvolle Schritte:
 1. Neue Produkt- und Release-Arbeit bevorzugt im Repository `Dok100/Inkognito` weiterfuehren

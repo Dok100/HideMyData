@@ -1,7 +1,7 @@
 {
   "role": "pattern_library_source",
-  "description": "Erweiterte Quellbibliothek fuer Regex-Muster. Diese Datei dient der fachlichen Sammlung und Entkopplung; die App laedt zur Laufzeit weiterhin nur HideMyData/patterns.json. Die Bibliothek deckt die aktuelle Runtime-Teilmenge vollstaendig ab.",
-  "runtime_manifest": "HideMyData/patterns.json",
+  "description": "Erweiterte Quellbibliothek fuer Regex-Muster. Diese Datei dient der fachlichen Sammlung und Entkopplung; die App laedt zur Laufzeit weiterhin nur Inkognito/patterns.json. Die Bibliothek deckt die aktuelle Runtime-Teilmenge vollstaendig ab.",
+  "runtime_manifest": "Inkognito/patterns.json",
   "pattern_count": 98,
   "patterns": [
     {

@@ -32,11 +32,11 @@ Inkognito soll auch bei schlechten Eingaben, OCR-Problemen oder Modellfehlern ru
 
 ## Relevante Dateien
 
-- `HideMyData/ContentView.swift`
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PIIDetector.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/Views/Main/DocumentSurface.swift`
-- `HideMyData/Views/Main/ImageDocumentSurface.swift`
-- `HideMyData/Views/Toolbar/FloatingToolbar.swift`
+- `Inkognito/ContentView.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PIIDetector.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/Views/Main/DocumentSurface.swift`
+- `Inkognito/Views/Main/ImageDocumentSurface.swift`
+- `Inkognito/Views/Toolbar/FloatingToolbar.swift`

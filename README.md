@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="180" height="180" alt="Inkognito" src="HideMyData/Assets.xcassets/AppLogo.imageset/logo.png" />
+<img width="180" height="180" alt="Inkognito" src="Inkognito/Assets.xcassets/AppLogo.imageset/logo.png" />
 
 ### Inkognito
 
@@ -145,13 +145,13 @@ Beispielhafte Fixtures liegen hier:
 
 Wichtige Dateien und Bereiche:
 
-- [HideMyData/HideMyDataApp.swift](HideMyData/HideMyDataApp.swift): App-Einstieg, globaler Shortcut, Einstellungen
-- [HideMyData/PDFRedactor.swift](HideMyData/PDFRedactor.swift): PDF-Erkennung, OCR-Fallback, Review-Kandidaten, Export
-- [HideMyData/ImageRedactor.swift](HideMyData/ImageRedactor.swift): Bilderkennung und Redaktionslogik
-- [HideMyData/PIIDetector.swift](HideMyData/PIIDetector.swift): Modellintegration, Regex-Postprocessing, Filter-Heuristiken
-- [HideMyData/OCRNormalizer.swift](HideMyData/OCRNormalizer.swift): OCR- und Native-Textnormalisierung
-- [HideMyData/patterns.json](HideMyData/patterns.json): eingebaute Regex-Muster
-- [HideMyData/Views/Main/MainView.swift](HideMyData/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
+- [Inkognito/InkognitoApp.swift](Inkognito/InkognitoApp.swift): App-Einstieg, globaler Shortcut, Einstellungen
+- [Inkognito/PDFRedactor.swift](Inkognito/PDFRedactor.swift): PDF-Erkennung, OCR-Fallback, Review-Kandidaten, Export
+- [Inkognito/ImageRedactor.swift](Inkognito/ImageRedactor.swift): Bilderkennung und Redaktionslogik
+- [Inkognito/PIIDetector.swift](Inkognito/PIIDetector.swift): Modellintegration, Regex-Postprocessing, Filter-Heuristiken
+- [Inkognito/OCRNormalizer.swift](Inkognito/OCRNormalizer.swift): OCR- und Native-Textnormalisierung
+- [Inkognito/patterns.json](Inkognito/patterns.json): eingebaute Regex-Muster
+- [Inkognito/Views/Main/MainView.swift](Inkognito/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
 - [scripts/run_detection_regressions.swift](scripts/run_detection_regressions.swift): schlanker Regression-Check
 
 ## Projekt-Dokumentation

@@ -23,10 +23,10 @@ Die ersten Produkttexte und der Regeln-Editor sollen so nachgeschärft werden, d
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Intro/IntroView.swift`
-- `HideMyData/Views/FirstRun/FirstRunView.swift`
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/Views/Help/HelpView.swift` (neu)
+- `Inkognito/Views/Intro/IntroView.swift`
+- `Inkognito/Views/FirstRun/FirstRunView.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/Views/Help/HelpView.swift` (neu)
 - `docs/architecture.md`
 - `docs/commercial-readiness-audit.md`
 - `features/PROJ-21-commercial-readiness-relicensing-cleanup.md`

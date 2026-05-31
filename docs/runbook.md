@@ -40,6 +40,6 @@ Die aktuell abgesicherten Dokumentklassen und Soll-/Nicht-Soll-Faelle stehen in 
 
 Das aktive App-Icon liegt in:
 
-- `HideMyData/Assets.xcassets/AppIcon.appiconset`
+- `Inkognito/Assets.xcassets/AppIcon.appiconset`
 
 Historische Generatoren und Arbeitsdateien sind archiviert.

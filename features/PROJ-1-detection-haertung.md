@@ -35,5 +35,5 @@ Die Erkennung soll über OCR, nativen PDF-Text und Bilder hinweg reproduzierbar 
 
 - `fixtures/detection/`
 - `scripts/run_detection_regressions.swift`
-- `HideMyData/PIIDetector.swift`
-- `HideMyData/patterns.json`
+- `Inkognito/PIIDetector.swift`
+- `Inkognito/patterns.json`

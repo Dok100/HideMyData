@@ -46,11 +46,11 @@ Legende, Sidebar, Dokument-Highlights und Statusflächen sollen sich wie ein ein
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/BlackRedactionAnnotation.swift`
-- `HideMyData/Views/Status/StatusPill.swift`
-- `HideMyData/Views/Toolbar/FloatingToolbar.swift`
-- `HideMyData/Views/Toolbar/GlassSegmented.swift`
-- `HideMyData/Views/Main/EmptyState.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/BlackRedactionAnnotation.swift`
+- `Inkognito/Views/Status/StatusPill.swift`
+- `Inkognito/Views/Toolbar/FloatingToolbar.swift`
+- `Inkognito/Views/Toolbar/GlassSegmented.swift`
+- `Inkognito/Views/Main/EmptyState.swift`

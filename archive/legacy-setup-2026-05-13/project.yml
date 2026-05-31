@@ -90,7 +90,7 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         AUTOMATION_APPLE_EVENTS: NO
-        CODE_SIGN_ENTITLEMENTS: HideMyData/HideMyData.entitlements
+        CODE_SIGN_ENTITLEMENTS: Inkognito/Inkognito.entitlements
         CODE_SIGN_STYLE: Automatic
         CURRENT_PROJECT_VERSION: "0.2.0"
         ENABLE_APP_SANDBOX: YES

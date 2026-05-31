@@ -20,9 +20,9 @@ Eigene Regeln sollen nicht nur editierbar, sondern aktiv verständlich und produ
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PatternMatcher.swift`
-- `HideMyData/PIIDetector.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PatternMatcher.swift`
+- `Inkognito/PIIDetector.swift`
 - Feature-Doku für eigene Regeln
 
 ## Umsetzung

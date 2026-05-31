@@ -21,8 +21,8 @@ Alle Texte in Inkognito sollen eindeutig, vertrauenswürdig und handlungsorienti
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/EmptyState.swift`
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/Views/Main/EmptyState.swift`
+- `Inkognito/Views/Main/MainView.swift`
 - Dialog-/Alert-Texte
 
 ## Umsetzung

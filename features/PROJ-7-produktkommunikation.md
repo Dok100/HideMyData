@@ -71,13 +71,13 @@ Der Privacy-Vorteil und die lokale Verarbeitung sollen im Produkt selbst noch kl
 
 - `README.md`
 - `CHANGELOG.md`
-- `HideMyData/Views/Main/EmptyState.swift`
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/Views/Toolbar/FloatingToolbar.swift`
-- `HideMyData/Views/Intro/IntroView.swift`
-- `HideMyData/Views/FirstRun/FirstRunView.swift`
-- `HideMyData/Views/FirstRun/ModelSourceCard.swift`
-- `HideMyData/ExportOptions.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/PatternMatcher.swift`
+- `Inkognito/Views/Main/EmptyState.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/Views/Toolbar/FloatingToolbar.swift`
+- `Inkognito/Views/Intro/IntroView.swift`
+- `Inkognito/Views/FirstRun/FirstRunView.swift`
+- `Inkognito/Views/FirstRun/ModelSourceCard.swift`
+- `Inkognito/ExportOptions.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/PatternMatcher.swift`

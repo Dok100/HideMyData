@@ -20,9 +20,9 @@ Die in der Legende kommunizierten Farben müssen exakt mit Sidebar-Karten und Do
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
 
 ## Umsetzung
 

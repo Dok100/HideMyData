@@ -40,9 +40,9 @@ Treffer prüfen, bestätigen und ablehnen soll klar, schnell und fehlertolerant 
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/PDFKitView.swift`
-- `HideMyData/Views/Main/ImageDocumentSurface.swift`
-- `HideMyData/Views/Toolbar/FloatingToolbar.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/PDFKitView.swift`
+- `Inkognito/Views/Main/ImageDocumentSurface.swift`
+- `Inkognito/Views/Toolbar/FloatingToolbar.swift`

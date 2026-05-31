@@ -24,11 +24,11 @@ Historische Namensreste von `HideMyData` sollen kontrolliert aus dem aktiven Pro
 - Liste `aktiv behalten / archivieren / spaeter umbenennen`
 - Bereinigung offensichtlicher Legacy-Reste im aktiven Projekt
 - separates, sicheres Rename-Konzept fuer Code, Ordner, Projekt und Release-Artefakte
-- optional ein finaler Schritt fuer die Umbenennung des Source-Ordners `HideMyData/`
+- optional ein finaler Schritt fuer die Umbenennung des Source-Ordners `Inkognito/`
 
 ## Relevante Dateien
 
-- `HideMyData/`
+- `Inkognito/`
 - `Inkognito.xcodeproj`
 - `README.md`
 - `CHANGELOG.md`
@@ -42,7 +42,6 @@ Historische Namensreste von `HideMyData` sollen kontrolliert aus dem aktiven Pro
 
 - Legacy-Migrationspfade fuer Container, Cache, Recents und Clipboard-Session
 - Sparkle-Historie in `release/sparkle/`, solange alte Artefaktnamen noch fuer Bestandsupdates relevant sein koennen
-- aktiver Source-Ordner `HideMyData/`, solange Xcode-Projekt und Dateipfade nicht in einem eigenen Rename-Schritt migriert werden
 
 ### Bereinigt
 
@@ -52,14 +51,15 @@ Historische Namensreste von `HideMyData` sollen kontrolliert aus dem aktiven Pro
 - neue App-Notification fuer die Zwischenablage auf `Inkognito.showClipboardAnonymizer` umgestellt
 - Legacy-Notification `HMD.showClipboardAnonymizer` vorerst als Fallback weiter akzeptiert
 - Xcode-Target- und Scheme-Metadaten intern auf `Inkognito` umgestellt
+- aktiver Source-Ordner auf `Inkognito/` umgezogen
 
 ### Später umbenennen
 
-- Source-Ordner `HideMyData/`
+- keine aktiven Source-Pfad-Reste mehr; nur historische Release- und Migrationspfade bleiben bewusst bestehen
 
 ## Umsetzung
 
-- Riskante Umbenennungen an Source-Ordner und historischen Sparkle-Artefakten wurden bewusst nicht angerührt.
+- Historische Sparkle-Artefakte wurden bewusst nicht angerührt.
 - Aktive Legacy-Reste wurden in `technisch nötig` und `später separat migrieren` getrennt.
 - Nur intern ungefährliche Bezeichner im laufenden App-Pfad wurden auf `Inkognito` gezogen, mit Legacy-Fallback für bestehende Notification-Namen.
-- Der Source-Ordner `HideMyData/` bleibt vorerst absichtlich bestehen, damit Dateipfade und bestehende Migrationskontexte nicht in demselben Schritt aufgerissen werden.
+- Der Source-Ordner wurde in einem separaten Schritt auf `Inkognito/` umgezogen; bewusst erhalten bleiben nur noch Bestandsmigrationspfade wie alte Recents- und ModelCache-Verzeichnisse.

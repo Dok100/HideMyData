@@ -20,10 +20,10 @@ Wiederkehrende Korrekturen sollen schneller gehen, damit Inkognito auch bei Gren
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/PatternMatcher.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/PatternMatcher.swift`
 
 ## Umsetzung
 

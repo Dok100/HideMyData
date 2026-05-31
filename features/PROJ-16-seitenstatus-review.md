@@ -20,9 +20,9 @@ Der Review soll nicht nur einzelne Treffer, sondern den Prüfstatus ganzer Seite
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
 
 ## Umsetzung
 

@@ -6,25 +6,25 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 
 ## Hauptbausteine
 
-- `HideMyData/HideMyDataApp.swift`
+- `Inkognito/InkognitoApp.swift`
   App-Einstieg, globale App-Einstellungen und Shortcuts.
 
-- `HideMyData/ContentView.swift`
+- `Inkognito/ContentView.swift`
   Top-Level-Zustandssteuerung zwischen Erststart, Download, Hauptworkflow und Fehlerfaellen.
 
-- `HideMyData/PIIDetector.swift`
+- `Inkognito/PIIDetector.swift`
   schmale oeffentliche Fassade fuer Modellintegration, Detection-Start, Clipboard-Anonymisierung und Textwiederherstellung; groessere Lifecycle-, Inference-, Diagnostics- und Placeholder-Bloecke liegen inzwischen in PIIDetector-Support-Dateien.
 
-- `HideMyData/PatternMatcher.swift`
+- `Inkognito/PatternMatcher.swift`
   Store- und Persistenzfassade fuer benutzerdefinierte Regeln; eingebaute Detection, Diagnostics und Literal-Matching liegen inzwischen in den PatternMatcher-Support-Dateien.
 
-- `HideMyData/PDFRedactor.swift`
+- `Inkognito/PDFRedactor.swift`
   PDF-Textgewinnung, OCR-Fallback, Finding-Projektion, Review-Kandidaten, finale Exporte, technischer Export-Validierungsreport und Produktzustände fuer schwache oder unbrauchbare PDF-/OCR-Ergebnisse.
 
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
   Bildbasierte Erkennung, Redaktionslogik, Schwachsignal-Erkennung fuer OCR und technischer Export-Validierungsreport.
 
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/Views/Main/MainView.swift`
   Review-Workflow, Sidebar, Export, Diagnose, Clipboard-Anonymisierung, Regel-Assistenz, Seitenstatus, Export-Zusammenfassung, Vertrauensfeedback nach dem Speichern und ruhige Fehlerfuehrung fuer Oeffnen-, Retry-, Export- und Clipboard-Probleme.
 
 ## Erkennungspipeline
@@ -33,7 +33,7 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 2. Text normalisieren
 3. Modell-Treffer erzeugen
 4. Regex-Treffer ergaenzen
-5. Runtime-Regexe aus `HideMyData/patterns.json` als bewusst kuratierte Manifest-Teilmenge laden, waehrend `Regex-Pattern-Bibliothek.Json` den breiteren Quellenkatalog dokumentiert
+5. Runtime-Regexe aus `Inkognito/patterns.json` als bewusst kuratierte Manifest-Teilmenge laden, waehrend `Regex-Pattern-Bibliothek.Json` den breiteren Quellenkatalog dokumentiert
 6. Dokumentklasse heuristisch einschaetzen
 7. Heuristiken fuer Dokumentrauschen, Briefkopf-Kontext, AGB-/Rechtstext und False Positives anwenden
 8. Review-faehige Treffer aufbereiten
@@ -42,7 +42,7 @@ Inkognito ist eine native macOS-App fuer lokale Anonymisierung von PDFs, Bildern
 
 ## Regex-Quellen
 
-- `HideMyData/patterns.json`
+- `Inkognito/patterns.json`
   kuratiertes Runtime-Manifest mit explizitem `selection_profile` und dokumentierten `selection_principles` fuer dokumentzentrierte App-Erkennung.
 
 - `Regex-Pattern-Bibliothek.Json`

@@ -20,10 +20,10 @@ Unsichere oder ungewöhnliche Treffer sollen gesondert sichtbar werden, statt in
 
 ## Relevante Dateien
 
-- `HideMyData/PIIDetector.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/PIIDetector.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/Views/Main/MainView.swift`
 
 ## Umsetzung
 

@@ -20,8 +20,8 @@ Wenn sensible Stellen nicht erkannt werden, soll die App das Vertrauen nicht sti
 
 ## Relevante Dateien
 
-- `HideMyData/PIIDetector.swift`
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/PIIDetector.swift`
+- `Inkognito/Views/Main/MainView.swift`
 
 ## Umsetzung
 

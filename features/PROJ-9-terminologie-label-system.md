@@ -27,6 +27,6 @@ Interne Modellbegriffe wie `private_person` oder `custom_identifier` dürfen nir
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/Views/Main/MainView.swift`
 - Diagnose-View-Dateien
 - Custom-Rules-UI

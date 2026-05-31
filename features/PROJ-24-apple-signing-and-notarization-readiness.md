@@ -94,7 +94,7 @@ Zusatz fuer Folge-Releases:
 ## Relevante Dateien
 
 - `Inkognito.xcodeproj/project.pbxproj`
-- `HideMyData/HideMyData.entitlements`
+- `Inkognito/Inkognito.entitlements`
 - `Info.plist`
 - `docs/release-checklist.md`
 - `docs/apple-direct-distribution.md`

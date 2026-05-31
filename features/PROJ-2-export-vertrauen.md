@@ -44,6 +44,6 @@ Nutzer sollen sicher sein, dass finale Schwärzungen technisch sauber sind und k
 
 ## Relevante Dateien
 
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
-- `HideMyData/ExportOptions.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
+- `Inkognito/ExportOptions.swift`

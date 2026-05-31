@@ -20,5 +20,5 @@ Der Einstieg in die App soll sofort verständlich sein und die zwei Hauptworkflo
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/EmptyState.swift`
-- `HideMyData/Views/Main/MainView.swift`
+- `Inkognito/Views/Main/EmptyState.swift`
+- `Inkognito/Views/Main/MainView.swift`

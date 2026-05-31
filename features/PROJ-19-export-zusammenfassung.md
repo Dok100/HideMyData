@@ -20,9 +20,9 @@ Vor oder nach dem Export soll eine kurze, verständliche Sicherheitszusammenfass
 
 ## Relevante Dateien
 
-- `HideMyData/Views/Main/MainView.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/ImageRedactor.swift`
+- `Inkognito/Views/Main/MainView.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/ImageRedactor.swift`
 - Export-Validierungslogik
 
 ## Umsetzung

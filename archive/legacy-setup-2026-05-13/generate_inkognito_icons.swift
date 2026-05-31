@@ -172,8 +172,8 @@ func renderIcon(size: Int, theme: Theme, outputURL: URL) throws -> Bool {
 
 let fileManager = FileManager.default
 let root = URL(fileURLWithPath: fileManager.currentDirectoryPath)
-let appIconDir = root.appendingPathComponent("HideMyData/Assets.xcassets/AppIcon.appiconset", isDirectory: true)
-let appLogoDir = root.appendingPathComponent("HideMyData/Assets.xcassets/AppLogo.imageset", isDirectory: true)
+let appIconDir = root.appendingPathComponent("Inkognito/Assets.xcassets/AppIcon.appiconset", isDirectory: true)
+let appLogoDir = root.appendingPathComponent("Inkognito/Assets.xcassets/AppLogo.imageset", isDirectory: true)
 
 let outputs: [(String, Int, Theme)] = [
     ("icon_16.png", 16, .light),

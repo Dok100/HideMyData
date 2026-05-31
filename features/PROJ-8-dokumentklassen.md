@@ -30,6 +30,6 @@ Die App soll typische Dokumentarten intern unterscheiden und dadurch präziser e
 
 ## Relevante Dateien
 
-- `HideMyData/PIIDetector.swift`
-- `HideMyData/PDFRedactor.swift`
-- `HideMyData/patterns.json`
+- `Inkognito/PIIDetector.swift`
+- `Inkognito/PDFRedactor.swift`
+- `Inkognito/patterns.json`

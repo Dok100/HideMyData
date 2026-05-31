@@ -53,6 +53,7 @@
 - bei neuer Distribution zuerst die getrennte Sparkle-Strategie aus `features/PROJ-22-sparkle-distribution-reset.md` gegen den historischen `HideMyData`-Pfad abgleichen
 - Apple-Signing-, Archiv- und Notarisierungsablauf gegen `features/PROJ-24-apple-signing-and-notarization-readiness.md` pruefen, sobald die neue Distribution vorbereitet wird
 - fuer einen neuen Sparkle-Release die `Inkognito`-Templates in `release/sparkle/` aus dem finalen notarisierten DMG befuellen statt den historischen Feed direkt zu ueberschreiben
+- den konkreten `Inkognito`-Appcast bevorzugt über `bash release/sparkle/render_inkognito_appcast.sh ...` aus DMG, URL, `edSignature` und Release Notes erzeugen
 
 ## Apple-Distribution vorbereiten
 

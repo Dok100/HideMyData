@@ -19,6 +19,7 @@ Use these template files as the starting point for a future real feed:
 
 - `inkognito-appcast.template.xml`
 - `inkognito-release-notes.template.html`
+- `render_inkognito_appcast.sh`
 
 Before publishing a live Sparkle release, fill in:
 
@@ -30,3 +31,23 @@ Before publishing a live Sparkle release, fill in:
 - release notes text for the specific `Inkognito` version
 
 The current templates are intentionally not active feeds.
+
+## Suggested release flow
+
+1. Build and notarize the final DMG via `bash release/build_and_notarize_dmg.sh`.
+2. Create or adapt HTML release notes from `inkognito-release-notes.template.html`.
+3. Generate the Sparkle `edSignature` for the final DMG with your Sparkle signing tool.
+4. Render a concrete appcast from the template:
+
+```bash
+bash release/sparkle/render_inkognito_appcast.sh \
+  --version 0.3.1 \
+  --short-version 0.3.1 \
+  --dmg-url https://downloads.example.com/Inkognito-0.3.1.dmg \
+  --dmg-path output/release/dmg/Inkognito-0.3.1.dmg \
+  --ed-signature BASE64_SIGNATURE \
+  --notes-file release/sparkle/inkognito-release-notes-0.3.1.html \
+  --output release/sparkle/inkognito-appcast-0.3.1.xml
+```
+
+5. Publish the generated appcast and matching DMG together.

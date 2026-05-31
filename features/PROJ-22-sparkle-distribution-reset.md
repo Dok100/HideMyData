@@ -63,6 +63,7 @@ Empfohlene Trennung:
   - `release/sparkle/README.md`
   - `release/sparkle/inkognito-appcast.template.xml`
   - `release/sparkle/inkognito-release-notes.template.html`
+- `release/sparkle/render_inkognito_appcast.sh`
 
 Die Template-Dateien sind bewusst noch kein aktiver Feed. Sie definieren nur das neue Format und die benoetigten Platzhalter:
 
@@ -101,5 +102,5 @@ Bis zur bewussten Go-live-Entscheidung gilt:
 1. alte `HideMyData`-Sparkle-Dateien explizit als historisch eingefroren behandeln
 2. neue `Inkognito`-Appcast-Templates parallel pflegen
 3. fuer den ersten echten Sparkle-Release die Download-URL des notarisierten DMG festlegen
-4. Sparkle-Signatur (`sparkle:edSignature`) aus dem finalen Release-Artefakt erzeugen und in den neuen Feed einsetzen
+4. Sparkle-Signatur (`sparkle:edSignature`) aus dem finalen Release-Artefakt erzeugen und zusammen mit DMG-URL, Dateigroesse und Release Notes ueber `render_inkognito_appcast.sh` in den neuen Feed einsetzen
 5. erst dann entscheiden, ob und wie Bestandsnutzer aus dem alten Feed auf den neuen Pfad hingewiesen werden

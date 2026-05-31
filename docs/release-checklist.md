@@ -52,6 +52,7 @@
 - Sparkle-/DMG-Artefakte pruefen, falls ein Distribution-Release gebaut wird
 - bei neuer Distribution zuerst die getrennte Sparkle-Strategie aus `features/PROJ-22-sparkle-distribution-reset.md` gegen den historischen `HideMyData`-Pfad abgleichen
 - Apple-Signing-, Archiv- und Notarisierungsablauf gegen `features/PROJ-24-apple-signing-and-notarization-readiness.md` pruefen, sobald die neue Distribution vorbereitet wird
+- fuer einen neuen Sparkle-Release die `Inkognito`-Templates in `release/sparkle/` aus dem finalen notarisierten DMG befuellen statt den historischen Feed direkt zu ueberschreiben
 
 ## Apple-Distribution vorbereiten
 
@@ -93,3 +94,4 @@
 - Dateinamen, Download-Ziele und Release-Text auf `Inkognito` statt historisches `HideMyData` abgleichen
 - die lokale `output/release/`-Ausgabe als Build-Artefakt behandeln und nicht in Git einchecken
 - erst nach erfolgreich dokumentiertem Notarisierungsdurchlauf `PROJ-22` fuer Appcast- und Bestandsnutzer-Migration weiterziehen
+- bei Sparkle-Go-live den historischen `HideMyData`-Feed eingefroren lassen und den neuen `Inkognito`-Feed parallel veroeffentlichen

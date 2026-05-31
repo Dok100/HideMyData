@@ -1,0 +1,232 @@
+{
+  "fixture": "output/pdf/inkognito-detection-stress-test.pdf",
+  "purpose": "Acceptance expectations for the synthetic Inkognito detection stress PDF. Keep this file stable before changing heuristics.",
+  "notes": [
+    "The generated PDF contains an intro page before the numbered stress pages.",
+    "debug_json refers to exported page diagnostics from the app, if available.",
+    "must_redact values are text snippets that should result in a visible finding/redaction.",
+    "must_not_redact values are text snippets or fragments that should not be treated as protected private data.",
+    "review values are intentionally ambiguous and should be decided before automation treats them as pass/fail."
+  ],
+  "pages": [
+    {
+      "logical_page": "Intro",
+      "debug_json": "seite-1.json",
+      "title": "Inkognito Detection Stress Test",
+      "must_redact": [],
+      "must_not_redact": [
+        "Lieferadresse, Rechnungsanschrift und",
+        "Bank-, Steuer",
+        "4. Schwierige OCR-nahe Varianten mit getrennten Strassen- und Hausnummernzeilen."
+      ],
+      "review": []
+    },
+    {
+      "logical_page": "Seite 1",
+      "debug_json": "seite-2.json",
+      "title": "Bankauszug mit nativem PDF-Text",
+      "must_redact": [
+        "30.03.2026 22:39",
+        "Herrn",
+        "Oliver Christof Kern",
+        "Friedenstr. 25",
+        "74229 Oedheim",
+        "06103",
+        "391 - 251",
+        "meinKonto@cronbank.de",
+        "T00000244"
+      ],
+      "must_not_redact": [
+        "Cronbank Aktiengesellschaft",
+        "Hans-Strothoff-Platz 1",
+        "63303 Dreieich",
+        "Privat- und Geschaeftskundenbetreuung Tel"
+      ],
+      "review": [
+        "The synthetic page intentionally contains an empty IBAN label. In real documents, the following value should be redacted."
+      ]
+    },
+    {
+      "logical_page": "Seite 2",
+      "debug_json": "seite-3.json",
+      "title": "Steuerbescheid mit OCR-nahem Fensterblock",
+      "must_redact": [
+        "Herrn",
+        "und Frau",
+        "Oliver",
+        "und",
+        "Sylvia Kern",
+        "Friodenstr",
+        "25",
+        "74229 Oedheim",
+        "22.11.2017",
+        "HEISDE66XXX",
+        "MARKDEF1600"
+      ],
+      "must_not_redact": [
+        "Finanzamt Heilbronn, 74064 Heilbronn",
+        "74064 Heilbronn",
+        "Deutsche Post",
+        "Bescheid fuer 2016",
+        "Einkommensteuer, Kirchensteuer und Solidaritaetszuschlag"
+      ],
+      "review": [
+        "IBAN DE50 0001 4554 3G is deliberately malformed. Decide whether malformed IBAN-like values should be protected as account_number."
+      ]
+    },
+    {
+      "logical_page": "Seite 3",
+      "debug_json": "seite-4.json",
+      "title": "Rechnung mit Lieferadresse und Kontoinhaber",
+      "must_redact": [
+        "120034854",
+        "ES-2026-004281",
+        "Frau Lena Sommer",
+        "Birkenstrasse 12",
+        "74229 Sommerfeld",
+        "Jonas Weber",
+        "Gartenstrasse 25",
+        "Winter Paula",
+        "DE12 3456 7890 1234 56",
+        "TESTDEFFXXX"
+      ],
+      "must_not_redact": [
+        "Nordlicht Service GmbH",
+        "Musterweg 88",
+        "70173 Stuttgart",
+        "Lieferadresse und Kontoinhaber Nordlicht",
+        "Winter Paula IBAN"
+      ],
+      "review": []
+    },
+    {
+      "logical_page": "Seite 4",
+      "debug_json": "seite-5.json",
+      "title": "Formular mit getrennten Feldlabels",
+      "must_redact": [
+        "Paula",
+        "Winter",
+        "Weinbergsteige",
+        "3",
+        "74224",
+        "Flein bei Heilbronn",
+        "paula.winter@example.de",
+        "+49 7131 555010"
+      ],
+      "must_not_redact": [
+        "Vorname:",
+        "Name:",
+        "Strasse:",
+        "Hausnr.:",
+        "PLZ:",
+        "Ort:",
+        "Winter Strasse"
+      ],
+      "review": [
+        "Single first names such as Paula are protected only inside explicit field context."
+      ]
+    },
+    {
+      "logical_page": "Seite 5",
+      "debug_json": "seite-6.json",
+      "title": "Schriftverkehr und freie Namenskontexte",
+      "must_redact": [
+        "DE56 6005 0101 7402 0515 88",
+        "SOLADEST600",
+        "Sylvia Kern",
+        "Friedenstrasse 25",
+        "74229 Oedheim",
+        "Oliver Kern",
+        "Oliver Kern, Friedenstrasse 25, 74229 Oedheim",
+        "Frau Sylvia Kern",
+        "Herrn Oliver Kern",
+        "12. Mai 2026",
+        "sylvia.kern@example.de"
+      ],
+      "must_not_redact": [
+        "Bankverbindung:",
+        "Lieferadresse:",
+        "Schriftverkehr bitte auch an:"
+      ],
+      "review": [
+        "Inline address blocks after Schriftverkehr should protect name, street, postal code, and city without requiring the label itself to be protected."
+      ]
+    },
+    {
+      "logical_page": "Seite 6",
+      "debug_json": "seite-7.json",
+      "title": "Zuzahlungsquittung",
+      "must_redact": [
+        "Frau",
+        "Sylvia Kern",
+        "Friedenstr. 25",
+        "D 74229 Oedheim",
+        "fuer Sylvia Kern",
+        "Elmar Bauer",
+        "02.09.2015",
+        "07136 966 199",
+        "07136 966 198",
+        "www.feldmann-physio.de",
+        "65084/858906"
+      ],
+      "must_not_redact": [
+        "Zuzahlungsquittung",
+        "ueber die Zuzahlung an einer Heilmittelbehandlung"
+      ],
+      "review": [
+        "The phrase 'fuer Sylvia Kern' may be represented either as full phrase or as the name span only, but the name must be protected."
+      ]
+    },
+    {
+      "logical_page": "Seite 7",
+      "debug_json": "seite-8.json",
+      "title": "Absenderblock vs. Empfaengerblock",
+      "must_redact": [
+        "Jonas Weber",
+        "Eheleute",
+        "Jonas und Nina Weber",
+        "Ahornweg 21",
+        "24589 Lindenried",
+        "AB-2026-77881",
+        "XXXX XXXX XXXX 4242",
+        "jonas.weber@example.de"
+      ],
+      "must_not_redact": [
+        "Elektrowelt24 GmbH",
+        "Hafenallee 9",
+        "28195 Weserbrueck",
+        "Martin Keller",
+        "Amtsgericht Bremen HRB 123456",
+        "77881 Kreditkarte",
+        "Jonas Weber Eheleute"
+      ],
+      "review": [
+        "Sender postal code 28195 must not be protected when it is only part of the company sender line."
+      ]
+    },
+    {
+      "logical_page": "Seite 8",
+      "debug_json": "seite-9.json",
+      "title": "Kompakter Briefkopf",
+      "must_redact": [
+        "069 123456",
+        "Herr",
+        "Helmut Knobel",
+        "Viktor-Scheffel-Str.6",
+        "74177 Bad Friedrichshall",
+        "Knobel/Helmut",
+        "RB-2026-9001",
+        "15.04.2026"
+      ],
+      "must_not_redact": [
+        "Reisebuero Fernweh AG",
+        "Marktstrasse 17",
+        "60311 Mainhafen",
+        "Reisebestaetigung / Rechnung"
+      ],
+      "review": [
+        "The recipient honorific 'Herr' should be protected as part of the address block, not as a global standalone person rule."
+      ]
+    }
+  ]
+}

@@ -76,6 +76,14 @@ scripts/
 
 # Local sensitive detection samples
 fixtures/private/
+# Lokaler Asset-Ordner (Icons, Bilder, Texte, Marketing – nicht auf GitHub)
+_local/
+
+# Lokale Debug-/Scratch-Helfer
+tmp/
+
+# Lokale Release-Ausgaben
+output/release/
 
 # Xcode "Distribute → Export" timestamped output folders
 HideMyData [0-9][0-9][0-9][0-9]-*/

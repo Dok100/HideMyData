@@ -1,0 +1,299 @@
+import SwiftUI
+import AppKit
+import Carbon.HIToolbox
+
+enum AppPreferencesKeys {
+    static let appearanceMode = "Inkognito.appearanceMode"
+    static let recentsEnabled = "Inkognito.recents.enabled"
+}
+
+enum AppAppearanceMode: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .system: "System"
+        case .light: "Hell"
+        case .dark: "Dunkel"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .system: "Folgt automatisch dem macOS-Erscheinungsbild."
+        case .light: "Verwendet dauerhaft das helle Erscheinungsbild."
+        case .dark: "Verwendet dauerhaft das dunkle Erscheinungsbild."
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
+    }
+
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
+        }
+    }
+
+    static func from(rawValue: String) -> AppAppearanceMode {
+        AppAppearanceMode(rawValue: rawValue) ?? .system
+    }
+
+    static func apply(rawValue: String) {
+        let mode = AppAppearanceMode.from(rawValue: rawValue)
+        NSApp.appearance = mode.nsAppearance
+    }
+}
+
+extension Notification.Name {
+    static let showClipboardAnonymizer = Notification.Name("Inkognito.showClipboardAnonymizer")
+    static let legacyShowClipboardAnonymizer = Notification.Name("HMD.showClipboardAnonymizer")
+    static let showHelp = Notification.Name("Inkognito.showHelp")
+}
+
+@main
+struct InkognitoApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+        .windowStyle(.hiddenTitleBar)
+        .commands {
+            CommandMenu("Anonymisieren") {
+                Button("Zwischenablage anonymisieren…") {
+                    NotificationCenter.default.post(name: .showClipboardAnonymizer, object: nil)
+                }
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+            }
+
+            CommandGroup(after: .help) {
+                Button("Inkognito-Hilfe") {
+                    NotificationCenter.default.post(name: .showHelp, object: nil)
+                }
+                .keyboardShortcut("/", modifiers: [.command, .shift])
+            }
+        }
+
+        Settings {
+            AppSettingsView()
+        }
+    }
+}
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let globalHotKeyController = GlobalHotKeyController()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let storedAppearance = UserDefaults.standard.string(forKey: AppPreferencesKeys.appearanceMode) ?? AppAppearanceMode.system.rawValue
+        AppAppearanceMode.apply(rawValue: storedAppearance)
+        globalHotKeyController.register()
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        globalHotKeyController.unregister()
+    }
+}
+
+struct AppSettingsView: View {
+    @AppStorage(AppPreferencesKeys.appearanceMode) private var appearanceModeRawValue = AppAppearanceMode.system.rawValue
+    @AppStorage(AppPreferencesKeys.recentsEnabled) private var recentsEnabled = true
+    @State private var cleanupStatusMessage: String?
+    @State private var isCleaningUpModelVersions = false
+
+    private var selectedAppearance: Binding<AppAppearanceMode> {
+        Binding(
+            get: { AppAppearanceMode.from(rawValue: appearanceModeRawValue) },
+            set: { newValue in
+                appearanceModeRawValue = newValue.rawValue
+                AppAppearanceMode.apply(rawValue: newValue.rawValue)
+            }
+        )
+    }
+
+    var body: some View {
+        Form {
+            Section("Erscheinungsbild") {
+                Picker("Darstellung", selection: selectedAppearance) {
+                    ForEach(AppAppearanceMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text(selectedAppearance.wrappedValue.description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Datenschutz") {
+                Toggle("Zuletzt verwendete Dateien merken", isOn: $recentsEnabled)
+
+                Text("Speichert Dateiverweise und Vorschaubilder lokal auf diesem Mac. Zuletzt geöffnete PDFs und Bilder erscheinen dadurch auf der Startseite und sind schneller wieder verfügbar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Modellspeicher") {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Alte Modellversionen entfernen")
+                            .font(.body.weight(.medium))
+                        Text(modelCleanupDescription)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer(minLength: 16)
+
+                    Button {
+                        removeLegacyModelVersions()
+                    } label: {
+                        if isCleaningUpModelVersions {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Text("Bereinigen")
+                        }
+                    }
+                    .disabled(isCleaningUpModelVersions || legacyModelVersionCount == 0)
+                }
+
+                if let cleanupStatusMessage {
+                    Text(cleanupStatusMessage)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding(20)
+        .frame(width: 460)
+    }
+
+    private var legacyModelVersionCount: Int {
+        PIIDetector.legacyModelVersionCount()
+    }
+
+    private var modelCleanupDescription: String {
+        if legacyModelVersionCount == 0 {
+            return "Aktuell liegt nur die verwendete Modellversion lokal vor."
+        }
+
+        if legacyModelVersionCount == 1 {
+            return "Eine ältere lokal gespeicherte Modellversion kann entfernt werden. Die aktuelle Version bleibt erhalten."
+        }
+
+        return "\(legacyModelVersionCount) ältere lokal gespeicherte Modellversionen können entfernt werden. Die aktuelle Version bleibt erhalten."
+    }
+
+    private func removeLegacyModelVersions() {
+        isCleaningUpModelVersions = true
+        defer { isCleaningUpModelVersions = false }
+
+        do {
+            let removed = try PIIDetector.cleanupLegacyModelVersions()
+
+            if removed == 0 {
+                cleanupStatusMessage = "Es waren keine älteren Modellversionen zum Entfernen vorhanden."
+            } else if removed == 1 {
+                cleanupStatusMessage = "Eine ältere Modellversion wurde entfernt."
+            } else {
+                cleanupStatusMessage = "\(removed) ältere Modellversionen wurden entfernt."
+            }
+        } catch {
+            cleanupStatusMessage = "Die Bereinigung konnte nicht abgeschlossen werden. Details: \(error.localizedDescription)"
+        }
+    }
+}
+
+@MainActor
+private final class GlobalHotKeyController {
+    private var hotKeyRef: EventHotKeyRef?
+    private var eventHandlerRef: EventHandlerRef?
+
+    func register() {
+        guard hotKeyRef == nil else { return }
+
+        var eventSpec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        let status = InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, userData in
+                guard let userData else { return noErr }
+                let controller = Unmanaged<GlobalHotKeyController>.fromOpaque(userData).takeUnretainedValue()
+                controller.handleHotKeyEvent(event)
+                return noErr
+            },
+            1,
+            &eventSpec,
+            UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()),
+            &eventHandlerRef
+        )
+
+        guard status == noErr else { return }
+
+        let hotKeyID = EventHotKeyID(signature: OSType(0x484D4441), id: UInt32(1)) // HMDA
+        let modifiers = UInt32(cmdKey | shiftKey)
+        let registerStatus = RegisterEventHotKey(
+            UInt32(kVK_ANSI_A),
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+
+        if registerStatus != noErr {
+            if let eventHandlerRef {
+                RemoveEventHandler(eventHandlerRef)
+                self.eventHandlerRef = nil
+            }
+        }
+    }
+
+    private func handleHotKeyEvent(_ event: EventRef?) {
+        guard let event else { return }
+
+        var hotKeyID = EventHotKeyID()
+        let status = GetEventParameter(
+            event,
+            EventParamName(kEventParamDirectObject),
+            EventParamType(typeEventHotKeyID),
+            nil,
+            MemoryLayout<EventHotKeyID>.size,
+            nil,
+            &hotKeyID
+        )
+
+        guard status == noErr, hotKeyID.id == 1 else { return }
+
+        DispatchQueue.main.async {
+            NSApp.activate(ignoringOtherApps: true)
+            NotificationCenter.default.post(name: .showClipboardAnonymizer, object: nil)
+        }
+    }
+
+    func unregister() {
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+            self.hotKeyRef = nil
+        }
+        if let eventHandlerRef {
+            RemoveEventHandler(eventHandlerRef)
+            self.eventHandlerRef = nil
+        }
+    }
+}

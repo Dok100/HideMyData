@@ -1,0 +1,83 @@
+# Detection-Testmatrix
+
+Diese Matrix beschreibt die aktuell repo-tauglich abgesicherten Detection-Regressionsfaelle.
+Der Clipboard-/Platzhalterpfad ist zusaetzlich manuell gegen dieselben Problemklassen nachgeprueft und gehoert damit funktional zum abgeschlossenen PROJ-1-Umfang.
+
+## Dokumentklassen
+
+| Dokumentklasse | Fixtures | Muss erhalten bleiben | Muss unterdrueckt / verworfen werden | Qualitaetsziel |
+| --- | --- | --- | --- | --- |
+| Steuerbescheid / OCR | `steuerbescheid_page1_ocr.txt` | Empfaenger-Ort `74523 Lindenheim`; OCR-Normalisierung; lange alphanumerische Kennungen | Briefkopf-Orte `73084 Falkenstadt`, `73086 Falkenstadt`; Bare-City `Falkenstadt`; kurze numerische Artefakte als Kontonummer | OCR-Rauschen darf echte Empfaengerdaten nicht verdecken oder Briefkopf-Kontext aufblasen |
+| Inkasso / OCR | `inkasso_ocr_text.txt` | Empfaengerblock `Frau Martina Vogt`, `Lindensteige 8`, `74223 Steinbach`; Anrede `Sehr geehrte Frau Vogt`; IBAN/BIC im Zahlkontext | Firmenkopf `Ruhrallee 185 - 45136:`; Footer `Dr. Thomas Peters`, `Ruhrallee 185 - 45136 Essen`; OCR-Artefakte wie `2 S 3/25` | OCR-Schreiben sollen Personen auch in Anredezeilen erkennen, ohne Firmen- und Footerkontext des Absenders hochzuziehen |
+| Inkasso / OCR Folgebrief | `inkasso_ocr_text_followup.txt` | Empfaengerblock `Frau Martina Vogt`, `Lindensteige 8`, `74223 Steinbach`; Anrede `Sehr geehrte Frau Vogt`; Datums- und Aktenzeichenkontext im Fliesstext | Firmenkopf `Ruhrallee 185 - 45136 Feten`; Footer `Dr. Thomas Peters`, `Ruhrallee 185 - 45136 Essen`; OCR-Artefakte wie `109 C 1409/24` | Auch Folgebriefe mit abweichendem OCR-Rauschen sollen die Anrede stabil markieren, ohne Firmenkopf oder Footer des Inkasso-Absenders hochzuziehen |
+| Rechnung / Lieferanschrift Alias | `lieferanschrift_alias_native_pdf_text.txt` | Zweiter Empfaengerblock unter `Lieferanschrift:` mit eigenem Namen `Jonas Weber`, eigener Straße `Birkenweg 12` und `74229 Sommerfeld`, auch bei doppeltem nativen Textlayer | Rueckfall auf die erste Rechnungsanschrift `Gartenstr. 25`; Verdrängung des Namens durch kaputte Mischspannen wie `Herr Herr Jonas Weber` oder `Weber Jonas Weber Birkenweg 12` | Label-Varianten `Lieferanschrift` und `Lieferadresse` sollen im nativen PDF- und OCR-Pfad denselben mehrzeiligen Empfaengerblock ziehen, ohne dass doppelte Textlayer den Namen im Zielblock aus der Vorschau drängen |
+| Anrede / Grußvarianten | `salutation_guten_tag_variants_text.txt` | Personenansprachen `Guten Tag Herr Kern`, `Guten Tag Frau Leitz`, `Guten Tag Herr und Frau Kern`, `Guten Tag Herr Kern und Frau Kern`, `Hallo Frau Leitz`, `Guten Morgen Herr Kern`, `Guten Abend Frau Leitz`, `Liebe Frau Leitz`, `Lieber Herr Kern` | Reine Grußformeln ohne Personenanteil duerfen nicht als Treffer entstehen | Grußzeilen mit `Guten Tag`, `Hallo`, `Guten Morgen`, `Guten Abend`, `Liebe` und `Lieber` sollen wie klassische Anreden behandelt werden, auch bei Paaransprache |
+| Formular / OCR Adresslabels | `formular_adresslabels_ocr.txt` | Einzelne Feldwerte `Vorname: Waltraud`, `Name: Leitz`, `Straße: Weinbergsteige`, `Hausnr.: 3`, `PLZ: 74223`, `Ort: Flein bei Heilbronn` | Technische Kennung `Anschluss 07131 575609`; labelbasierte OCR-Layouttrennung statt zusammenhaengendem Adressblock | OCR-Formulare mit separat gelabelten Adressfeldern sollen auch einzelne Strassen- und Hausnummernfelder stabil markieren |
+| Formular / OCR Adresslabels getrennt | `formular_adresslabels_ocr_split.txt` | Vertikal getrennte Label-/Wertspalten `Vorname:/Name:/Straße:/Hausnr./PLZ:/Ort:` plus Werte `Waltraud`, `Leitz`, `Weinbergsteige`, `74223`, `Flein bei Heilbronn` | Firmenkopf `Prinzenallee 7`, `40549 Düsseldorf`; technische Kennung `Anschluss 07131 575609`; fehlender OCR-Hausnummernwert | OCR-Formulare mit Labelzeilen links und Wertespalte darunter/rechts sollen die Straßen- und Ortswerte auch ohne Inline-`Label: Wert` erkennen |
+| Behoerdenbrief / nativer PDF-Text | `behoerdenbrief_bescheid_native_pdf_text.txt` | Empfaenger-Ort `24576 Heidefeld` | Behoerden-Ort `41061 Rheindorf`; Bare-City `Rheindorf` | Native Textlayer sollen dieselben Briefkopf-Schutzregeln wie OCR-Faelle einhalten |
+| Rechnung / Absenderblock | `rechnung_senderblock_pdf_text.txt` | Kundendaten, Kontakt- und Vertragskennungen | Firmen-Absenderstrasse `Musterweg 88`; Firmen-Ort `Mon<heim`; ueberbreite Personen-/Adressspannen | Senderbloecke von Unternehmen duerfen nicht als private Empfaengerdaten hochpriorisiert werden |
+| Rechnung / E-Commerce | `elektrowelt24_rechnung_native_pdf_text.txt` | Empfaengerblock `Jonas Weber`, `Gartenstraße 25`, `74229 Sommerfeld`; Inline-Person `Bestellt durch: Jonas Weber`; Kennungen `RE890095`, `AU315378`, `KU280998` | Firmenkopf `Elektrowelt24 - Linnicherstr. 64 - 50933 Köln`; Support-Telefon und Shop-Footer `Inh. Achim Weyrauch`, `BIC: GENODED1BRS` | Shop-Rechnungen sollen Lieferanschrift und bestellende Person behalten, ohne Firmenkopf und Footerdaten des Haendlers als Privatdaten hochzuziehen |
+| Formular / Namenslabels | `name_label_varianten_native_pdf_text.txt` | Inline-Namen in beiden Reihenfolgen `Name: Kern Oliver`, `Bestellt durch: Jonas Weber`, `Kontoinhaber: Winter Paula`; Empfaengerblock `Kern Oliver`, `Musterweg 5`, `12345 Beispielstadt` | Keine globalen Freitext-Treffer ohne Personenlabel; Schutz vor beliebigen Zweiwort-Treffern | Allgemeine Namenslogik soll in klaren Personen-Kontextlabels sowohl Vorname-Nachname als auch Nachname-Vorname erkennen, ohne dokumentweit zu breit zu werden |
+| Rechnung / Bankseite | `rechnung_bankdaten_page2_pdf_text.txt` | BIC, IBAN-/Kontokontext, echte Empfaenger- und Kontoinhaberangaben | fragmentierte Orts-/Namensreste aus OCR- oder PDF-Noise | Bankseiten sollen Label-gebundene Kennungen robust extrahieren |
+| Bank / Girokonto-Labels | `girokonto_labels_native_pdf_text.txt` | Kontoinhaber sowie klassische Kontonummern aus `Girokonto 4287314` und `Girokontonummer: 4 287 314`; IBAN/BIC als Vollbankdatenkontext | Keine versehentliche Pflicht zur vollständigen IBAN; numerische Fragmente nur im klaren Girokonto-Labelkontext | Klassische Kontonummern sollen auch ohne vollständige IBAN und mit/ohne Doppelpunkt nach `Girokonto` oder `Girokontonummer` extrahiert werden |
+| Bank / Girokonto Screenshot-Variante | `girokonto_screenshot_variant_native_pdf_text.txt` | Klassische Kontonummern aus `Girokonto 2754096,`, `Girokontonummer 2 754 096` und `Kontonummer: 2754096` | Trailing-Komma und gemischte Schreibweisen duerfen die Extraktion nicht verhindern | Screenshot-nahe Kontoauszugszeilen sollen klassische Kontonummern auch mit nachfolgendem Satzzeichen und ohne Doppelpunkt stabil erfassen |
+| Kontakt- und Bankseite | `kontaktdaten_bankseite_pdf_text.txt` | Paarname, Liefer-/Rechnungsadresse, BLZ/Konto | fuehrende Konjunktionsreste in Adressfragmenten | Kontaktseiten sollen mehrzeilige Adress- und Personenkontexte stabil behalten |
+| Formular / standardisiertes Schreiben | `formular_kundendaten_pdf_text.txt` | Adressblock, E-Mail, Telefon, IBAN/BIC, Kunden- und Vertragsnummer | Firmen-Absenderort `50667 Rheinhafen`; Service-Absenderstrasse `Musterweg 9` | Formularfelder sollen label-getrieben erkannt werden, ohne Sender-Metadaten mit Empfaengerdaten zu verwechseln |
+| Energieversorger / Vertragsbrief | `energieversorger_vertragsbrief_native_pdf_text.txt` | Paarname, Liefer-/Rechnungsadresse, Rueckfragen-Kontaktname | Firmen-Absenderstrasse `Adolf-Pirrung-Str. 7`; Firmen-Ort `88400 Biberach`; Footer-Fragmente aus `Steuer-Nr.` und `Vorsitzender des Aufsichtsrats`; Produktname `Garant Max24` als Adresse | Vertragsbriefe mit wiederholten Empfaengerbloecken und Marketing-/Footertext sollen Empfaengerdaten behalten, aber Sender- und Metadatenrauschen verwerfen |
+| Stadtwerke / Vertragsbrief | `stadtwerke_vertragsbrief_native_pdf_text.txt` | Rueckfragen-Kontaktname, Lieferstelle, Rechnungsanschrift | Firmen-Absenderstrasse `Hafenweg 14`; Firmen-Ort `27568 Nordtal`; Footer-Fragmente aus `Steuer-Nr.` und `Vorsitzender des Aufsichtsrats` | Stadtwerke-Schreiben mit Label-Varianten wie `Lieferstelle`, `Rechnungsanschrift` und `Ihr Ansprechpartner bei Rueckfragen` sollen ohne neue Einzelfallregeln stabil bleiben |
+| Versicherung / Vertragsbrief | `versicherung_vertragsbrief_native_pdf_text.txt` | Versicherungsnehmer, Postanschrift | Firmen-Absenderstrasse `Hafenallee 9`; Firmen-Ort `28195 Weserbrück`; Footer-Fragmente aus `Steuer-Nr.` und `Vorsitzender des Aufsichtsrats` | Versicherungsanschreiben sollen Personen- und Adressbloecke aus Vertragslabels erkennen, ohne den Unternehmensfooter zu markieren |
+| Bank / Darlehensbrief | `bank_darlehensbrief_native_pdf_text.txt` | Darlehensnehmer, Korrespondenzanschrift, Objektanschrift, Rueckfragen-Kontaktname | Firmen-Absenderstrasse `Marktstraße 17`; Firmen-Ort `60311 Mainhafen`; Footer-Fragmente aus `Steuer-Nr.` und `Vorsitzender des Aufsichtsrats` | Finanzschreiben mit mehreren Adressrollen sollen Empfaenger- und Objektkontexte sauber trennen und Unternehmensfooter unterdruecken |
+| Reisebestaetigung / Rechnung | `reisebestaetigung_rechnung_native_pdf_text.txt` | Empfaengername `Helmut Knobel`, Strasse `Viktor-Scheffel-Str.6`, Ort `74177 Bad Friedrichshall` | Firmenorte `20097 Hamburg`, Management-Namen `Wybcke Meier` / `Frank Kuhlmann`, Footer-Fragmente aus `Datum` und `Ersetzt Reisebestaetigung` | Reiseunterlagen sollen den eigentlichen Reisenden-Block behalten, aber Kontakt-, Management- und Ersatzbeleg-Kontext des Veranstalters verwerfen |
+| Telekommunikation / Vertragsbrief | `telekommunikation_vertragsbrief_native_pdf_text.txt` | Anschlussinhaber, Rechnungsanschrift, Nutzungsadresse | Firmen-Absenderstrasse `Hafenstraße 22`; Firmen-Ort `28195 Weserstadt`; Footer-Fragmente aus `Steuer-Nr.` und `Vorsitzender des Aufsichtsrats` | Telekom-Schreiben mit Rollen wie `Anschlussinhaber`, `Rechnungsanschrift` und `Nutzungsadresse` sollen Empfaengerdaten stabil halten, aber Sender- und Footerkontext des Providers verwerfen |
+| Telekommunikation / Rechnung | `telekom_rechnung_page1_native_pdf_text.txt` | Empfaengerblock `Jonas Weber`, `Gartenstr. 25`, `74229 Sommerfeld`; Kennungen `Kundennummer 192 002 0638`, `Buchungskonto 192 002 0638` | Firmenkopf `Telekom Deutschland GmbH, 53171 Bonn`; Supportnummer `0800 33 01000`; Footer-Konten und Registerangaben | Rechnungsseiten mit labelgebundenen Nummern ohne Doppelpunkt sollen Kundennummern stabil extrahieren, ohne Footer- oder Supportkontext hochzuziehen |
+| DIN-5008 / Geschaeftsbrief | `din5008_geschaeftsbrief_form_b_pdf_text.txt` | typischer Empfaengerblock im Anschriftenfeld; DIN-5008-Layout bleibt als Briefkontext erkennbar | Positions- und Informationsblock des Absenders; Layoutbegriffe als PII-Ersatz | Standardisierte Geschaeftsbrief-Layouts sollen nicht wegen klarer Fenster- und Informationszonen in falsche Adress- oder Personen-Treffer kippen |
+| E-Rechnung / ZUGFeRD | `zugferd_erechnung_pdf_text.txt` | Rechnungsmarker wie `Rechnungs-Nr.`, `Rechnungsdatum`, `Lieferdatum`, `Gesamtbetrag brutto`, `ZUGFeRD`, `XRechnung` | Rueckfall auf generische Briefklassifikation; zufaellige Layoutworte ohne Rechnungsbezug | E-Rechnungen sollen frueh als Rechnungs- bzw. Formular-Kontext erkannt werden, damit Feldlabels und Kennungen stabiler zusammenbleiben |
+| E-Rechnung / Feldreferenz | `muster_e_rechnung_ba_field_reference.txt` | Marker wie `Leitweg-ID`, `Rechnungsempfänger/-in`, `Lieferanten-Nr.`, `Leistungszeitraum`, `Faelliger Rechnungsbetrag`, `SWIFT-Code` sowie `BT-*`/`BG-*`-Feldreferenzen | Verwechslung mit normalem Freitext oder schwacher generischer Kennungslogik | Fachliche E-Rechnungsfelder sollen den Kontext sichtbar staerken, ohne dass jede Feldbezeichnung als isolierter Spezialfall gepflegt werden muss |
+| Rechtstext / AGB | eingebettet in Regressionen fuer `seite-2.json` und Textfaelle in `run_detection_regressions.swift` | keine Personenerkennung in juristischen Ueberschriften; keine MRZ-Fehltrigger auf Grossbuchstaben-Ueberschriften | `GELTUNGSBEREICH`, `VERTRAGSSCHLUSS`, `EIGENTUMSVORBEHALT`, `SCHLUSSBESTIMMUNGEN`, `STREITBEILEGUNG` als `private_person`, `secret` oder MRZ-Noise | Rechtstext darf Produktvertrauen nicht durch offensichtliche Fehlmarkierungen untergraben, auch wenn Grossschrift, Abschnitthaeftigkeit und OCR-Artefakte zusammenkommen |
+
+## Pflege
+
+1. Neue anonymisierte Fixture unter `fixtures/detection/` ablegen.
+2. Dokumentklasse in `scripts/run_detection_regressions.swift` einordnen.
+3. Soll-/Nicht-Soll-Faelle in die Matrix und in die Regression aufnehmen.
+4. Lauf ueber `CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift` grün halten.
+
+## Stress-PDF / Akzeptanzmatrix
+
+Die synthetische Datei `output/pdf/inkognito-detection-stress-test.pdf` ist als manuelle End-to-End-Pruefung gedacht. Die verbindlichen Soll-/Nicht-Soll-Erwartungen stehen maschinenlesbar in `fixtures/detection/inkognito_stress_expectations.json`.
+
+### Arbeitsregel
+
+1. Vor neuen Heuristik-Aenderungen erst die Erwartung in `inkognito_stress_expectations.json` klaeren.
+2. Eine rote Markierung im Screenshot allein reicht nicht als Fix-Auftrag; sie muss einer `must_redact`- oder `must_not_redact`-Erwartung zugeordnet werden.
+3. Wenn eine Erwartung fachlich unklar ist, bleibt sie unter `review`, bis entschieden ist, ob sie geschuetzt oder bewusst ignoriert werden soll.
+4. Der Validator `scripts/run_detection_stress_expectations.swift` prueft exportierte App-Debug-JSONs gegen diese Erwartungsmatrix, bevor weitere Detection-Heuristiken angepasst werden.
+
+Beispiel:
+
+```bash
+swift -module-cache-path /private/tmp/inkognito-swift-module-cache scripts/run_detection_stress_expectations.swift fixtures/detection/inkognito_stress_expectations.json /Users/oliverkern/Downloads
+```
+
+Der Validator vergleicht nur Text-Findings; er veraendert keine Detection-Logik. Fehlende `seite-*.json`-Exporte werden als eigene Fehler ausgewiesen.
+
+### Status 2026-05-29
+
+Der aktuelle Akzeptanzlauf gegen die zuletzt exportierten App-Debug-JSONs aus `/Users/oliverkern/Downloads` ist vollstaendig gruen:
+
+- fehlende Exporte: `0`
+- fehlende Muss-Treffer: `0`
+- unerwuenschte Treffer auf `must_not_redact`: `0`
+- Teilabdeckungen: `0`
+
+Die zuletzt gezielt geschlossenen Restfaelle waren:
+
+- Formularwerte in expliziten Feldkontexten wie `Paula`, `Winter` und `Hausnr.: 3`
+- Empfaenger-PLZ/Ort unter nativen `IBAN:`-Adressbloecken
+- freie Namenskontexte wie `von Elmar Bauer`
+- Intro-/Dokumentationszeilen, die nicht als Personenfund in Debug-JSON oder Vorschau auftauchen duerfen
+
+Weiterhin gilt:
+
+- Neue Detection-Aenderungen klein halten und immer gegen den Stress-Validator plus die bestehenden Regressionen pruefen.
+- Der Stress-Validator bewertet die exportierten App-Debug-JSONs; ein gruener Stand ist erst erreicht, wenn der aktuelle Build auch frisch exportierte `seite-*.json` liefert.

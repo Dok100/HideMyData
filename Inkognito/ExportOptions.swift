@@ -1,0 +1,110 @@
+import AppKit
+
+struct ExportOptions {
+    var removeMetadata = true
+}
+
+struct ExportValidationReport: Equatable {
+    enum Format: Equatable {
+        case pdf
+        case image
+    }
+
+    let format: Format
+    let redactionCount: Int
+    let manualRedactionCount: Int
+    let redactedPageCount: Int?
+    let totalPageCount: Int?
+    let lowTextWarning: Bool
+    let removedMetadata: Bool
+    let annotationsRemoved: Bool
+    let bakedIntoPixels: Bool
+
+    var shortStatusText: String {
+        switch format {
+        case .pdf:
+            if let redactedPageCount, let totalPageCount {
+                return "PDF gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
+                    + " · \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n") neu aufgebaut"
+            }
+            return "PDF gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
+        case .image:
+            return "Bild gespeichert · \(redactionCount) Stelle\(redactionCount == 1 ? "" : "n") geschützt"
+        }
+    }
+
+    var humanSummaryTitle: String {
+        switch format {
+        case .pdf:
+            if let redactedPageCount, let totalPageCount {
+                return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") auf \(redactedPageCount) von \(totalPageCount) Seite\(totalPageCount == 1 ? "" : "n")"
+            }
+            return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") im PDF"
+        case .image:
+            return "\(redactionCount) geschützte Stelle\(redactionCount == 1 ? "" : "n") im Bild"
+        }
+    }
+
+    var humanSummaryFacts: [String] {
+        var items: [String] = []
+        if manualRedactionCount > 0 {
+            items.append("\(manualRedactionCount) Stelle\(manualRedactionCount == 1 ? "" : "n") wurden manuell ergänzt")
+        }
+        if lowTextWarning {
+            items.append("Mindestens eine Seite hatte schwächere Textqualität und sollte visuell nachgeprüft werden")
+        }
+        if bakedIntoPixels {
+            items.append("Schwärzungen bleiben im Export fest enthalten")
+        }
+        if annotationsRemoved {
+            items.append("Anmerkungen und Overlays wurden nicht mit übernommen")
+        }
+        if removedMetadata {
+            items.append("Dokumentmetadaten wurden entfernt")
+        }
+        return items
+    }
+
+    var trustChecklist: [String] {
+        humanSummaryFacts
+    }
+}
+
+@MainActor
+final class ExportOptionsAccessoryView: NSStackView {
+    private let removeMetadataCheckbox: NSButton
+
+    var options: ExportOptions {
+        ExportOptions(removeMetadata: removeMetadataCheckbox.state == .on)
+    }
+
+    init() {
+        removeMetadataCheckbox = NSButton(
+            checkboxWithTitle: "Metadaten entfernen",
+            target: nil,
+            action: nil
+        )
+        removeMetadataCheckbox.state = .on
+
+        let note = NSTextField(labelWithString: "Entfernt nach Möglichkeit EXIF-, GPS- und PDF-Dokumenteigenschaften sowie Anmerkungen, Links, Formulare und versteckte Dokumentdaten.")
+        note.font = .preferredFont(forTextStyle: .footnote)
+        note.textColor = .secondaryLabelColor
+        note.maximumNumberOfLines = 2
+        note.lineBreakMode = .byWordWrapping
+        note.preferredMaxLayoutWidth = 360
+
+        super.init(frame: .zero)
+        orientation = .vertical
+        alignment = .leading
+        spacing = 6
+        edgeInsets = NSEdgeInsets(top: 8, left: 0, bottom: 0, right: 0)
+        addArrangedSubview(removeMetadataCheckbox)
+        addArrangedSubview(note)
+        translatesAutoresizingMaskIntoConstraints = false
+        widthAnchor.constraint(equalToConstant: 360).isActive = true
+    }
+
+    required init?(coder: NSCoder) {
+        nil
+    }
+}

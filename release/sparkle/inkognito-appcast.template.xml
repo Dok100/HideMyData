@@ -1,0 +1,25 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Inkognito</title>
+        <!-- Template for the new Inkognito Sparkle feed.
+             Do not publish unchanged.
+             Fill in version, download URL, length, and Sparkle edSignature
+             from the final notarized DMG release artifact. -->
+        <item>
+            <title>{{VERSION}}</title>
+            <pubDate>{{PUB_DATE_RFC822}}</pubDate>
+            <sparkle:version>{{VERSION}}</sparkle:version>
+            <sparkle:shortVersionString>{{SHORT_VERSION}}</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                {{RELEASE_NOTES_HTML}}
+            ]]></description>
+            <enclosure
+                url="{{DMG_URL}}"
+                length="{{DMG_LENGTH_BYTES}}"
+                type="application/octet-stream"
+                sparkle:edSignature="{{SPARKLE_ED_SIGNATURE}}" />
+        </item>
+    </channel>
+</rss>

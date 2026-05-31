@@ -1,6 +1,6 @@
 <div align="center">
 
-<img width="180" height="180" alt="Inkognito" src="HideMyData/Assets.xcassets/AppLogo.imageset/logo.png" />
+<img width="180" height="180" alt="Inkognito" src="Inkognito/Assets.xcassets/AppLogo.imageset/logo.png" />
 
 ### Inkognito
 
@@ -22,7 +22,7 @@ Inkognito ist eine native macOS-App fuer das lokale Anonymisieren von:
 - Bildern
 - kopierten Texten aus der Zwischenablage
 
-Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur zur Pruefung und erzeugt erst nach deiner Freigabe die finalen Schwaerzungen. Fuer OCR-lastige Dokumente gibt es einen Fallback ueber Apple Vision. Fuer problematische PDF-Textlayer kombiniert Inkognito eingebetteten Text, OCR, Regexe und nachgelagerte Heuristiken.
+Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur zur Pruefung und erzeugt erst nach deiner Entscheidung die finalen Schwaerzungen. Fuer OCR-lastige Dokumente gibt es einen Fallback ueber Apple Vision. Fuer problematische PDF-Textlayer kombiniert Inkognito eingebetteten Text, OCR, Regexe, Dokumentklassen-Heuristiken und nachgelagerte Filter.
 
 ## Kernfunktionen
 
@@ -31,9 +31,15 @@ Die App erkennt personenbezogene und sensible Inhalte, markiert sie zuerst nur z
 - **OCR-Fallback**: gescannte Dokumente und kaputte PDF-Textlayer werden ueber Apple Vision abgefangen.
 - **KI-Erkennung**: OpenMed `privacy-filter` auf MLX erkennt Namen, Adressen, Telefonnummern, Daten und weitere PII im Kontext.
 - **Regex-Ergaenzungen**: zusaetzliche Muster fuer IBANs, Karten, Wallets, typische Identifier und sprachspezifische Adressformen.
+- **Dokumentklassen-Heuristiken**: Rechnungen, Briefe, Formulare, Bankseiten, DIN-5008-Geschaeftsbriefe und E-Rechnungen werden gezielter nachkontextualisiert.
 - **Review vor Finalisierung**: automatische Treffer werden erst bestaetigt oder verworfen, bevor sie dauerhaft geschwaerzt werden.
+- **Seitenstatus und Unsicherheiten**: Review zeigt offene, gepruefte oder besonders pruefenswerte Seiten und markiert unsichere Treffer direkt an der Stelle der Entscheidung.
+- **Schnellere Nacharbeit**: aehnliche offene Treffer lassen sich gesammelt bestaetigen oder ablehnen.
 - **Manuelle Bearbeitung**: Redaktionsrechtecke koennen jederzeit hinzugefuegt oder entfernt werden.
 - **Zwischenablage-Anonymisierung**: sensible Inhalte lokal durch Platzhalter ersetzen, sicher in KI-Tools einfuegen und Antworten spaeter lokal rueckfuehren.
+- **Gefuehrter Clipboard-Flow**: Anonymisieren, mit KI arbeiten und Rueckfuehren sind als dreistufiger Ablauf aufgebaut.
+- **Regel-Assistenz**: eigene Regeln geben vor dem Speichern Rueckmeldung zu Regelqualitaet und moeglichen Treffern im aktuellen Dokument.
+- **Export-Zusammenfassung**: vor und nach dem Speichern erklaert Inkognito menschlich, was geschuetzt wurde und wo Sichtpruefung sinnvoll bleibt.
 - **Persistente Schwaerzung beim Export**: finale PDFs werden aus gerenderten Seiten neu aufgebaut.
 
 ## Typische Workflows
@@ -121,39 +127,57 @@ CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detect
 Der Check verifiziert aktuell unter anderem:
 
 - Briefkopf-Orte wie `74076 Heilbronn` und `74064 Heilbronn` werden unterdrueckt
-- echte Empfaenger-Orte wie `74229 Oodheim` bleiben erhalten
+- echte Empfaenger-Orte wie `74229 Oedheim` bleiben erhalten
 - kurze modellseitige Kontonummern werden verworfen
 - OCR- und Native-Normalisierung regressieren nicht wieder in den frueheren Fehlerzustand
+- DIN-5008-Briefvorlagen ziehen keine falschen Empfaenger aus Layout- oder Absenderkontext
+- ZUGFeRD-, XRechnung- und Leitweg-ID-Marker staerken E-Rechnungs-Kontext statt generischer Brief-Erkennung
+- AGB- und Rechtstext-Ueberschriften wie `GELTUNGSBEREICH` oder `SCHLUSSBESTIMMUNGEN` werden nicht als PII fehlmarkiert
 
-Die zugehoerige Fixture liegt hier:
+Beispielhafte Fixtures liegen hier:
 
 - [fixtures/detection/steuerbescheid_page1_ocr.txt](fixtures/detection/steuerbescheid_page1_ocr.txt)
+- [fixtures/detection/din5008_geschaeftsbrief_form_b_pdf_text.txt](fixtures/detection/din5008_geschaeftsbrief_form_b_pdf_text.txt)
+- [fixtures/detection/zugferd_erechnung_pdf_text.txt](fixtures/detection/zugferd_erechnung_pdf_text.txt)
+- [fixtures/detection/muster_e_rechnung_ba_field_reference.txt](fixtures/detection/muster_e_rechnung_ba_field_reference.txt)
 
 ## Projektstruktur
 
 Wichtige Dateien und Bereiche:
 
-- [HideMyData/HideMyDataApp.swift](HideMyData/HideMyDataApp.swift): App-Einstieg, globaler Shortcut, Einstellungen
-- [HideMyData/PDFRedactor.swift](HideMyData/PDFRedactor.swift): PDF-Erkennung, OCR-Fallback, Review-Kandidaten, Export
-- [HideMyData/ImageRedactor.swift](HideMyData/ImageRedactor.swift): Bilderkennung und Redaktionslogik
-- [HideMyData/PIIDetector.swift](HideMyData/PIIDetector.swift): Modellintegration, Regex-Postprocessing, Filter-Heuristiken
-- [HideMyData/OCRNormalizer.swift](HideMyData/OCRNormalizer.swift): OCR- und Native-Textnormalisierung
-- [HideMyData/patterns.json](HideMyData/patterns.json): eingebaute Regex-Muster
-- [HideMyData/Views/Main/MainView.swift](HideMyData/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
+- [Inkognito/InkognitoApp.swift](Inkognito/InkognitoApp.swift): App-Einstieg, globaler Shortcut, Einstellungen
+- [Inkognito/PDFRedactor.swift](Inkognito/PDFRedactor.swift): PDF-Erkennung, OCR-Fallback, Review-Kandidaten, Export
+- [Inkognito/ImageRedactor.swift](Inkognito/ImageRedactor.swift): Bilderkennung und Redaktionslogik
+- [Inkognito/PIIDetector.swift](Inkognito/PIIDetector.swift): Modellintegration, Regex-Postprocessing, Filter-Heuristiken
+- [Inkognito/OCRNormalizer.swift](Inkognito/OCRNormalizer.swift): OCR- und Native-Textnormalisierung
+- [Inkognito/patterns.json](Inkognito/patterns.json): eingebaute Regex-Muster
+- [Inkognito/Views/Main/MainView.swift](Inkognito/Views/Main/MainView.swift): Hauptworkflow fuer Review, Export und Zwischenablage
 - [scripts/run_detection_regressions.swift](scripts/run_detection_regressions.swift): schlanker Regression-Check
+
+## Projekt-Dokumentation
+
+Fuer das generelle Projekt-Framing gibt es zusaetzlich:
+
+- [features/INDEX.md](features/INDEX.md): Feature-Backlog als einzelne Projektbausteine
+- [docs/architecture.md](docs/architecture.md): technische und fachliche Struktur
+- [docs/commercial-readiness-audit.md](docs/commercial-readiness-audit.md): offener Re-Licensing- und Commercial-Readiness-Status
+- [docs/decision-log.md](docs/decision-log.md): wichtige Richtungsentscheidungen
+- [docs/release-checklist.md](docs/release-checklist.md): Release-Vorbereitung
+- [docs/runbook.md](docs/runbook.md): operative Wartungs- und Debug-Abläufe
 
 ## Aktueller Stand
 
-Inkognito ist funktional nutzbar, aber weiter in aktiver Qualitaetsarbeit.
+Die erste grosse Produktstufe ist abgeschlossen: `PROJ-1` bis `PROJ-20` sind umgesetzt und in `features/` dokumentiert.
 
-Besonders in letzter Zeit geschaerft wurden:
+`PROJ-21` bereitet das Projekt zusaetzlich auf spaetere Monetarisierung und moegliche Store-Distribution vor. Der Schwerpunkt liegt dort auf Relicensing-Readiness, sichtbarem Herkunfts-Cleanup und dem gezielten Ersetzen aelterer Altbloecke.
 
-- OCR-Fallback fuer defekte PDF-Textlayer
-- deutsche Adress- und Namensmuster
-- Briefkopf-Unterdrueckung bei Steuer- und Behördendokumenten
-- Filter gegen Dokumentrauschen und false positives
+Der aktuelle Schwerpunkt liegt jetzt weniger auf fehlenden Grundfunktionen als auf:
 
-Weitere Verbesserungen werden weiterhin an echten Problembeispielen iterativ abgesichert.
+- weiterer Detection-Haertung an echten Problembeispielen
+- Produktfeinschliff in Review, Export und Regeln
+- Release-Vorbereitung fuer breitere Nutzung
+
+Die naechsten Schritte werden weiterhin ueber echte Dokumentfaelle, Regressionen und kleine produktnahe Iterationen abgesichert.
 
 ## Tech Stack
 
@@ -166,4 +190,8 @@ Weitere Verbesserungen werden weiterhin an echten Problembeispielen iterativ abg
 
 ## Lizenz
 
-GPL-3.0
+Der aktuelle Repository-Stand wird weiterhin unter der in [LICENSE](LICENSE) enthaltenen Lizenz verteilt.
+
+Eine spaetere Umstellung auf ein kommerzielles oder proprietaeres Modell setzt zuerst eine saubere Rechteklaerung, die Bewertung der verbleibenden Fachkern-Dateien und den Abschluss von `PROJ-21` voraus.
+
+Der aktuelle Commercial-Readiness-Stand wird in [docs/commercial-readiness-audit.md](docs/commercial-readiness-audit.md) separat nachgehalten.

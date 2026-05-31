@@ -1,0 +1,325 @@
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+Rechnungsdarstellung (kein Original)
+Rechnungstyp: <abgeleitet aus BT-3> Bsp.: Standardrechnung
+                                                                                                          ID Bundesportal: <…>
+                                                                                                              IM Beleg-ID: <…>
+
+Eingegangen am: <TT.MM.JJJJ>
+
+<Achtung: Auslands- / besonderer Steuersachverhalt>
+
+
+Lieferant                                                      Rechnungs-Nr.         <BT-1> Bsp.: 12115118
+<BT-27> Bsp.: Papyrus Deutschland GmbH & Co. KG                    Bestell-Nr.       <BT-13> Bsp.: 3000468320
+<BT-35> <BT-36> Bsp.: Gehrnstraße 7-11                        Rechnungsdatum         <BT-2> Bsp.: 30.06.2016
+<BT-40> - <BT-38> <BT-37> Bsp.: DE - 76275                         Kunden-Nr.        <BT-46> Bsp.: 3500035
+Ettlingen
+                                                                  Vertrags-Nr.       <BT-12> Bsp.: 3500077
+Rechnungsempfänger/-in                                           Lieferanten-Nr.     <BT-29> Bsp.: 0070001114
+<BT-44> Bsp.: Bundesagentur für Arbeit Zentrale
+                                                                    Lieferdatum      <BT-72> Bsp.: 29.06.2016
+<BT-50> <BT-51> Bsp.: Regensburger Straße 104
+<BT-55> - <BT-53> <BT-52> Bsp.: DE - 90478                                           <BT-73> bis <BT-74>
+Nürnberg                                                     Leistungszeitraum       Bsp.: 29.06.2016 bis 15.08.2016
+                                                                                     <BT-75> <BT-76>, <BT-80> - <BT-78>
+USt-ID: <BT-48> Bsp.: DE13585538                                                     <BT-77> Bsp.: Domagstrasse 19, DE -
+                                                                Lieferanschrift      81377 München
+Beschaffer/-in:                                            Warenempfänger/-in        <BT-70> Bsp.: Manuel Müller
+<BT-56> Bsp.: Manfred Müller
+<BT-57> Bsp.: 0911 1799876                                        Bearbeiter/-in     <BT-41> Bsp.: Tim Tester
+<BT-58> Bsp.: mueller@arbeitsagentur.de                                Telefon       <BT-42> Bsp.: 0127 2653214
+                                                                        E-Mail       <BT-43> Bsp.: tim.tester@beispiel.com
+Leitweg-ID
+                                                                        USt-ID       <BT-31> Bsp.: DE13585627
+<BT-10> Bsp.: 12345678-03182029-01
+                                                                     Steuer-ID       <BT-32> Bsp.: 1358562789
+                                                                         IBAN        <BT-84> Bsp.: DE25661900000040006338
+                                                                   SWIFT-Code        <BT-86> Bsp.: PBNKDEFF
+Positionsdaten
+                                                                                              Preis/     Gesamt
+ Pos.       ref. Pos.   Bezeichnung                                 Menge       Einheit                                    USt
+                                                                                             Einheit       netto
+ <BT-126>   <BT-132>    <BT-153>                                    <BT-129>    <BT-130>    <BT-146>     <BT-131>      <BT-152>
+ 1          10          Stempel                                     5           ST              2,00        10,00         19%
+ … befüllte Positionszeilen einblenden; Positionszeilen ausblenden, wenn nicht befüllt – Tabelle dynamisch anpassen
+
+                                                              Summe aus Rechnungspositionen             <BT-106>        <BT-5>
+                                           Zeile ausblenden, wenn nicht befüllt Summe Nachlass          <BT-107>        <BT-5>
+                                           Zeile ausblenden, wenn nicht befüllt Summe Zuschlag          <BT-108>        <BT-5>
+                                                                              Nettogesamtbetrag         <BT-109>        <BT-5>
+                                                                             Steuergesamtbetrag         <BT-110>        <BT-5>
+                                                                              Bruttogesamtbetrag        <BT-112>        <BT-5>
+                                   Zeile ausblenden, wenn nicht befüllt Geleistete Vorauszahlung        <BT-113>        <BT-5>
+                                            Zeile ausblenden, wenn nicht befüllt Rundungsbetrag         <BT-114>        <BT-5>
+                                                                    Fälliger Rechnungsbetrag            <BT-115>        <BT-5>
+
+
+Zahlungsbedingung: <BT-20> Bsp.: Zahlungsbedingungen Text Lorem ipsum dolor sit amet, consetetur sadipscing elitr,
+sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et
+accusam et justo duo
+
+Fälligkeitsdatum des Lieferanten: <BT-9> Bsp.: TT.MM.JJJJ
+
+Lieferantenkommentar: <BT-22> Bsp.: Lieferantenkommentar Text Lorem ipsum dolor sit amet, consetetur sadipscing
+elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos
+et accusam et justo duo
+// Seitenumbruch
+
+
+                                                                                                                             1/1
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+Ergänzende Rechnungsdaten
+
+ BT-1       Rechnungsnummer                                                     <Identifier>
+ BT-2       Rechnungsdatum                                                      <Date>
+ BT-3       Code des Rechnungstyps                                              <Code>
+ BT-5       Code der Rechnungswährung                                           <Code>
+ BT-6       Währungscode der Umsatzsteuer                                       <Code>
+ BT-7       Datum der Steuerfälligkeit                                          <Date>
+ BT-8       Code für das Datum der Steuerfälligkeit                             <Code>
+ BT-9       Fälligkeitsdatum der Zahlung                                        <Date>
+ BT-10      Leitweg-ID                                                          <Text>
+ BT-11      Projektreferenz                                                     <Document Reference>
+ BT-12      Vertragsreferenz                                                    <Document Reference>
+ BT-13      Bestellreferenz                                                     <Document Reference>
+ BT-14      Verkaufsauftragsreferenz                                            <Document Reference>
+ BT-15      Referenz auf die Wareneingangsmeldung                               <Document Reference>
+ BT-16      Lieferavisreferenz                                                  <Document Reference>
+ BT-17      Ausschreibungs- oder Losreferenz                                    <Document Reference>
+ BT-18      Kennung für ein Objekt                                              <Identifier>
+ BT-18      Kennung des Objekts - Kennung des Schemas                           <Text>
+ BT-19      Buchungsreferenz des Käufers                                        <Text>
+ BT-20      Zahlungsbedingungen                                                 <Text>
+ BG-1       RECHNUNGSTEXT
+ BT-21      Betreff                                                             <Text>
+ BT-22      Textvermerk                                                         <Text>
+ BG-2       SPEZIFIKATIONSKENNUNG
+ BT-23      Geschäftsprozesstyp                                                 <Text>
+ BT-24      Spezifikationskennung                                               <Identifier>
+ BG-3       VORAUSGEGANGENE RECHNUNG
+ BT-25      Referenz auf vorherige Rechnung                                     <Document Reference>
+ BT-26      Rechnungsdatum der vorherigen Rechnung                              <Date>
+ BG-4       LIEFERANT
+ BT-27      Name des Lieferanten                                                <Text>
+ BT-28      Name des Lieferanten im Handelsregister                             <Text>
+ BT-29      Kennung des Lieferanten - Kreditorennummer                          <Identifier>
+ BT-29      Kennung des Lieferanten - Kennung des Schemas                       <Text>
+ BT-30      Kennung der Rechtsform                                              <Identifier>
+ BT-31      Umsatzsteuer-ID des Lieferanten                                     <Identifier>
+ BT-32      Steuernummer des Lieferanten                                        <Identifier>
+ BT-32      Steuernummer des Lieferanten - Kennung des Schemas                  <Text>
+ BT-33      Sonstige rechtliche Informationen des Lieferanten                   <Text>
+ BT-34      Elektronische Adresse des Lieferanten                               <Identifier>
+            Bildungsmuster für die elektronische Adresse des
+ BT-34      Lieferanten                                                         <Text>
+ BG-5       ANSCHRIFT DES LIEFERANTEN
+ BT-35      Anschrift Zeile 1                                                   <Text>
+ BT-36      Anschrift Zeile 2                                                   <Text>
+
+
+                                                                                                       2/1
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+ BT-162     Anschrift Zeile 3                                                   <Text>
+ BT-37      Stadt                                                               <Text>
+ BT-38      Postleitzahl                                                        <Text>
+ BT-39      Region oder Bundesland                                              <Text>
+ BT-40      Ländercode                                                          <Code>
+ BG-6       KONTAKT DES LIEFERANTEN
+ BT-41      Name                                                                <Text>
+ BT-42      Telefon                                                             <Text>
+ BT-43      Email                                                               <Text>
+ BG-7       ERWERBER/-IN
+ BT-44      Name des Erwerbers                                                  <Text>
+ BT-45      Handelsname des Erwerbers                                           <Text>
+ BT-46      Kennung des Erwerbers                                               <Identifier>
+ BT-46      Kennung des Erwerbers - Kennung des Schemas                         <Text>
+ BT-47      Kennung der Rechtsform                                              <Identifier>
+ BT-47      Kennung der Rechtsform - Kennung des Schemas                        <Text>
+ BT-48      Umsatzsteuer-ID des Erwerbers                                       <Identifier>
+ BT-49      Elektronische Adresse des Erwerbers                                 <Identifier>
+ BT-49      Bildungsmuster für die elektronische Adresse des Erwerbers          <Text>
+ BG-8       ANSCHRIFT DES/DER ERWERBERS/-IN
+ BT-50      Anschrift Zeile 1                                                   <Text>
+ BT-51      Anschrift Zeile 2                                                   <Text>
+ BT-163     Anschrift Zeile 3                                                   <Text>
+ BT-52      Stadt                                                               <Text>
+ BT-53      Postleitzahl                                                        <Text>
+ BT-54      Region oder Bundesland                                              <Text>
+ BT-55      Ländercode                                                          <Code>
+ BG-9       KONTAKT DES/DER ERWERBERS/-IN
+ BT-56      Name                                                                <Text>
+ BT-57      Telefon                                                             <Text>
+ BT-58      Email                                                               <Text>
+ BG-10      ZAHLUNGSEMPFÄNGER/-IN
+ BT-59      Name                                                                <Text>
+ BT-60      Kennung des Zahlungsempfängers                                      <Identifier>
+ BT-60      Kennung des Zahlungsempfängers - Kennung des Schemas                <Text>
+ BT-61      Kennung der Rechtsform                                              <Identifier>
+ BT-61      Kennung der Rechtsform - Kennung des Schemas                        <Text>
+ BG-11      STEUERBEVOLLMÄCHTIGTER DES LIEFERANTEN
+ BT-62      Name des Steuerbevollmächtigten                                     <Text>
+ BT-63      Umsatzsteuer-ID des Steuerbevollmächtigten                          <Identifier>
+ BG-12      STEUERBEVOLLMÄCHTIGTER ANSCHRIFT
+ BT-64      Anschrift Zeile 1                                                   <Text>
+ BT-65      Anschrift Zeile 2                                                   <Text>
+ BT-164     Anschrift Zeile 3                                                   <Text>
+ BT-66      Stadt                                                               <Text>
+ BT-67      Postleitzahl                                                        <Text>
+ BT-68      Region oder Bundesland                                              <Text>
+
+                                                                                               3/1
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+ BT-69      Ländercode                                                          <Code>
+ BG-13      LIEFERINFORMATIONEN
+ BT-70      Name des Empfängers                                                 <Text>
+ BT-71      Kennung des Lieferorts                                              <Identifier>
+ BT-71      Kennung des Lieferorts - Kennung des Schemas                        <Text>
+ BT-72      Tatsächliches Lieferdatum                                           <Date>
+ BG-14      ABRECHNUNGSZEITRAUM
+ BT-73      Rechnungszeitraum Beginn                                            <Date>
+ BT-74      Rechnungszeitraums Ende                                             <Date>
+ BG-15      LIEFERANSCHRIFT
+ BT-75      Anschrift Zeile 1                                                   <Text>
+ BT-76      Anschrift Zeile 2                                                   <Text>
+ BT-165     Anschrift Zeile 3                                                   <Text>
+ BT-77      Stadt                                                               <Text>
+ BT-78      Postleitzahl                                                        <Text>
+ BT-79      Region oder Bundesland                                              <Text>
+ BT-80      Ländercode                                                          <Code>
+ BG-16      ZAHLUNGSWEISE
+ BT-81      Code für die Zahlungsweise                                          <Code>
+ BT-82      Textvermerk zur Zahlungsweise                                       <Text>
+ BT-83      Verwendungszweck                                                    <Text>
+ BG-17      ANGABEN ZUR ÜBERWEISUNG
+ BT-84      Kennung des Zahlungskontos                                          <Identifier>
+ BT-85      Name des Zahlungskontos                                             <Text>
+ BT-86      Kennung des Zahlungsdienstleisters                                  <Identifier>
+ BG-18      ANGABEN ZUR KARTENZAHLUNG
+ BT-87      Karten-Nummer                                                       <Text>
+ BT-88      Name des Karteninhabers                                             <Text>
+ BG-19      ANGABEN ZUM LASTSCHRIFTVERFAHREN
+ BT-89      Mandatsreferenznummer                                               <Identifier>
+ BT-90      Gläubiger-ID                                                        <Identifier>
+ BT-91      Kennung des zu belastenden Kontos                                   <Identifier>
+ BG-20      NACHLASS
+ BT-92      Nachlassbetrag ohne Umsatzsteuer                                    <Amount>
+ BT-93      Grundbetrag zur Berechnung des Nachlasses                           <Amount>
+ BT-94      Prozentsatz für den Nachlass                                        <Percentage>
+ BT-95      Code für das Umsatzsteuermerkmal                                    <Code>
+ BT-96      Für den Nachlass geltender Umsatzsteuersatz                         <Percentage>
+ BT-97      Textvermerk für den Grund des Nachlassbetrags                       <Text>
+ BT-98      Code für den Grund des Nachlassbetrags                              <Code>
+ BG-21      ZUSCHLAG
+ BT-99      Zuschlagsbetrag ohne Umsatzsteuer                                   <Amount>
+ BT-100     Grundbetrag zur Berechnung des Zuschlags                            <Amount>
+ BT-101     Prozentsatz für den Zuschlag                                        <Percentage>
+ BT-102     Code für das Umsatzsteuermerkmal                                    <Code>
+ BT-103     Für den Zuschlag geltender Umsatzsteuersatz                         <Percentage>
+ BT-104     Textvermerk für den Grund des Zuschlagbetrags                       <Text>
+
+                                                                                               4/1
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+ BT-105     Code für den Grund des Zuschlagbetrags                              <Code>
+ BG-22      GESAMTBETRÄGE DER RECHNUNG
+ BT-106     Summe aller Rechnungspositionen (netto)                             <Amount>
+ BT-107     Gesamtbetrag an Nachlässen                                          <Amount>
+ BT-108     Gesamtbetrag an Zuschlägen                                          <Amount>
+ BT-109     Gesamtbetrag ohne Umsatzsteuer                                      <Amount>
+ BT-110     Steuergesamtbetrag                                                  <Amount>
+ BT-111     Steuergesamtbetrag in Buchungswährung                               <Amount>
+ BT-112     Gesamtbetrag mit Umsatzsteuer                                       <Amount>
+ BT-113     Summe im Voraus gezahlter Beträge                                   <Amount>
+ BT-114     Rundungsbetrag                                                      <Amount>
+ BT-115     Fälliger Zahlungsbetrag                                             <Amount>
+ BG-23      UMSATZSTEUERAUFSCHLÜSSELUNG
+ BT-116     Steuerbasisbetrag                                                   <Amount>
+ BT-117     Steuerbetrag                                                        <Amount>
+ BT-118     Code der Umsatzsteuerkategorie                                      <Code>
+ BT-119     Umsatzsteuersatz                                                    <Amount>
+            Textvermerk für den Grund der Befreiung von der
+ BT-120     Umsatzsteuer                                                        <Text>
+ BT-121     Code für den Grund der Befreiung von der Umsatzsteuer               <Code>
+ BG-24      RECHNUNGSBEGRÜNDENDE UNTERLAGEN
+ BT-122     Kennung der rechnungsbegründenden Unterlage                         <Document Reference>
+ BT-123     Beschreibung der rechnungsbegründenden Unterlage                    <Text>
+ BT-124     Speicherort für ergänzende externe Informationen                    <Text>
+ BT-125     eingebetteter Rechnungsanhang                                       <Binary Object>
+ BT-125     MIME Code des angehängten Dokumentes                                <Text>
+ BT-125     Dateiname des angehängten Dokumentes                                <Text>
+ BG-25      ANGABEN ZUR RECHNUNGSPOSITION
+ BT-126     Kennung der Rechnungsposition                                       <Identifier>
+ BT-127     Textvermerk zur Rechnungsposition                                   <Text>
+ BT-128     Objektkennung der Rechnungsposition                                 <Identifier>
+            Objektkennung der Rechnungsposition - Kennung des
+ BT-128     Schemas                                                             <Text>
+ BT-129     Menge                                                               <Quantity>
+ BT-130     Code der zu Grunde gelegten Maßeinheit                              <Code>
+ BT-131     Betrag der Rechnungsposition (netto)                                <Amount>
+ BT-132     Referenz zur Bestellposition                                        <Document Reference>
+ BT-133     Textvermerk zu Buchungsdaten                                        <Text>
+ BG-26      ABRECHUNGSZEITRAUM DER RECHNUNGSPOSITION
+ BT-134     Rechnungszeitraum Beginn                                            <Date>
+ BT-135     Rechnungszeitraum Ende                                              <Date>
+ BG-27      NACHLASS AUF RECHNUNGSPOSITION
+ BT-136     Betrag des Nachlasses ohne Umsatzsteuer                             <Amount>
+ BT-137     Grundbetrag zur Berechnung des Nachlassbetrages                     <Amount>
+ BT-138     Prozentsatz des den Nachlassbetrag                                  <Percentage>
+ BT-139     Textvermerk für den Grund des Nachlassbetrags                       <Text>
+ BT-140     Code für den Grund des Nachlassbetrags                              <Code>
+ BG-28      ZUSCHLAG AUF RECHNUNGSPOSITION
+
+
+                                                                                                       5/1
+Dieses Dokument wurde automatisch auf Grundlage elektronischer Daten erzeugt.
+
+
+
+ BT-141     Betrag des Zuschlags ohne Umsatzsteuer                              <Amount>
+ BT-142     Grundbetrag zur Berechnung des Zuschlagbetrages                     <Amount>
+ BT-143     Prozentsatz für den Zuschlagbetrag                                  <Percentage>
+ BT-144     Textvermerk für den Grund des Zuschlagbetrags                       <Text>
+ BT-145     Code für den Grund des Zuschlagbetrags                              <Code>
+ BG-29      PREISANGABEN
+ BT-146     Preis des Artikels (netto)                                          <Unit Price Amount>
+ BT-147     Rabatt auf den Artikelpreis                                         <Unit Price Amount>
+ BT-148     Preis ohne Umsatzsteuer vor Abzug des Rabatts                       <Unit Price Amount>
+ BT-149     Anzahl an Artikeln                                                  <Quantity>
+ BT-150     Code der zu Grunde gelegten Maßeinheit                              <Code>
+ BG-30      UMSATZSTEUERINFO ZUR RECHNUNGSPOSITION
+ BT-151     Code für die Umsatzsteuerkategorie                                  <Code>
+ BT-152     Umsatzsteuersatz                                                    <Percentage>
+ BG-31      POSTENINFORMATIONEN
+ BT-153     Artikelname                                                         <Text>
+ BT-154     Artikelbeschreibung                                                 <Text>
+ BT-155     Artikelkennung des Verkäufers                                       <Identifier>
+ BT-156     Artikelkennung des Käufers                                          <Identifier>
+ BT-157     Postenkennung                                                       <Identifier>
+ BT-157     Postenkennung - Kennung des Schemas                                 <Text>
+ BT-158     Klassifizierungscode des Postens                                    <Identifier>
+ BT-158     Klassifizierungscode des Postens - Kennung des Schemas              <Text>
+ BT-158     Version des Bildungsschemas des Klassifizierungscodes               <Text>
+ BT-159     Ländercode                                                          <Code>
+ BG-32      POSTEN EIGENSCHAFTEN
+ BT-160     Name der Eigenschaft des Artikels                                   <Text>
+ BT-161     Wert der Eigenschaft des Artikels                                   <Text>
+
+
+
+
+                                                                                                      6/1
+

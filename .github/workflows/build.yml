@@ -12,12 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - run: brew install swiftlint xcodegen
-
-      - name: Verify generated Xcode project
-        run: |
-          xcodegen generate
-          git diff --exit-code -- HideMyData.xcodeproj
+      - run: brew install swiftlint
 
       - name: Lint
         run: swiftlint --strict
+
+      - name: Build
+        run: xcodebuild -project Inkognito.xcodeproj -scheme Inkognito -sdk macosx build
+
+      - name: Detection regressions
+        run: CLANG_MODULE_CACHE_PATH=/private/tmp/swift-module-cache swift scripts/run_detection_regressions.swift

@@ -1,0 +1,194 @@
+{
+  "role": "runtime_manifest",
+  "description": "Kuratierte Runtime-Teilmenge der eingebauten Regex-Muster fuer die App-Erkennung.",
+  "source_library": "../Regex-Pattern-Bibliothek.Json",
+  "selection_profile": "document_focused_runtime_v1",
+  "pattern_count": 27,
+  "runtime_scope": [
+    "dokumentzentrierte Personen-, Adress-, Kontakt- und Abrechnungsmerkmale",
+    "ausgewaehlte dokumentnahe Identifikatoren fuer die aktuelle Desktop-Nutzung"
+  ],
+  "selection_principles": [
+    "Runtime-Muster sollen bevorzugt in typischen Dokument- und Formular-Kontexten auftreten",
+    "unlabeled Catch-all-Muster bleiben nur dann in der Runtime, wenn ihr Dokumentbezug fachlich bewusst gewollt ist",
+    "breitere oder fachfremdere Muster verbleiben standardmaessig nur in der Quellenbibliothek, bis eine Runtime-Aufnahme explizit begruendet wird"
+  ],
+  "library_relationship": "Die Quellbibliothek enthaelt den breiteren Musterkatalog; dieses Manifest bleibt bewusst als kleinere Runtime-Auswahl kuratiert.",
+  "excluded_library_notes": [
+    "polnische Regex-Bloecke wurden aus der Runtime entfernt",
+    "entwicklernahe Secret-Token und Krypto-Adressmuster bleiben nur noch in der Quellenbibliothek",
+    "nicht dokumentzentrierte Secret- und Netzwerkmuster wie IP-, MAC-, JWT- und auslaendische Sozial-/Versicherungsformate bleiben nur noch in der Quellenbibliothek",
+    "breite unlabeled-Kreditkartenmuster bleiben nur noch in der Quellenbibliothek; in der Runtime bleibt der dokumentzentrierte Label-Fall erhalten",
+    "breite internationale Telefonnummern ohne Dokument-Label bleiben nur noch in der Quellenbibliothek; in der Runtime bleiben die explizit gelabelten Telefon- und Mobilfelder",
+    "weitere Bibliotheksmuster bleiben bis zu einer bewussten Runtime-Aufnahme nur in der Quellenbibliothek"
+  ],
+  "retained_runtime_notes": [
+    "die unlabeled E-Mail-Erkennung bleibt in der Runtime, weil E-Mail-Adressen in typischen Dokument- und Formular-Kontexten weiterhin regelmaessig direkt schutzrelevant sind",
+    "der MRZ-Fall bleibt trotz Secret-Kategorie in der Runtime, weil er hochgradig dokumentzentriert ist und fuer Ausweis- und Reisepassfaelle fachlich gewollt bleibt",
+    "das breite europaeische Datumsformat bleibt fuer die aktuelle Desktop-Nutzung bewusst in der Runtime und wird weiter ueber Review- und Dokumentkontext abgesichert"
+  ],
+  "patterns": [
+    {
+      "id": "email",
+      "description": "E-Mail-Adresse",
+      "category": "private_email",
+      "regex": "\\b[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}\\b"
+    },
+    {
+      "id": "iban",
+      "description": "IBAN, auch mit optionalen Leerzeichen",
+      "category": "account_number",
+      "regex": "\\b[A-Z]{2}\\d{2}(?:\\s?[A-Z0-9]){10,30}\\b(?!\\s*BIC\\b)"
+    },
+    {
+      "id": "bic_labeled",
+      "description": "BIC-Wert nach einem BIC-Label",
+      "category": "account_number",
+      "regex": "(?<=\\bBIC:\\s)[A-Z0-9]{8}(?:[A-Z0-9]{3})?\\b"
+    },
+    {
+      "id": "kundennummer_labeled",
+      "description": "Kundennummer nach dem Label Kundennummer",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bKundennummer:\\s)|(?<=\\bKundennummer\\s))(?:[A-Z0-9][A-Z0-9\\-]{5,}|\\d{2,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "vertragsnummer_labeled",
+      "description": "Vertragsnummer nach dem Label Vertragsnummer",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bVertragsnummer:\\s)|(?<=\\bVertragsnummer\\s))[A-Z0-9][A-Z0-9\\-]{5,}\\b"
+    },
+    {
+      "id": "zaehlernummer_labeled",
+      "description": "Zählernummer nach dem Label Zählernummer oder Zaehlernummer",
+      "category": "account_number",
+      "regex": "(?<=\\b(?:Zählernummer|Zaehlernummer):\\s)\\d{6,}\\b"
+    },
+    {
+      "id": "vorgangsnummer_labeled",
+      "description": "Vorgangsnummer nach dem Label Vorgangsnummer",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bVorgangsnummer:\\s)|(?<=\\bVorgangsnummer\\s))\\d{6,}\\b"
+    },
+    {
+      "id": "telefon_labeled",
+      "description": "Telefonnummer nach Telefon- oder Tel-Label",
+      "category": "private_phone",
+      "regex": "(?im)(?:(?<=\\bTelefon:\\s)|(?<=\\bTelefon\\s)|(?<=\\bTel\\.:\\s)|(?<=\\bTel\\.\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
+    },
+    {
+      "id": "mobil_labeled",
+      "description": "Mobilnummer nach Mobil- oder Handy-Label",
+      "category": "private_phone",
+      "regex": "(?im)(?:(?<=\\bMobil:\\s)|(?<=\\bMobil\\s)|(?<=\\bHandy:\\s)|(?<=\\bHandy\\s))0\\d(?:[\\d\\s()./\\-]{5,}\\d)?\\b"
+    },
+    {
+      "id": "konto_labeled",
+      "description": "Kontowert nach dem Label Konto",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bKonto:\\s)|(?<=\\bKonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "konto_field",
+      "description": "Komplettes Kontofeld mit Label Konto",
+      "category": "account_number",
+      "regex": "\\bKonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "kontonummer_labeled",
+      "description": "Kontonummer nach dem Label Kontonummer",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bKontonummer:\\s)|(?<=\\bKontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "kontonummer_field",
+      "description": "Komplettes Feld für Kontonummer",
+      "category": "account_number",
+      "regex": "\\bKontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokonto_labeled",
+      "description": "Girokonto-Wert nach dem Label Girokonto",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bGirokonto:\\s)|(?<=\\bGirokonto\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokonto_field",
+      "description": "Komplettes Feld für Girokonto",
+      "category": "account_number",
+      "regex": "\\bGirokonto\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokontonummer_labeled",
+      "description": "Girokontonummer nach dem gleichnamigen Label",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bGirokontonummer:\\s)|(?<=\\bGirokontonummer\\s))(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "girokontonummer_field",
+      "description": "Komplettes Feld für Girokontonummer",
+      "category": "account_number",
+      "regex": "\\bGirokontonummer\\s*:?\\s*(?:\\d{5,}|\\d{1,}(?:\\s\\d{2,})+)\\b"
+    },
+    {
+      "id": "buchungskonto_labeled",
+      "description": "Buchungskonto-Wert nach dem Label Buchungskonto",
+      "category": "account_number",
+      "regex": "(?:(?<=\\bBuchungskonto:\\s)|(?<=\\bBuchungskonto\\s))(?:\\d{2,}(?:\\s\\d{2,})+|[A-Z0-9][A-Z0-9\\- ]{5,})\\b"
+    },
+    {
+      "id": "blz_labeled",
+      "description": "BLZ-Wert nach dem Label BLZ",
+      "category": "account_number",
+      "regex": "(?<=\\bBLZ\\s)\\d{8}\\b"
+    },
+    {
+      "id": "credit_card_labeled",
+      "description": "Kreditkartennummer nach einem expliziten Karten-Label",
+      "category": "account_number",
+      "regex": "(?i)\\b(?:Kreditkarten(?:nummer|nr\\.?|num(?:mer)?)|Kartennummer|Kartennr\\.?|Karten(?:nr\\.?|nummer)|Credit\\s*Card\\s*Number|Card\\s*Number|Kreditkarte)[:\\s-]+(?:[\\d*][\\s\\-*]?){12,22}[\\d*]\\b"
+    },
+    {
+      "id": "german_honorific_name_slash",
+      "description": "Deutscher Name mit Anrede im Format Nachname/Vorname",
+      "category": "private_person",
+      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+/[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\b"
+    },
+    {
+      "id": "mrz",
+      "description": "Maschinenlesbare Passzone mit Großbuchstaben, Ziffern und Kleiner-als-Zeichen",
+      "category": "secret",
+      "regex": "\\b(?=[A-Z0-9<]{15,}\\b)(?=[A-Z0-9<]*[0-9<])[A-Z0-9<]{15,}\\b"
+    },
+    {
+      "id": "german_postal_city",
+      "description": "Deutsche PLZ-Stadt-Kombination mit bis zu drei Ortswörtern",
+      "category": "private_address",
+      "regex": "(?i)\\b\\d{5}[ \\t]*(?:\\n[ \\t]*)?(?!(?:Amazon|Bestell|Rechnung|Deutschland|Kontakt|Fax|Geschäftsführer|Registergericht|Kunden|Menge|Lieferung|Lieferadresse|Seite|Steuer(?:-Nr)?|Vorsitzender|Datum|Ersetzt)\\b)[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.]+(?:[ -][A-Za-zÄÖÜäöüß.]+){0,2}\\b(?!<)"
+    },
+    {
+      "id": "german_honorific_name",
+      "description": "Deutscher Personenname mit Anrede",
+      "category": "private_person",
+      "regex": "(?i)\\b(?:Frau|Herr)\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*(?:\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*){1,2}\\b"
+    },
+    {
+      "id": "german_couple_name_shared_surname",
+      "description": "Zwei Personennamen mit gemeinsamem Nachnamen und 'und'",
+      "category": "private_person",
+      "regex": "\\b[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\s+und\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß]+(?:-[A-ZÄÖÜa-zäöüß]+)*\\b"
+    },
+    {
+      "id": "german_street_house_number",
+      "description": "Deutsche Straßenadresse mit Hausnummer",
+      "category": "private_address",
+      "regex": "(?i)\\b(?:[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*\\s+){0,3}[A-ZÄÖÜa-zäöüß][A-Za-zÄÖÜäöüß.\\-]*(?:straße|str\\.|strasse|weg|allee|platz|gasse|ring|ufer|steig|steige)\\s*\\d+[A-Za-z]?\\b"
+    },
+    {
+      "id": "date_eu_dotted",
+      "description": "Europäisches Datum mit Punkten, Kommas oder Schrägstrichen",
+      "category": "private_date",
+      "regex": "[\"'`´’‚]?(?:0?[1-9]|[12]\\d|3[01])\\s*[\\.,/]\\s*(?:0?[1-9]|1[0-2])\\s*[\\.,/]\\s*(?:18|19|20)?\\d{2}\\b"
+    }
+  ]
+}

@@ -52,6 +52,26 @@ Das bedeutet konkret:
 - dokumentierter Migrationshinweis fuer Bestandsnutzer
 - aktualisierte Release-Checklist fuer kuenftige Distribution-Releases
 
+## Hosting-Entscheidung fuer den ersten Go-live
+
+Fuer den ersten echten `Inkognito`-Sparkle-Release gilt als pragmatischer Produktionspfad:
+
+- das notarisierten `dmg` wird als Release-Asset in GitHub Releases hochgeladen
+- der neue `Inkognito`-Appcast wird separat als eigene Datei veroeffentlicht
+- Release Notes werden separat als HTML-Datei veroeffentlicht
+- Lemon Squeezy oder App Store bleiben Vertriebs- bzw. Verkaufskanaele und sind nicht der primaere Sparkle-Downloadpfad
+
+Empfohlene erste URL-Struktur:
+
+- DMG-Download:
+  - `https://github.com/Dok100/Inkognito/releases/download/v0.3.1/Inkognito-0.3.1.dmg`
+- Appcast:
+  - spaeter ueber eine feste, update-taugliche URL wie `https://updates.inkognito.app/appcast.xml` oder einen vergleichbaren statischen Pfad
+- Release Notes:
+  - parallel zum Appcast als feste HTML-Zieladresse
+
+Diese Trennung sorgt dafuer, dass Verkauf, Lizenzierung und Auto-Update nicht unnoetig an dieselbe Plattform gekoppelt werden.
+
 ## Zielstruktur fuer den Neustart
 
 Empfohlene Trennung:
@@ -101,6 +121,6 @@ Bis zur bewussten Go-live-Entscheidung gilt:
 
 1. alte `HideMyData`-Sparkle-Dateien explizit als historisch eingefroren behandeln
 2. neue `Inkognito`-Appcast-Templates parallel pflegen
-3. fuer den ersten echten Sparkle-Release die Download-URL des notarisierten DMG festlegen
+3. fuer den ersten echten Sparkle-Release GitHub Releases als ersten DMG-Host festziehen und die konkrete Download-URL nach dem Upload einsetzen
 4. Sparkle-Signatur (`sparkle:edSignature`) aus dem finalen Release-Artefakt erzeugen und zusammen mit DMG-URL, Dateigroesse und Release Notes ueber `render_inkognito_appcast.sh` in den neuen Feed einsetzen
 5. erst dann entscheiden, ob und wie Bestandsnutzer aus dem alten Feed auf den neuen Pfad hingewiesen werden

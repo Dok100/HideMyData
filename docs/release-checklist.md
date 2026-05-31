@@ -54,6 +54,7 @@
 - Apple-Signing-, Archiv- und Notarisierungsablauf gegen `features/PROJ-24-apple-signing-and-notarization-readiness.md` pruefen, sobald die neue Distribution vorbereitet wird
 - fuer einen neuen Sparkle-Release die `Inkognito`-Templates in `release/sparkle/` aus dem finalen notarisierten DMG befuellen statt den historischen Feed direkt zu ueberschreiben
 - den konkreten `Inkognito`-Appcast bevorzugt über `bash release/sparkle/render_inkognito_appcast.sh ...` aus DMG, URL, `edSignature` und Release Notes erzeugen
+- fuer den ersten echten Sparkle-Go-live das notarisierten DMG bevorzugt als GitHub-Release-Asset hosten und erst danach die finale Enclosure-URL in den Appcast einsetzen
 
 ## Apple-Distribution vorbereiten
 

@@ -51,3 +51,16 @@ bash release/sparkle/render_inkognito_appcast.sh \
 ```
 
 5. Publish the generated appcast and matching DMG together.
+
+## First recommended hosting setup
+
+For the first real `Inkognito` Sparkle release, prefer this split:
+
+- host the notarized DMG as a GitHub Release asset
+- publish the generated appcast separately at a stable update URL
+- publish the release notes HTML separately alongside the appcast
+- keep Lemon Squeezy or App Store for sales and distribution strategy, not as the primary Sparkle enclosure host
+
+Example first DMG URL:
+
+- `https://github.com/Dok100/Inkognito/releases/download/v0.3.1/Inkognito-0.3.1.dmg`

@@ -47,18 +47,19 @@ Historische Namensreste von `HideMyData` sollen kontrolliert aus dem aktiven Pro
 ### Bereinigt
 
 - aktiver App-Einstieg intern auf `InkognitoApp` umgestellt
+- App-Einstiegsdatei im aktiven Projekt auf `InkognitoApp.swift` umgestellt
+- aktives Entitlements-File auf `Inkognito.entitlements` umgestellt
 - neue App-Notification fuer die Zwischenablage auf `Inkognito.showClipboardAnonymizer` umgestellt
 - Legacy-Notification `HMD.showClipboardAnonymizer` vorerst als Fallback weiter akzeptiert
+- Xcode-Target- und Scheme-Metadaten intern auf `Inkognito` umgestellt
 
 ### Später umbenennen
 
-- Xcode-Target-Name `HideMyData`
 - Source-Ordner `HideMyData/`
-- Entitlements-Dateiname `HideMyData.entitlements`
-- Scheme-/Projektmetadaten mit internem `HideMyData`-Namen
 
 ## Umsetzung
 
-- Riskante Umbenennungen an Target, Source-Ordner, Scheme und Sparkle-Artefakten wurden bewusst nicht angerührt.
+- Riskante Umbenennungen an Source-Ordner und historischen Sparkle-Artefakten wurden bewusst nicht angerührt.
 - Aktive Legacy-Reste wurden in `technisch nötig` und `später separat migrieren` getrennt.
 - Nur intern ungefährliche Bezeichner im laufenden App-Pfad wurden auf `Inkognito` gezogen, mit Legacy-Fallback für bestehende Notification-Namen.
+- Der Source-Ordner `HideMyData/` bleibt vorerst absichtlich bestehen, damit Dateipfade und bestehende Migrationskontexte nicht in demselben Schritt aufgerissen werden.

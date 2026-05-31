@@ -59,7 +59,7 @@
 		6E7E80653DEF59D2C5631DD9 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4E75A7141A03E35736C36D /* ContentView.swift */; };
 		6FCE22ABE5514E8842DB97F8 /* PatternMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0EE103BF3E1A344CDFAD04 /* PatternMatcher.swift */; };
 		7697CD1FE13A8A7E747999ED /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 252B40872BB8CAC016980CB3 /* MainView.swift */; };
-		77C48B7B1768AF87E7EDD1D1 /* HideMyDataApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD9BFDBDCC4E109D5B64106 /* HideMyDataApp.swift */; };
+		77C48B7B1768AF87E7EDD1D1 /* InkognitoApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD9BFDBDCC4E109D5B64106 /* InkognitoApp.swift */; };
 		791E0D214B37454D0C53C54B /* ModelDownloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90F9F75F8D210057CB761037 /* ModelDownloader.swift */; };
 		83125740A6A797A267B10207 /* BlurRedactionAnnotation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C819461B0327B9629B1868A7 /* BlurRedactionAnnotation.swift */; };
 		8C6A17560A2EB7C167A9D4A5 /* FloatingToolbar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0572FBC7FD03606ED07D2281 /* FloatingToolbar.swift */; };
@@ -145,7 +145,7 @@
 		663CD89A7239649CB385B317 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6C2AC5A0A3B04A5A9F0B3D2E /* HelpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpView.swift; sourceTree = "<group>"; };
 		71768E109F4DAAF0C37A9490 /* FirstRunPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunPhase.swift; sourceTree = "<group>"; };
-		7FD9BFDBDCC4E109D5B64106 /* HideMyDataApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HideMyDataApp.swift; sourceTree = "<group>"; };
+		7FD9BFDBDCC4E109D5B64106 /* InkognitoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkognitoApp.swift; sourceTree = "<group>"; };
 		90DCF724FC337ADD0614E158 /* InputMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMode.swift; sourceTree = "<group>"; };
 		90F9F75F8D210057CB761037 /* ModelDownloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloader.swift; sourceTree = "<group>"; };
 		92C6C93C751BEB171041EE9C /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
@@ -160,7 +160,7 @@
 		8C85EA4D7B3EE4C6C90E33C7 /* RedactionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedactionStyle.swift; sourceTree = "<group>"; };
 		8D91AF0D1A5C4A0AA819A0D4 /* RedactionRendering.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RedactionRendering.swift; sourceTree = "<group>"; };
 		C819461B0327B9629B1868A7 /* BlurRedactionAnnotation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlurRedactionAnnotation.swift; sourceTree = "<group>"; };
-		C8A76A95C746EA3B02F41B34 /* HideMyData.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HideMyData.entitlements; sourceTree = "<group>"; };
+		C8A76A95C746EA3B02F41B34 /* Inkognito.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Inkognito.entitlements; sourceTree = "<group>"; };
 		DEAC294E583A1CD61B3783D7 /* ImageRedactor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageRedactor.swift; sourceTree = "<group>"; };
 		DFF5C57B65350D249E4DC294 /* DocumentSurface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentSurface.swift; sourceTree = "<group>"; };
 		E09D912BEB75B1C5145E3548 /* ExportOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportOptions.swift; sourceTree = "<group>"; };
@@ -194,7 +194,7 @@
 		2FA8625DDBED38F39F1C2203 = {
 			isa = PBXGroup;
 			children = (
-				578AC1FBBCECDB36CDD46AF8 /* HideMyData */,
+				578AC1FBBCECDB36CDD46AF8 /* Inkognito */,
 				21ABE26EE3AE7E582E967D38 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -251,7 +251,7 @@
 			path = Help;
 			sourceTree = "<group>";
 		};
-		578AC1FBBCECDB36CDD46AF8 /* HideMyData */ = {
+		578AC1FBBCECDB36CDD46AF8 /* Inkognito */ = {
 			isa = PBXGroup;
 			children = (
 				663CD89A7239649CB385B317 /* Assets.xcassets */,
@@ -261,8 +261,8 @@
 				AB4E75A7141A03E35736C36D /* ContentView.swift */,
 				1BA6D8755C8A41EBA4E43612 /* DocumentTextHeuristics.swift */,
 				E09D912BEB75B1C5145E3548 /* ExportOptions.swift */,
-				C8A76A95C746EA3B02F41B34 /* HideMyData.entitlements */,
-				7FD9BFDBDCC4E109D5B64106 /* HideMyDataApp.swift */,
+				C8A76A95C746EA3B02F41B34 /* Inkognito.entitlements */,
+				7FD9BFDBDCC4E109D5B64106 /* InkognitoApp.swift */,
 				7E6DA5A34505432A8BC06A0D /* ImageDetectionLifecycleSupport.swift */,
 				2CF758F98BBE4D19BC3E7272 /* ImageExportLifecycleSupport.swift */,
 				2BC0F961E828490B868C27FE /* ImageAnnotationReviewLifecycleSupport.swift */,
@@ -352,9 +352,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		857CE039FD4D8CE090846F51 /* HideMyData */ = {
+		857CE039FD4D8CE090846F51 /* Inkognito */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 9D923A71EB581FA23697BD6A /* Build configuration list for PBXNativeTarget "HideMyData" */;
+			buildConfigurationList = 9D923A71EB581FA23697BD6A /* Build configuration list for PBXNativeTarget "Inkognito" */;
 			buildPhases = (
 				C627F45A2D711EE5B1FE12F6 /* Sources */,
 				71DCCA5A9F6330EC0861F261 /* Resources */,
@@ -364,7 +364,7 @@
 			);
 			dependencies = (
 			);
-			name = HideMyData;
+			name = Inkognito;
 			packageProductDependencies = (
 				F7409CFE2E2D83AA08D8E076 /* OpenMedKit */,
 			);
@@ -386,7 +386,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 9F3FE37702D14C804BD6F631 /* Build configuration list for PBXProject "HideMyData" */;
+			buildConfigurationList = 9F3FE37702D14C804BD6F631 /* Build configuration list for PBXProject "Inkognito" */;
 			developmentRegion = de;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -404,7 +404,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				857CE039FD4D8CE090846F51 /* HideMyData */,
+				857CE039FD4D8CE090846F51 /* Inkognito */,
 			);
 		};
 /* End PBXProject section */
@@ -477,7 +477,7 @@
 				8C6A17560A2EB7C167A9D4A5 /* FloatingToolbar.swift in Sources */,
 				672B026EAEFF81C5C7AB4D00 /* GlassSegmented.swift in Sources */,
 				6C2AC5A1A3B04A5A9F0B3D2E /* HelpView.swift in Sources */,
-				77C48B7B1768AF87E7EDD1D1 /* HideMyDataApp.swift in Sources */,
+				77C48B7B1768AF87E7EDD1D1 /* InkognitoApp.swift in Sources */,
 				3D8B4231BDEE78585ED15153 /* HomeButton.swift in Sources */,
 				E84CA8B2D16341EE72CFB7C5 /* ImageDocumentSurface.swift in Sources */,
 				91E3E2C5D78B9378F55BFAF1 /* ImageRedactor.swift in Sources */,
@@ -579,7 +579,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = HideMyData/HideMyData.entitlements;
+				CODE_SIGN_ENTITLEMENTS = HideMyData/Inkognito.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -693,7 +693,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				AUTOMATION_APPLE_EVENTS = NO;
-				CODE_SIGN_ENTITLEMENTS = HideMyData/HideMyData.entitlements;
+				CODE_SIGN_ENTITLEMENTS = HideMyData/Inkognito.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 0.3.0;
@@ -744,7 +744,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		9D923A71EB581FA23697BD6A /* Build configuration list for PBXNativeTarget "HideMyData" */ = {
+		9D923A71EB581FA23697BD6A /* Build configuration list for PBXNativeTarget "Inkognito" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				78972FFD209FF912FDA612C5 /* Debug */,
@@ -753,7 +753,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		9F3FE37702D14C804BD6F631 /* Build configuration list for PBXProject "HideMyData" */ = {
+		9F3FE37702D14C804BD6F631 /* Build configuration list for PBXProject "Inkognito" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				008C5C7CB3635CBA48775FE3 /* Debug */,

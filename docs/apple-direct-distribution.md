@@ -2,7 +2,7 @@
 
 This document turns `PROJ-24` into a concrete first release path for a notarized `dmg`.
 
-For repeated releases, prefer the repo helper at [build_and_notarize_dmg.sh](/Users/oliverkern/Documents/Projekte/HideMyData/release/build_and_notarize_dmg.sh:1).
+For repeated releases, prefer the repo helper at [build_and_notarize_dmg.sh](/Users/oliverkern/Documents/Projekte/Inkognito/release/build_and_notarize_dmg.sh:1).
 
 ## Goal
 
@@ -93,7 +93,7 @@ If automatic signing needs to talk to Apple during the archive, rerun with `-all
 
 ## 2. Export the signed app
 
-Use the repo template at [release/export-options/developer-id.plist](/Users/oliverkern/Documents/Projekte/HideMyData/release/export-options/developer-id.plist:1).
+Use the repo template at [release/export-options/developer-id.plist](/Users/oliverkern/Documents/Projekte/Inkognito/release/export-options/developer-id.plist:1).
 
 ```bash
 xcodebuild \
@@ -118,7 +118,7 @@ The exported app should pass before the `dmg` is built.
 
 ## 4. Build the DMG
 
-Use the helper script at [scripts/build_release_dmg.sh](/Users/oliverkern/Documents/Projekte/HideMyData/scripts/build_release_dmg.sh:1).
+Use the helper script at [scripts/build_release_dmg.sh](/Users/oliverkern/Documents/Projekte/Inkognito/scripts/build_release_dmg.sh:1).
 
 ```bash
 bash scripts/build_release_dmg.sh \

@@ -3,7 +3,7 @@
 Nutze diesen Prompt als Startpunkt fuer den naechsten Chat:
 
 ```text
-Wir arbeiten im Repo /Users/oliverkern/Documents/Projekte/HideMyData auf dem Branch codex-conjoined-name-pdf-fixes.
+Wir arbeiten im Repo /Users/oliverkern/Documents/Projekte/Inkognito auf dem Branch codex-conjoined-name-pdf-fixes.
 
 Bitte uebernimm den aktuellen Stand von HEAD.
 

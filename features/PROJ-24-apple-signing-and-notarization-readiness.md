@@ -1,6 +1,6 @@
 # PROJ-24 - Apple Signing and Notarization Readiness
 
-**Status**: In Vorbereitung
+**Status**: Abgeschlossen
 
 ## Ziel
 

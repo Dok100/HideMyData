@@ -5,7 +5,7 @@
 | [PROJ-1](PROJ-1-detection-haertung.md) | Detection-Härtung | Abgeschlossen |
 | [PROJ-2](PROJ-2-export-vertrauen.md) | Export-Vertrauen | Abgeschlossen |
 | [PROJ-3](PROJ-3-review-workflow.md) | Review-Workflow | Abgeschlossen |
-| [PROJ-4](PROJ-4-fehlerfuehrung-resilienz.md) | Fehlerführung und Resilienz | Abgeschlossen |
+| [PROJ-4](PROJ-4-fehlerfuehrung-resilienz.md) | Fehlerführung und Resilienz | In Arbeit |
 | [PROJ-5](PROJ-5-farbsystem-konsistenz.md) | Farbsystem und visuelle Konsistenz | Abgeschlossen |
 | [PROJ-6](PROJ-6-start-und-leerzustaende.md) | Start- und Leerzustände | Abgeschlossen |
 | [PROJ-7](PROJ-7-produktkommunikation.md) | Produktkommunikation | Abgeschlossen |
@@ -22,7 +22,7 @@
 | [PROJ-18](PROJ-18-manuelle-nacharbeit-beschleunigen.md) | Manuelle Nacharbeit beschleunigen | Abgeschlossen |
 | [PROJ-19](PROJ-19-export-zusammenfassung.md) | Menschliche Export-Zusammenfassung | Abgeschlossen |
 | [PROJ-20](PROJ-20-regel-assistenz.md) | Regel-Assistenz und Vorlagen | Abgeschlossen |
-| [PROJ-21](PROJ-21-commercial-readiness-relicensing-cleanup.md) | Commercial Readiness und Re-Licensing Cleanup | In Arbeit |
-| [PROJ-22](PROJ-22-sparkle-distribution-reset.md) | Sparkle-Historie und neue Distribution getrennt vorbereiten | Geplant |
-| [PROJ-23](PROJ-23-onboarding-and-rules-editor-ux.md) | Onboarding- und Regeln-Editor-UX nachschärfen | In Arbeit |
-| [PROJ-24](PROJ-24-apple-signing-and-notarization-readiness.md) | Apple Signing and Notarization Readiness | In Vorbereitung |
+| [PROJ-21](PROJ-21-commercial-readiness-relicensing-cleanup.md) | Commercial Readiness und Re-Licensing Cleanup | Abgeschlossen |
+| [PROJ-22](PROJ-22-sparkle-distribution-reset.md) | Sparkle-Historie und neue Distribution getrennt vorbereiten | In Arbeit |
+| [PROJ-23](PROJ-23-onboarding-and-rules-editor-ux.md) | Onboarding- und Regeln-Editor-UX nachschärfen | Abgeschlossen |
+| [PROJ-24](PROJ-24-apple-signing-and-notarization-readiness.md) | Apple Signing and Notarization Readiness | Abgeschlossen |

@@ -1,6 +1,6 @@
 # PROJ-23 – Onboarding- und Regeln-Editor-UX nachschärfen
 
-**Status**: In Arbeit
+**Status**: Abgeschlossen
 
 ## Ziel
 

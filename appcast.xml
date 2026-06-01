@@ -1,0 +1,36 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Inkognito</title>
+        <!-- Template for the new Inkognito Sparkle feed.
+             Do not publish unchanged.
+             Fill in version, download URL, length, and Sparkle edSignature
+             from the final notarized DMG release artifact. -->
+        <item>
+            <title>0.3.0</title>
+            <pubDate>Mon, 01 Jun 2026 08:57:38 +0000</pubDate>
+            <sparkle:version>0.3.0</sparkle:version>
+            <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[
+                <h2>Inkognito 0.3.0</h2>
+<ul>
+<li>Klarerer Review-Workflow mit Seitenstatus und schnellerer Nacharbeit</li>
+<li>Robustere Erkennung fuer Rechnungen, Formulare und E-Rechnungen</li>
+<li>Weniger false positives in Briefkoepfen, Ortsangaben und Rechtstexten</li>
+</ul>
+
+<h3>Wichtig fuer Nutzer</h3>
+<p>Inkognito 0.3.0 macht die lokale Anonymisierung sensibler Dokumente auf dem Mac deutlich praxisnaeher und verlaesslicher.</p>
+
+<h3>Update-Hinweis</h3>
+<p>Bei bestehenden Installationen kann einmalig ein erneuter Modelldownload noetig sein; bei sehr alten Vorabstaenden kann zusaetzlich eine bewusste Neuinstallation sinnvoll sein.</p>
+            ]]></description>
+            <enclosure
+                url="https://github.com/Dok100/Inkognito/releases/download/v0.3.0/Inkognito-0.3.0.dmg"
+                length="12177290"
+                type="application/octet-stream"
+                sparkle:edSignature="jEnMYBt759HXzgDM/NVLujQZTIsivIhyWY5+r+l2DzUJNrg6wSU/aWSNR6Anw9FTpXmOBA/65cxYgG7zG7T0Bw==" />
+        </item>
+    </channel>
+</rss>
